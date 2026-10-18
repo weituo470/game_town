@@ -1,0 +1,9 @@
+.pq-preview { margin: 0; background: #e7dfca; color: #313b31; font-family: system-ui, sans-serif; font-size: 1.125rem; line-height: 1.8; }
+.pq-preview-shell { box-sizing: border-box; max-width: 820px; margin: 24px auto; padding: 28px; background: #fcf7eb; border-radius: 20px; }
+.pq-preview-shell h1 { font-size: 1.5rem; line-height: 1.5; }
+.pq-preview-shell p { font-size: 1.125rem; }
+.pq-preview-results { border-top: 1px solid #c5b38f; margin-top: 20px; padding-top: 14px; }
+.pq-preview-results h2 { font-size: 1.125rem; }
+.pq-preview-results pre { font-size: .875rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.pq-preview-results button { font: inherit; font-size: 1rem; min-height: 44px; border: 1px solid #c5b38f; background: #f4ecdb; padding: 10px 16px; border-radius: 10px; }
+@media (max-width: 480px) { .pq-preview-shell { margin: 0; padding: 16px; border-radius: 0; } }

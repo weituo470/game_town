@@ -1,0 +1,18 @@
+.jetpack-status { position: absolute; z-index: 7; right: 24px; bottom: 24px; width: min(390px, calc(100% - 48px)); padding: 16px; border: 1px solid #a1d3dd80; border-radius: 12px; background: #16283cf5; color: #f5efdf; }
+.jetpack-status-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; font-size: var(--text-control); }
+.jetpack-status-heading > output { margin-left: auto; white-space: nowrap; color: #a9edf4; }
+.jetpack-status p { font-size: var(--text-body); line-height: 1.75; margin: 10px 0; }
+.jetpack-help-touch { display: none; }
+.jetpack-status small { display: block; font-size: var(--text-meta); line-height: 1.7; color: #cedae2; margin-top: 8px; }
+.jetpack-hover-button { display: flex; align-items: center; justify-content: center; gap: 8px; width: 100%; min-height: 44px; padding: 9px 12px; border: 1px solid #a9edf4; border-radius: 8px; background: #294657; color: #fff6e6; font-size: var(--text-control); font-weight: 700; }
+.jetpack-hover-button[aria-pressed="true"] { background: #a9edf4; color: #172b3b; }
+.jetpack-hover-button:focus-visible { outline: 3px solid #f3d797; outline-offset: 3px; }
+.jetpack-hover-button kbd { margin-left: auto; font: inherit; }
+.town-shell.is-first-person.is-flying .first-person-hint { display: none; }
+.town-shell.is-flying .town-intro, .town-shell.is-flying .journey-widget, .town-shell.is-flying .outdoor-launcher,
+.town-shell.is-flying .day-night-controls, .town-shell.is-flying .nearby-prompt { display: none; }
+.town-shell.is-flying .map-camera-controls { top: 22px; }
+.town-shell.is-flying .world-controls { max-width: calc(100% - 460px); }
+.town-shell.is-flying .keyboard-hint { max-width: 100%; }
+@media (max-width: 760px) { .jetpack-status { left: 12px; right: 12px; top: 12px; bottom: auto; width: auto; padding: 12px; } .town-shell.is-flying .map-camera-controls { display: none; } .jetpack-hover-button kbd { display: none; } }
+@media (max-width: 760px) { .jetpack-help-desktop { display: none; } .jetpack-help-touch { display: inline; } }

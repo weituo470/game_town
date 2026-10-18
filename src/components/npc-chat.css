@@ -1,0 +1,47 @@
+.npc-chat { margin-top: 28px; padding-top: 24px; border-top: 1px solid #c7cbb8; min-width: 0; }
+.npc-chat-heading { display: flex; flex-wrap: wrap; align-items: center; gap: 9px 14px; }
+.npc-chat-heading h4 { display: flex; align-items: center; gap: 8px; margin: 0; color: #354b33; font-size: 1.25rem; line-height: 1.6; }
+.npc-chat-badge { padding: 3px 9px; border-radius: 5px; background: #e8eddb; color: #3f5737; font-size: var(--text-meta); font-weight: 650; line-height: 1.7; }
+.npc-chat-disclosure { margin: 12px 0 14px; color: #59604f; font-size: var(--text-body); line-height: 1.8; }
+.npc-chat-service { display: flex; flex-wrap: wrap; align-items: center; gap: 7px 12px; margin-bottom: 16px; font-size: var(--text-control); line-height: 1.7; color: #4b6041; }
+.npc-chat-service button, .npc-chat-error-actions button { display: inline-flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 8px 12px; border: 1px solid #adb69a; border-radius: 8px; background: #f4f6e9; color: #3c5135; font-size: var(--text-control); line-height: 1.5; }
+.npc-chat-messages { max-height: 380px; overflow-y: auto; overscroll-behavior: contain; padding: 3px 5px 12px 0; margin-bottom: 18px; scroll-padding: 12px; }
+.npc-chat-message { margin: 0 0 15px; padding: 13px 16px; border-radius: 12px 12px 12px 3px; background: #f2f1e6; min-width: 0; }
+.npc-chat-message-user { margin-left: 25px; border-radius: 12px 12px 3px 12px; background: #e8eddb; }
+.npc-chat-speaker { display: block; margin-bottom: 4px; font-size: var(--text-control); font-weight: 650; color: #46583b; }
+.npc-chat-message p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; color: #303b2c; font-size: var(--text-body); line-height: 1.8; }
+.npc-chat-waiting { display: block; padding: 3px 0; font-size: var(--text-control); line-height: 1.7; color: #58684a; }
+.npc-chat-error { margin: 0 0 16px; padding: 14px 16px; border-left: 3px solid #a76731; background: #fbf0dd; }
+.npc-chat-error p { margin: 0; color: #754c2a; font-size: var(--text-body); line-height: 1.8; }
+.npc-chat-error-actions { display: flex; flex-wrap: wrap; gap: 9px; margin-top: 10px; }
+.npc-chat-form { min-width: 0; }
+.npc-chat-form label { display: block; margin-bottom: 9px; font-size: var(--text-control); font-weight: 650; color: #3c4c34; line-height: 1.7; }
+.npc-chat-form textarea { display: block; box-sizing: border-box; width: 100%; min-width: 0; min-height: 112px; max-height: 300px; resize: vertical; padding: 12px 14px; border: 1px solid #98a584; border-radius: 9px; background: #fffef8; color: #303b2c; font-family: inherit; font-size: var(--text-body); line-height: 1.8; }
+.npc-chat-form textarea::placeholder { color: #63705a; opacity: 1; }
+.npc-chat-form textarea:disabled { background: #eef0e6; color: #627056; opacity: 1; }
+.npc-chat button:disabled { cursor: not-allowed; opacity: .62; }
+.npc-chat :is(button, textarea, [tabindex]):focus-visible { outline: 3px solid #aa532b; outline-offset: 3px; }
+.npc-chat-form-footer { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; margin-top: 10px; }
+.npc-chat-input-hint { display: flex; flex-wrap: wrap; gap: 3px 12px; font-size: var(--text-meta); color: #5c6752; line-height: 1.7; }
+.npc-chat-send { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; min-width: 100px; padding: 10px 17px; border-radius: 9px; background: #3d543a; color: #fffdf4; font-size: var(--text-control); line-height: 1.5; }
+.npc-chat-send:not(:disabled):hover { background: #2b432a; }
+.npc-chat-retention { display: block; margin-top: 16px; color: #606b56; font-size: var(--text-body); line-height: 1.8; }
+.npc-speech-options { padding: 12px 0 18px; margin-bottom: 16px; border-bottom: 1px solid #d2d8c5; }
+.npc-speech-toggle { display: flex; align-items: center; gap: 11px; min-height: 46px; width: fit-content; max-width: 100%; color: #3d5334; font-size: var(--text-control); line-height: 1.6; cursor: pointer; }
+.npc-speech-toggle input { width: 22px; height: 22px; margin: 0; accent-color: #3d543a; flex-shrink: 0; }
+.npc-speech-disclosure { margin: 8px 0; font-size: var(--text-body); line-height: 1.8; color: #59634e; }
+.npc-speech-availability { display: block; color: #5c6a50; font-size: var(--text-meta); line-height: 1.7; }
+.npc-speech-reply { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; margin-top: 12px; }
+.npc-speech-reply button, .npc-speech-recheck { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 8px 12px; min-height: 44px; border: 1px solid #a9b79b; border-radius: 8px; background: #fbfcf3; color: #395332; font-size: var(--text-control); line-height: 1.5; }
+.npc-speech-recheck { margin-top: 10px; }
+.npc-speech-reply > span { color: #4c6040; font-size: var(--text-control); line-height: 1.7; }
+.npc-speech-reply > .npc-speech-error { flex-basis: 100%; margin-top: 2px; font-size: var(--text-body); line-height: 1.8; color: #78512f; }
+@media (max-width: 500px) {
+  .npc-chat { margin-top: 24px; padding-top: 21px; }
+  .npc-chat-message { padding: 12px 13px; }
+  .npc-chat-message-user { margin-left: 14px; }
+  .npc-chat-messages { max-height: 340px; }
+  .npc-chat-form-footer { align-items: stretch; }
+  .npc-chat-input-hint { flex: 1 1 100%; }
+  .npc-chat-send { flex: 1 1 auto; }
+}

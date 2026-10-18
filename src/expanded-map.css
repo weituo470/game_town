@@ -1,0 +1,53 @@
+.map-camera-controls { position: absolute; top: 88px; right: 32px; z-index: 5; color: #f5e8d2; }
+.map-camera-controls > div { display: flex; gap: 4px; padding: 4px; border: 1px solid #d8c4974d; border-radius: 10px; background: #202c40ed; }
+.map-camera-controls button { display: flex; align-items: center; justify-content: center; gap: 7px; min-height: 44px; padding: 9px 13px; border-radius: 6px; color: #e6e3da; font-size: var(--text-control); white-space: nowrap; }
+.map-camera-controls button svg { flex: 0 0 auto; }
+.map-camera-controls button[aria-pressed="true"] { color: #253044; background: #e9c794; }
+.map-camera-controls button:hover { box-shadow: inset 0 0 0 1px #e9c794; }
+.map-scale-note { display: block; margin-top: 8px; text-align: right; font-size: var(--text-meta); color: #ddd9cb; }
+.town-shell .compass-mark { display: none; }
+.town-shell.is-overview .town-player-name { display: none; }
+/* Follow mode can place bright paving underneath HUD copy. A bounded dark
+   backing keeps its contrast stable without shrinking text or hiding streets. */
+.town-shell.is-follow .town-intro::before { content: ''; position: absolute; inset: -10px -12px; z-index: -1; border-radius: 12px; background: #18243be0; pointer-events: none; }
+.town-shell.is-follow .map-scale-note { width: max-content; margin-left: auto; padding: 4px 7px; border-radius: 5px; background: #202c40ed; }
+.town-shell.is-follow .town-weather { padding: 5px 8px; border-radius: 5px; background: #202c40ed; }
+.town-shell.is-first-person .town-intro,
+.town-shell.is-first-person .journey-widget,
+.town-shell.is-first-person .town-weather,
+.town-shell.is-first-person .map-scale-note { display: none; }
+.town-shell.is-first-person .map-camera-controls { top: 22px; }
+.first-person-overlay { position: absolute; inset: 0; z-index: 4; pointer-events: none; }
+.first-person-crosshair { position: absolute; left: 50%; top: 50%; width: 18px; height: 18px; translate: -50% -50%; }
+.first-person-crosshair::before,
+.first-person-crosshair::after { content: ''; position: absolute; background: #fff9ec; box-shadow: 0 0 2px 1px #18243b; }
+.first-person-crosshair::before { width: 18px; height: 2px; top: 8px; left: 0; }
+.first-person-crosshair::after { width: 2px; height: 18px; top: 0; left: 8px; }
+.first-person-hint { position: absolute; top: 90px; right: 32px; max-width: min(640px, calc(100% - 64px)); margin: 0; padding: 8px 12px; border-radius: 7px; color: #f5e8d2; background: #202c40ed; font-size: var(--text-body); line-height: 1.7; }
+.first-person-touch-hint { display: none; }
+.town-shell.is-first-person .outdoor-launcher { display: none; }
+.town-shell.is-first-person .nearby-prompt { left: 50%; translate: -50% 0; }
+@media (max-width: 760px) {
+  .map-camera-controls { top: 184px; left: 20px; right: 20px; }
+  .map-camera-controls > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .map-camera-controls button { padding-inline: 6px; gap: 5px; }
+  .map-scale-note { text-align: left; }
+  .town-shell.is-follow .map-scale-note { margin-left: 0; }
+  .town-shell.is-first-person .map-camera-controls { top: 16px; }
+  .first-person-hint { top: 84px; left: 20px; right: 20px; max-width: none; text-align: center; }
+  .first-person-desktop-hint { display: none; }
+  .first-person-touch-hint { display: inline; }
+  .town-shell.is-first-person .nearby-prompt { left: 16px; translate: 0; }
+}
+@media (max-width: 480px) {
+  .map-camera-controls > div { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .map-camera-controls button:last-child { grid-column: 1 / -1; }
+  .first-person-hint { top: 132px; }
+}
+@media (pointer: coarse) {
+  .first-person-desktop-hint { display: none; }
+  .first-person-touch-hint { display: inline; }
+}
+@media (min-width: 761px) and (max-height: 700px) {
+  .map-camera-controls { top: 70px; }
+}

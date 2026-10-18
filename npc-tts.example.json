@@ -1,0 +1,5 @@
+{
+  "endpoint": "https://openspeech.bytedance.com/api/v3/tts/unidirectional/sse",
+  "resourceId": "seed-tts-2.0",
+  "timeoutMs": 30000
+}

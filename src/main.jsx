@@ -1,0 +1,10 @@
+import React from 'react';
+import { createRoot } from 'react-dom/client';
+import App from './App.jsx';
+import './styles.css';
+import './dusk-ui.css';
+import './expanded-map.css';
+import './day-night-ui.css';
+import './npc-scene-ui.css';
+import './character-studio-entry.css';
+createRoot(document.getElementById('root')).render(<React.StrictMode><App /></React.StrictMode>);

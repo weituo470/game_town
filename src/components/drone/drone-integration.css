@@ -1,0 +1,52 @@
+/* Only this mode owns the full viewport. The original town remains mounted. */
+.town-shell.is-drone { position: fixed; inset: 0; z-index: 45; width: 100%; height: 100svh; min-height: 0; background: #050c1c; }
+.town-shell.is-drone > :not(.world-stage):not(.drone-show-controls):not(.loading-scene) { display: none; }
+.town-shell.is-drone .world-stage { pointer-events: none; }
+.town-shell.is-drone.is-drone-fpv .world-stage { pointer-events: auto; touch-action: none; }
+.town-shell.is-drone .town-label-anchor,
+.town-shell.is-drone .wonder-world-label,
+.town-shell.is-drone .outdoor-world-label,
+.town-shell.is-drone .npc-name-label,
+.town-shell.is-drone .gpt-park-label { visibility: hidden; pointer-events: none; }
+.drone-programme-heading { margin-bottom: 20px; }
+.drone-programme-heading .drone-invitation-kicker { color: #52675d; }
+.drone-programme-heading h3 { margin: 8px 0; font-size: var(--text-heading, 1.5rem); }
+.drone-programme-heading p { margin: 0; font-size: var(--text-body); line-height: 1.8; }
+.drone-invitation { display: grid; grid-template-columns: minmax(120px, 170px) minmax(0, 1fr); align-items: center; gap: 24px; padding: 24px; margin: 0 0 20px; color: #f8edcf; background: radial-gradient(ellipse at 8% 60%, #1b3b4d, transparent 60%), #0a162a; border: 1px solid #aa925c80; border-radius: 8px; overflow: hidden; }
+.drone-invitation-art { color: #edce83; }
+.drone-invitation-art svg { display: block; width: 100%; max-height: 230px; filter: drop-shadow(0 0 9px #dbb76760); }
+.drone-invitation-kicker { display: block; color: #aed9d2; font-size: var(--text-meta); line-height: 1.7; letter-spacing: .16em; }
+.drone-invitation-copy h4 { margin: 8px 0; font-family: 'Songti SC', 'SimSun', serif; font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 600; letter-spacing: .06em; }
+.drone-invitation-copy p { font-size: var(--text-body); line-height: 1.8; color: #d7e0e7; max-width: 37em; }
+.drone-invitation-start { display: inline-flex; align-items: center; gap: 10px; min-height: 48px; margin-top: 8px; padding: 11px 18px; border: 1px solid #e0c487; background: #ead2a0; color: #172237; border-radius: 4px; font-size: var(--text-control); font-weight: 700; }
+.drone-invitation-start:hover { background: #ffebbf; }
+.drone-invitation-start:focus-visible { outline: 2px solid #fff8e8; outline-offset: 4px; }
+.drone-invitation-droplet { border-color: #7eaabc80; }
+.drone-invitation-droplet .drone-invitation-art { color: #c7e7f1; }
+.drone-invitation-droplet .drone-invitation-start { background: #c7e7f1; border-color: #c7e7f1; }
+.drone-invitation-droplet .drone-invitation-start:hover { background: #e5f7ff; }
+.drone-invitation-carrier-battle { border-color: #7cbbb580; }
+.drone-invitation-carrier-battle .drone-invitation-art { color: #a9e9e4; }
+.drone-invitation-carrier-battle .drone-invitation-start { background: #a9e9e4; border-color: #a9e9e4; }
+.drone-invitation-blackhole { border-color: #ba967680; background: radial-gradient(ellipse at 8% 60%, #39291e, transparent 60%), #0a101e; }
+.drone-invitation-blackhole .drone-invitation-art { color: #ffc793; }
+.drone-invitation-blackhole .drone-invitation-start { background: #f4c797; border-color: #f4c797; }
+.drone-invitation-meta { display: block; margin-top: 12px; font-size: var(--text-meta); line-height: 1.7; color: #aebdcb; }
+.drone-town-entry { position: absolute; z-index: 5; top: 182px; right: 32px; display: flex; align-items: center; gap: 12px; padding: 10px 16px; min-height: 48px; border: 1px solid #cfaf71; border-radius: 6px; color: #ffe3ab; background: #142139f5; font-size: var(--text-control); box-shadow: 0 3px 18px #0003; }
+.drone-town-entry:hover { background: #233957; }
+.town-shell.is-overview .outdoor-launcher, .town-shell.is-follow .outdoor-launcher { top: 244px; }
+.town-shell.is-first-person .drone-town-entry, .town-shell.is-wonder .drone-town-entry, .town-shell.has-outdoor-game .drone-town-entry { display: none; }
+@media (max-width: 760px) {
+  .drone-invitation { grid-template-columns: 1fr; gap: 12px; padding: 22px 18px; }
+  .drone-invitation-art { display: none; }
+  .drone-invitation-copy h4 { letter-spacing: .02em; }
+  .drone-invitation-start { width: 100%; justify-content: center; }
+  .drone-town-entry { top: 348px; left: 20px; right: 20px; justify-content: center; }
+  .town-shell.is-overview .outdoor-launcher { top: 410px; }
+  .town-shell.is-follow .outdoor-launcher { top: 346px; }
+  .town-shell.is-follow .drone-town-entry { display: none; }
+}
+@media (max-width: 359px) {
+  .drone-town-entry { top: 396px; left: 16px; right: 16px; }
+  .town-shell.is-overview .outdoor-launcher { top: 458px; }
+}

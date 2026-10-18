@@ -1,0 +1,186 @@
+import { Room, ServerError } from '@colyseus/core';
+import { schema, t } from '@colyseus/schema';
+import { cleanName } from './identity.js';
+import { createReconnectDiagnostics } from './reconnectDiagnostics.js';
+import { SPAWN, movePlayer, getDestination } from '../shared/world.js';
+import { startAvatarJump, stepAvatar, stoppedVertical, safeLanding } from '../shared/jetpack.js';
+import { PROTOCOL_VERSION, MAX_PLAYERS, SERVER_TICK_MS, STATE_PATCH_MS, RECONNECT_SECONDS, INPUT_TIMEOUT_MS, MESSAGE, PLAYER_COLORS } from '../shared/protocol.js';
+
+export const PlayerState = schema({
+  id: t.string(), guestId: t.string(), name: t.string(),
+  x: t.number(), y: t.number(), z: t.number(), vy: t.number(), yaw: t.number(), moving: t.boolean(), jetpack: t.boolean(), thrusting: t.boolean(), hovering: t.boolean(),
+  color: t.string(), connected: t.boolean(), seq: t.number(),
+}, 'PlayerState');
+
+export const TownState = schema({
+  code: t.string(), protocolVersion: t.number(), tick: t.number(), serverTime: t.number(),
+  players: t.map(PlayerState),
+}, 'TownState');
+
+const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+export function validInput(value, previousSeq = -1) {
+  return isRecord(value) && Object.keys(value).every(key => ['x', 'z', 'seq', 'jump', 'stop', 'thrust', 'hover'].includes(key))
+    && Number.isFinite(value.x) && Number.isFinite(value.z)
+    && Math.abs(value.x) <= 1 && Math.abs(value.z) <= 1
+    && (value.jump === undefined || typeof value.jump === 'boolean')
+    && (value.stop === undefined || typeof value.stop === 'boolean')
+    && (value.thrust === undefined || typeof value.thrust === 'boolean')
+    && (value.hover === undefined || typeof value.hover === 'boolean')
+    && !(value.jump && value.thrust)
+    && !(value.hover && (value.jump || value.thrust))
+    && (!value.stop || (value.x === 0 && value.z === 0 && !value.jump && !value.thrust && !value.hover))
+    && Number.isSafeInteger(value.seq) && value.seq >= 0 && value.seq > previousSeq;
+}
+
+export function makeTownRoom({ identity, roomCodes, reconnectSeconds = RECONNECT_SECONDS, now = Date.now }) {
+  const diagnostic = createReconnectDiagnostics();
+  return class TownRoom extends Room {
+    maxClients = MAX_PLAYERS;
+    patchRate = STATE_PATCH_MS;
+    maxMessagesPerSecond = 65;
+    state = new TownState();
+    inputs = new Map();
+    controls = new Map();
+
+    trace(event, client, fields = {}) {
+      diagnostic(event, {
+        roomId: this.roomId, sessionId: client?.sessionId,
+        hasPlayer: client ? this.state.players.has(client.sessionId) : undefined,
+        hasReservedSeat: client ? this.hasReservedSeat(client.sessionId) : undefined,
+        connectedClients: this.clients.length, players: this.state.players.size, ...fields,
+      });
+    }
+
+    onAuth(_client, options) {
+      if (options?.protocolVersion !== PROTOCOL_VERSION) throw new ServerError(400, '协议版本不同，请刷新页面。');
+      const guest = identity.verify(options?.token);
+      if (!guest) throw new ServerError(401, '游客凭据已失效，请重新连接。');
+      return { ...guest, name: cleanName(options?.name) };
+    }
+
+    onCreate(options) {
+      if (!/^[A-HJ-NP-Z2-9]{6}$/.test(options.code || '')) throw new ServerError(400, '无效房间邀请码。');
+      this.state.code = options.code;
+      this.state.protocolVersion = PROTOCOL_VERSION;
+      this.state.tick = 0;
+      this.state.serverTime = now();
+      this.seatReservationTimeout = 10;
+      roomCodes.set(options.code, this.roomId);
+      this.onMessage(MESSAGE.INPUT, (client, input) => this.receiveInput(client, input));
+      this.onMessage(MESSAGE.TRAVEL, (client, payload) => this.receiveTravel(client, payload));
+      this.onMessage('*', client => this.rejectMessage(client, 'UNKNOWN_MESSAGE', '不支持的操作。'));
+      this.setSimulationInterval(delta => this.step(Math.min(delta, 100)), SERVER_TICK_MS);
+    }
+
+    onJoin(client, _options, auth) {
+      for (const player of this.state.players.values()) {
+        if (player.guestId === auth.guestId) throw new ServerError(409, '该游客已在房间内，请返回原标签页或等待重连结束。');
+      }
+      const usedColors = new Set([...this.state.players.values()].map(player => player.color));
+      const color = PLAYER_COLORS.find(item => !usedColors.has(item)) || PLAYER_COLORS[0];
+      const offset = this.state.players.size * 0.75 - 2.625;
+      this.state.players.set(client.sessionId, new PlayerState({
+        id: client.sessionId, guestId: auth.guestId, name: auth.name,
+        ...SPAWN, x: offset, y: 0, vy: 0, moving: false, jetpack: false, thrusting: false, hovering: false, color, connected: true, seq: -1,
+      }));
+      this.controls.set(client.sessionId, { seq: -1, travelAt: -Infinity, noticesAt: -Infinity, invalid: 0 });
+      this.trace('onJoin', client);
+    }
+
+    rejectMessage(client, code, message) {
+      const controls = this.controls.get(client.sessionId);
+      if (!controls) return;
+      controls.invalid += 1;
+      if (now() - controls.noticesAt > 500) {
+        client.send(MESSAGE.NOTICE, { code, message });
+        controls.noticesAt = now();
+      }
+      if (controls.invalid >= 30) client.leave(4000);
+    }
+
+    receiveInput(client, input) {
+      const controls = this.controls.get(client.sessionId);
+      if (!controls || !validInput(input, controls.seq)) {
+        this.rejectMessage(client, 'INVALID_INPUT', '移动输入无效或已过期。');
+        return;
+      }
+      controls.seq = input.seq;
+      const player = this.state.players.get(client.sessionId);
+      player.seq = input.seq;
+      if (input.stop) Object.assign(player, stoppedVertical(player));
+      else if (input.jump) {
+        const jump = startAvatarJump(player);
+        if (jump) Object.assign(player, jump);
+      }
+      this.inputs.set(client.sessionId, { x: input.x, z: input.z, thrust: input.thrust === true, hover: input.hover === true, at: now() });
+    }
+
+    receiveTravel(client, payload) {
+      const controls = this.controls.get(client.sessionId);
+      const hasSequence = isRecord(payload) && payload.seq !== undefined;
+      if (!controls || !isRecord(payload) || Object.keys(payload).some(key => !['id', 'seq'].includes(key))
+        || typeof payload.id !== 'string' || payload.id.length > 24
+        || (hasSequence && (!Number.isSafeInteger(payload.seq) || payload.seq < 0 || payload.seq <= controls.seq))) {
+        this.rejectMessage(client, 'INVALID_TRAVEL', '前往地点无效。'); return;
+      }
+      const destination = getDestination(payload.id);
+      if (!destination) { this.rejectMessage(client, 'INVALID_TRAVEL', '没有这个地点。'); return; }
+      if (now() - controls.travelAt < 500) { this.rejectMessage(client, 'TRAVEL_COOLDOWN', '请稍后再前往。'); return; }
+      controls.travelAt = now();
+      const player = this.state.players.get(client.sessionId);
+      if (hasSequence) { controls.seq = payload.seq; player.seq = payload.seq; }
+      Object.assign(player, destination, { y: 0, vy: 0, moving: false, jetpack: false, thrusting: false, hovering: false });
+      this.inputs.delete(client.sessionId);
+    }
+
+    step(deltaMs) {
+      this.state.tick += 1;
+      const time = now();
+      this.state.serverTime = time;
+      for (const [sessionId, player] of this.state.players) {
+        const input = this.inputs.get(sessionId);
+        const direction = player.connected && input && time - input.at <= INPUT_TIMEOUT_MS ? input : { x: 0, z: 0 };
+        const { rescued, ...next } = stepAvatar(player, direction, deltaMs / 1000);
+        Object.assign(player, next);
+      }
+    }
+
+    onDrop(client, code) {
+      this.trace('onDrop', client, { closeCode: code });
+      const player = this.state.players.get(client.sessionId);
+      if (player) { Object.assign(player, safeLanding(player.x, player.z), { connected: false, moving: false, y: 0, vy: 0, jetpack: false, thrusting: false, hovering: false }); }
+      this.inputs.delete(client.sessionId);
+      // Oversized payloads and policy violations do not reserve a reusable seat.
+      if (player && ![1008, 1009].includes(code)) {
+        const reconnection = this.allowReconnection(client, reconnectSeconds);
+        this.trace('allowReconnection.registered', client, { registered: this.hasReservedSeat(client.sessionId), reconnectSeconds });
+        reconnection.then(
+          () => this.trace('allowReconnection.resolved', client),
+          () => this.trace('allowReconnection.ended', client),
+        );
+      } else this.trace('allowReconnection.skipped', client, { closeCode: code, registered: false });
+    }
+
+    onReconnect(client) {
+      this.trace('onReconnect', client);
+      const player = this.state.players.get(client.sessionId);
+      if (player) { Object.assign(player, safeLanding(player.x, player.z), { connected: true, moving: false, y: 0, vy: 0, jetpack: false, thrusting: false, hovering: false }); }
+      this.inputs.delete(client.sessionId);
+    }
+
+    onLeave(client, code) {
+      this.trace('onLeave', client, { closeCode: code });
+      this.inputs.delete(client.sessionId);
+      this.controls.delete(client.sessionId);
+      this.state.players.delete(client.sessionId);
+      this.trace('onLeave.cleaned', client, { closeCode: code });
+    }
+
+    onDispose() {
+      this.trace('onDispose');
+      if (roomCodes.get(this.state.code) === this.roomId) roomCodes.delete(this.state.code);
+      this.inputs.clear();
+      this.controls.clear();
+    }
+  };
+}

@@ -1,0 +1,27 @@
+Coastal environment lighting / sky
+Asset: Kloppenheim 06 Pure Sky (1K HDRI)
+Source: https://polyhaven.com/a/kloppenheim_06_puresky
+Download: https://dl.polyhaven.org/file/ph-assets/HDRIs/hdr/1k/kloppenheim_06_puresky_1k.hdr
+License: CC0. Verified 2026-10-18 at https://polyhaven.com/license
+MD5 supplied by asset API: 995d68b1656f26452572645c0ffe898b
+Stored locally as coastal-sky.hdr; no external requests during playback.
+
+Photogrammetry / scanned 1K surface textures, color + OpenGL normal + roughness:
+- Aerial Grass Rock: https://polyhaven.com/a/aerial_grass_rock
+- Concrete Floor: https://polyhaven.com/a/concrete_floor
+- Rock Boulder Dry: https://polyhaven.com/a/rock_boulder_dry
+Source downloads obtained via https://api.polyhaven.com/files/{asset-id}.
+All three are Poly Haven CC0 1.0 assets, license verified 2026-10-18.
+https://creativecommons.org/publicdomain/zero/1.0/
+Stored locally with asset-id-color/normal/roughness.jpg names.
+These external assets retain their CC0 status; the project's MIT licence does
+not describe them as original project artwork. Poly Haven website logos, text
+and sample renders are not included under this asset notice.
+
+Three.js and React Three Fiber are existing MIT-licensed dependencies.
+Their respective upstream licences must be retained with redistributed code.
+Scene geometry, water disturbances, smoke sprites and choreography are authored
+for this project. These are real-time procedural 3D scenes, not photographs or
+physically validated simulations. Synthesized ambience is not field recording.
+See THIRD_PARTY_NOTICES.md in the repository for audio, brands, characters and
+other material whose rights are separate from the project's code licence.

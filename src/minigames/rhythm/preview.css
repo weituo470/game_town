@@ -1,0 +1,10 @@
+html { font-size: 100%; }
+body { margin: 0; background: #e6ddc7; font-family: system-ui, 'Microsoft YaHei', sans-serif; }
+.rt-preview { min-height: 100vh; padding: 28px 16px; }
+.rt-preview-shell { max-width: 760px; margin: 0 auto; padding: 24px; background: #fbf4e5; border-radius: 24px; }
+.rt-preview-events { margin-top: 20px; font-size: 1rem; color: #344b40; }
+.rt-preview-events summary { cursor: pointer; min-height: 44px; line-height: 44px; }
+.rt-preview-events pre { font-size: .875rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+.rt-preview-shell > p { font-size: 1.125rem; line-height: 1.8; }
+.rt-preview-shell > button { min-height: 44px; font-size: 1rem; }
+@media (max-width: 560px) { .rt-preview { padding: 12px; } .rt-preview-shell { padding: 16px; border-radius: 16px; } }

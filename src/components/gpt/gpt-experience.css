@@ -1,0 +1,92 @@
+.gpt-experience { position: fixed; inset: 0; z-index: 120; background: #071c24; color: #f1fff9; overflow: hidden; outline: none; --gpt-accent: #84f5cb; --gpt-muted: #c1dcd4; }
+.gpt-stage, .gpt-stage > div, .gpt-stage canvas { position: absolute !important; inset: 0; width: 100%; height: 100%; }
+.gpt-stage { touch-action: none; }
+.gpt-vignette { position: absolute; inset: 0; pointer-events: none; background: linear-gradient(90deg,#04181de6 0%,#04181db3 24%,transparent 62%),linear-gradient(180deg,#051a20d9 0%,#051a2000 25%,#051a2000 58%,#051a20f2 100%); }
+.gpt-top { position: absolute; left: 36px; right: 36px; top: 28px; display: flex; justify-content: space-between; align-items: center; gap: 20px; }
+.gpt-brand { display: flex; align-items: center; gap: 16px; }
+.gpt-symbol { width: 68px; height: 68px; object-fit: contain; background: #050505; border-radius: 50%; }
+.gpt-designs { position: absolute; left: 42px; top: 126px; display: flex; gap: 8px; }
+.gpt-designs button { background: #092329ed; padding: 12px 18px; }
+.gpt-designs button > span:first-child { display: grid; place-items: center; width: 25px; height: 25px; border: 1px solid #adc4c56b; border-radius: 50%; font-size: var(--text-meta); }
+.gpt-designs button[aria-pressed="true"] { color: #071b21; background: var(--gpt-accent); border-color: var(--gpt-accent); }
+.gpt-chosen-mark { font-size: var(--text-meta); }
+.gpt-choice { position: absolute; right: 36px; top: 126px; text-align: right; }
+.gpt-choice button { border-color: var(--gpt-accent); color: var(--gpt-accent); }
+.gpt-choice > span { display: block; margin-top: 9px; font-size: var(--text-meta); color: var(--gpt-muted); }
+.gpt-round-track { height: 2px; margin-top: 10px; background: #a6c8ce33; overflow: hidden; }
+.gpt-round-track i { display: block; height: 100%; background: var(--gpt-accent); transition: width .35s linear; }
+.gpt-kicker { font-size: var(--text-meta); letter-spacing: .16em; color: var(--gpt-muted); }
+.gpt-brand h1 { font-size: 1.75rem; font-weight: 650; letter-spacing: .08em; margin-top: 6px; }
+.gpt-top-actions { display: flex; align-items: center; gap: 28px; }
+.gpt-status { display: flex; align-items: center; gap: 9px; font-size: var(--text-meta); color: var(--gpt-muted); }
+.gpt-status i { width: 7px; height: 7px; background: var(--gpt-accent); border-radius: 50%; box-shadow: 0 0 16px #84f5cbb3; }
+.gpt-experience button, .gpt-experience select { min-height: 44px; font-size: var(--text-control); font-family: inherit; color: #f1fff9; display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 10px 14px; border: 1px solid #95c5b64d; border-radius: 6px; background: #0a292deb; }
+.gpt-experience button:hover { border-color: var(--gpt-accent); background: #17413e; }
+.gpt-designs button[aria-pressed="true"]:hover { color: #071b21; background: var(--gpt-accent); }
+.gpt-experience .gpt-choice button { border-color: var(--gpt-accent); color: var(--gpt-accent); }
+.gpt-experience :focus-visible { outline: 3px solid #a2ffda; outline-offset: 4px; }
+.gpt-caption { position: absolute; left: 42px; bottom: 162px; max-width: min(460px, calc(100% - 84px)); pointer-events: none; text-shadow: 0 2px 18px #001413; }
+.gpt-caption h2 { font-size: clamp(1.75rem,3vw,2.75rem); line-height: 1.4; font-weight: 500; letter-spacing: .03em; margin: 8px 0; }
+.gpt-caption h2 span { color: var(--gpt-accent); font-weight: 300; }
+.gpt-caption p { font-size: var(--text-body); line-height: 1.8; max-width: 24em; color: #e1f1ec; }
+.gpt-caption .gpt-festival { pointer-events: auto; margin-top: 14px; color: #bdffe4; background: #0d342fe6; }
+.gpt-tools { position: absolute; right: 36px; bottom: 172px; display: flex; flex-direction: column; gap: 9px; }
+.gpt-tools button { justify-content: flex-start; background: #09282ee8; }
+.gpt-tools button[aria-pressed="true"] { border-color: var(--gpt-accent); color: var(--gpt-accent); }
+.gpt-bottom { position: absolute; bottom: 22px; left: 42px; right: 42px; }
+.gpt-bottom-line { display: flex; justify-content: space-between; padding-bottom: 18px; gap: 12px; }
+.gpt-instruction { font-size: var(--text-control); display: flex; align-items: center; gap: 8px; color: var(--gpt-muted); }
+.gpt-disclaimer { font-size: var(--text-meta); color: var(--gpt-muted); }
+.gpt-destinations { display: flex; gap: 6px; padding-top: 14px; border-top: 1px solid #9acbb53d; padding-right: 150px; }
+.gpt-destinations button { border-color: transparent; background: transparent; white-space: nowrap; padding: 12px 14px; }
+.gpt-destinations button > span { font-size: var(--text-meta); opacity: .8; }
+.gpt-destinations button[aria-pressed="true"] { color: #072922; background: var(--gpt-accent); border-color: var(--gpt-accent); }
+.gpt-bottom .gpt-walk { position: absolute; bottom: 0; right: 0; color: #c0ffe5; }
+.gpt-mobile-select { display: none; }
+.gpt-load { position: absolute; inset: 0; background: #071c24; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px; padding: 28px; font-size: var(--text-body); text-align: center; }
+@media (max-width: 1100px) {
+  .gpt-destinations { padding-right: 0; }
+  .gpt-bottom .gpt-walk { bottom: 74px; }
+  .gpt-destinations button { flex: 1; padding-inline: 8px; gap: 7px; }
+  .gpt-tools { bottom: 195px; }
+  .gpt-disclaimer { margin-right: 150px; }
+}
+@media (max-width: 700px) {
+  .gpt-stage { height: 72%; }
+  .gpt-top { left: 18px; right: 18px; top: max(18px,env(safe-area-inset-top)); align-items: flex-start; gap: 8px; }
+  .gpt-brand { gap: 10px; }
+  .gpt-symbol { width: 48px; height: 48px; }
+  .gpt-designs { top: 104px; left: 18px; right: 18px; gap: 5px; }
+  .gpt-designs button { flex: 1; padding: 8px; gap: 6px; }
+  .gpt-designs button > span:first-child { display: none; }
+  .gpt-designs .gpt-chosen-mark { display: none; }
+  .gpt-choice { top: 164px; right: 18px; }
+  .gpt-choice > span { max-width: 180px; }
+  .gpt-brand h1 { font-size: 1.375rem; letter-spacing: .02em; }
+  .gpt-brand .gpt-kicker { letter-spacing: .03em; }
+  .gpt-top-actions { gap: 0; }
+  .gpt-top-actions button { padding: 10px; }
+  .gpt-top-actions button svg { display: none; }
+  .gpt-status { display: none; }
+  .gpt-caption { left: 20px; bottom: 240px; max-width: calc(100% - 40px); }
+  .gpt-caption .gpt-kicker { letter-spacing: .07em; }
+  .gpt-caption h2 { font-size: 1.75rem; margin: 5px 0; }
+  .gpt-caption p { line-height: 1.75; max-width: 21em; }
+  .gpt-caption .gpt-festival { margin-top: 10px; }
+  .gpt-tools { flex-direction: row; left: 20px; right: 20px; bottom: 176px; gap: 8px; }
+  .gpt-tools button { flex: 1; padding: 10px 8px; }
+  .gpt-tools button span { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .gpt-bottom { left: 20px; right: 20px; bottom: max(16px,env(safe-area-inset-bottom)); }
+  .gpt-destinations { display: none; }
+  .gpt-bottom-line { display: block; padding-bottom: 10px; }
+  .gpt-instruction { font-size: var(--text-control); }
+  .gpt-disclaimer { display: block; margin: 7px 0 0; }
+  .gpt-mobile-select { display: flex; align-items: center; gap: 10px; margin-bottom: 54px; }
+  .gpt-mobile-select label { font-size: var(--text-control); }
+  .gpt-mobile-select select { flex: 1; min-width: 0; color: #f1fff9; background: #0a292d; }
+  .gpt-bottom .gpt-walk { bottom: 0; width: 100%; }
+  .gpt-vignette { background: linear-gradient(180deg,#051a20e6 0%,transparent 22%,transparent 42%,#051a20e8 67%,#051a20 100%); }
+}
+@media (max-height: 700px) and (min-width: 701px) { .gpt-caption { bottom: 142px; } .gpt-caption p { max-width: 23em; } .gpt-tools { bottom: 145px; } }
+@media (max-height: 740px) and (max-width: 700px) { .gpt-caption { bottom: 230px; } .gpt-caption p { max-width: 21em; } .gpt-caption .gpt-festival { display: none; } }
+@media (prefers-reduced-motion: reduce) { .gpt-experience button, .gpt-round-track i { transition: none; } }

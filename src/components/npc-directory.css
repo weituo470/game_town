@@ -1,0 +1,76 @@
+.npc-directory { min-width: 0; color: #303b33; }
+.npc-directory-intro { display: flex; flex-wrap: wrap; align-items: end; gap: 18px 24px; margin-bottom: 24px; }
+.npc-directory-intro > div { flex: 1 1 390px; }
+.npc-kicker { display: flex; align-items: center; gap: 8px; color: #5d6a52; font-size: var(--text-meta); font-weight: 650; letter-spacing: .04em; line-height: 1.7; }
+.npc-directory-intro h3 { margin: 6px 0 8px; font-size: var(--text-subtitle); }
+.npc-directory-intro p { max-width: 38em; color: #596350; font-size: var(--text-body); line-height: 1.8; }
+.npc-search { display: flex; align-items: center; gap: 9px; padding: 0 13px; background: #fffdf7; border: 1px solid #acb3a0; border-radius: 10px; flex: 1 1 215px; min-width: 0; max-width: 270px; color: #58644f; }
+.npc-search:focus-within { outline: 3px solid #bd4f2b; outline-offset: 3px; }
+.npc-search input { width: 100%; min-width: 0; height: 46px; padding: 8px 0; border: 0; border-radius: 0; background: transparent; color: #303b33; font-size: var(--text-control); outline: none; }
+.npc-search input::placeholder { color: #636b59; opacity: 1; }
+.npc-directory-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 22px 17px; }
+.npc-resident-card { display: block; min-width: 0; padding: 0; text-align: left; background: #f6eddf; border: 1px solid #d9c9b8; border-radius: 14px; overflow: hidden; transition: box-shadow .18s, border-color .18s; }
+.npc-resident-card:hover { border-color: #a85b39; box-shadow: 0 5px 18px #4a2b1b1c; }
+.npc-resident-card > img { display: block; width: 100%; height: auto; aspect-ratio: 1; object-fit: contain; background: #b08b72; }
+.npc-resident-card-copy { display: block; padding: 11px 13px 14px; }
+.npc-resident-card-title { display: flex; justify-content: space-between; align-items: center; gap: 8px; color: #3c4335; }
+.npc-resident-card-title strong { font-size: 1.25rem; }
+.npc-resident-card-title svg { color: #995236; }
+.npc-resident-card-role { display: block; margin-top: 4px; font-size: var(--text-control); color: #58604f; line-height: 1.6; overflow-wrap: anywhere; }
+.npc-directory-note { margin-top: 24px; padding-top: 19px; border-top: 1px solid #dadccf; color: #5a6351; font-size: var(--text-body); line-height: 1.8; }
+.npc-empty { padding: 26px 0; }
+.npc-empty button { margin-top: 16px; }
+.npc-back { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; margin: -9px 0 20px; padding: 6px 0; color: #785038; font-size: var(--text-control); font-weight: 650; }
+.npc-back:hover { text-decoration: underline; text-underline-offset: 4px; }
+.npc-conversation-layout { display: grid; grid-template-columns: minmax(200px, .75fr) minmax(0, 1.25fr); gap: 28px; align-items: start; }
+.npc-profile-visual, .npc-profile-details { min-width: 0; }
+.npc-profile-portrait { display: block; width: 100%; height: auto; object-fit: contain; border-radius: 15px; border: 1px solid #b8947b; background: #b08b72; }
+.npc-profile-caption { display: block; margin: 8px 0 19px; font-size: var(--text-meta); color: #616b59; line-height: 1.7; }
+.npc-current-activity { display: flex; flex-direction: column; gap: 7px; padding: 16px; border-left: 3px solid #8c9a70; background: #eef0e1; border-radius: 0 9px 9px 0; }
+.npc-current-activity > strong { font-size: var(--text-body); line-height: 1.7; color: #3e5138; }
+.npc-activity-location { display: flex; gap: 6px; align-items: center; color: #55654a; font-size: var(--text-meta); line-height: 1.7; }
+.npc-profile-name { font-size: var(--text-title); line-height: 1.3; margin: 6px 0 13px; letter-spacing: -.025em; }
+.npc-profile-name:focus { outline: none; }
+.npc-profile-description { font-size: var(--text-body); color: #57614f; line-height: 1.8; }
+.npc-chat-shortcut { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; margin-top: 14px; padding: 10px 16px; border-radius: 9px; background: #3d543a; color: #fffdf4; font-size: var(--text-control); line-height: 1.5; }
+.npc-chat-shortcut:hover { background: #2b432a; }
+.npc-animal-actions { display: flex; flex-wrap: wrap; align-items: end; gap: 10px; }
+.npc-animal-stop { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 46px; padding: 10px 16px; border: 1px solid #a9b79b; border-radius: 9px; background: #fbfcf3; color: #395332; font-size: var(--text-control); line-height: 1.5; }
+.npc-animal-status, .npc-animal-note { margin: 12px 0 0; color: #475b3d; font-size: var(--text-body); line-height: 1.8; }
+.npc-animal-note { color: #59634e; }
+.npc-dialogue { margin-top: 23px; padding: 20px; border: 1px solid #d6c8ae; border-radius: 15px 15px 15px 4px; background: #fffaf0; }
+.npc-dialogue-speaker { display: flex; align-items: center; gap: 8px; color: #925236; font-size: var(--text-control); font-weight: 650; margin-bottom: 10px; }
+.npc-dialogue > p { color: #374331; font-size: var(--text-body); line-height: 1.85; overflow-wrap: anywhere; }
+.npc-dialogue > .npc-place-note { padding-top: 15px; margin-top: 16px; border-top: 1px dashed #cfc3ac; color: #685943; font-size: var(--text-body); }
+.npc-topic-buttons { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 18px; }
+.npc-topic-buttons button { min-height: 46px; padding: 10px 14px; font-size: var(--text-control); line-height: 1.5; border: 1px solid #b2b99f; border-radius: 9px; background: #f5f5e9; color: #47543e; }
+.npc-topic-buttons button:hover { background: #e7ebd8; }
+.npc-topic-buttons button[aria-pressed="true"] { background: #3d543a; color: #fffdf4; border-color: #3d543a; }
+.npc-conversation-note { margin-top: 20px; color: #626b5a; font-size: var(--text-body); line-height: 1.8; }
+.npc-visually-hidden { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
+/* Only stick when the measured portrait + activity block fits below the
+   actual sticky dialog heading. Short windows and mobile remain normal flow. */
+@media (min-width: 701px) {
+  .npc-profile-visual[data-sticky="true"] { position: sticky; top: calc(var(--npc-dialog-heading-height, 108px) + 16px); align-self: start; }
+}
+@media (max-width: 700px) {
+  .npc-directory-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 12px; }
+  .npc-conversation-layout { grid-template-columns: minmax(0, 1fr); gap: 24px; }
+  .npc-profile-portrait { max-width: 300px; margin: 0 auto; }
+  .npc-profile-caption { text-align: center; }
+  .npc-profile-name { font-size: 2rem; }
+}
+@media (max-width: 500px) {
+  .npc-directory-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 17px 11px; }
+  .npc-directory-intro { gap: 16px; }
+  .npc-directory-intro > div { flex-basis: 100%; }
+  .npc-directory-intro h3 { font-size: 1.375rem; }
+  .npc-search { max-width: none; flex-basis: 100%; }
+  .npc-resident-card-copy { padding: 10px; }
+  .npc-resident-card-role { min-height: 3.2em; }
+  .npc-dialogue { padding: 17px; }
+  .npc-topic-buttons button { flex: 1 1 auto; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .npc-resident-card { transition: none; }
+}

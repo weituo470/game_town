@@ -1,0 +1,7 @@
+/* 园区名牌只在配色上和奇观名牌区分：字号仍由 .wonder-world-label 的
+   --text-control 令牌决定，因此不新增字号，也不影响可读性检查。 */
+.wonder-world-label.deepseek-park-label {
+  border-color: #8dbcff;
+  background: #14264aed;
+  color: #e6f0ff;
+}

@@ -1,0 +1,32 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import assert from 'node:assert/strict';
+import { gzipSync } from 'node:zlib';
+
+// Run after vite build. Proves what is actually eager, not just source intent.
+const dist = path.resolve(process.argv[2] || 'dist');
+const manifest = JSON.parse(fs.readFileSync(path.join(dist, '.vite/manifest.json'), 'utf8'));
+const eager = new Set();
+function visit(key) {
+  if (eager.has(key)) return;
+  assert.ok(manifest[key], `Unknown manifest entry: ${key}`);
+  eager.add(key);
+  for (const dependency of manifest[key].imports || []) visit(dependency);
+}
+visit('index.html');
+for (const name of ['MiniGame', 'NpcDirectory', 'CharacterStudio', 'GptParkExperience']) {
+  const entry = Object.keys(manifest).find(key => key.endsWith(`/${name}.jsx`));
+  assert.ok(entry, `${name} chunk exists`);
+  assert.ok(!eager.has(entry), `${name} must stay out of the first scene's eager graph`);
+}
+const chunks = [...eager].map(key => {
+  const file = manifest[key].file;
+  const bytes = fs.readFileSync(path.join(dist, file));
+  return { file, bytes: bytes.length, gzipBytes: gzipSync(bytes).length };
+});
+assert.ok(chunks.some(chunk => /three-engine-/.test(chunk.file)), 'Graphics engine must be separately cacheable');
+const total = chunks.reduce((sum, chunk) => sum + chunk.bytes, 0);
+assert.ok(total < 1_900_000, `Initial JS exceeded the 1.9 MB guard: ${total}`);
+console.log(JSON.stringify({ passed: true, eagerJs: chunks, totalBytes: total,
+  totalGzipBytes: chunks.reduce((sum, chunk) => sum + chunk.gzipBytes, 0),
+  note: 'Transfer/parse budget only. This is not a measured network loading time or GPU FPS.' }, null, 2));

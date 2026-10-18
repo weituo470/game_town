@@ -1,0 +1,6 @@
+* text=auto eol=lf
+*.jpg binary
+*.png binary
+*.hdr binary
+*.mp3 binary
+public/gpt/openai-blossom.svg -text

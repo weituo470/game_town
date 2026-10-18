@@ -1,0 +1,13 @@
+.residents-open { display: flex; align-items: center; gap: 9px; min-height: 44px; margin-top: 12px; padding: 8px 0; color: #f3dfbd; font-size: var(--text-control); }
+.residents-open:hover { color: #fff4da; text-decoration: underline; text-underline-offset: 5px; }
+.npc-world-label { display: flex; align-items: center; gap: 10px; padding: 7px 11px; border: 1px solid #e6c18a; border-radius: 8px; color: #fff2d9; background: #1c293ef2; font-size: var(--text-control); white-space: nowrap; pointer-events: none; }
+.npc-world-label span { color: #edce9f; font-size: var(--text-meta); }
+.npc-nearby-prompt img { width: 48px; height: 48px; border-radius: 10px; object-fit: cover; }
+.npc-nearby-prompt > div { min-width: 110px; }
+.topbar nav .npc-nav { min-height: 44px; }
+@media (max-width: 760px) {
+  .topbar nav:has(.npc-nav) { gap: 12px; }
+  .topbar nav .npc-nav { gap: 6px; }
+  .npc-nearby-prompt img { width: 42px; height: 42px; }
+  .npc-nearby-prompt > div { min-width: 0; }
+}
