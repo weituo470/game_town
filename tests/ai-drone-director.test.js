@@ -6,7 +6,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createAiDroneDirector, loadAiDroneConfig, buildAiDroneMessages } from '../server/aiDroneDirector.js';
 import { createAiDroneStore } from '../server/aiDroneStore.js';
-import { validateAiDroneScore } from '../shared/aiDroneScore.js';
+import { validateAiDroneScore, AI_DRONE_SHAPES, AI_DRONE_MOTIONS, AI_DRONE_TRANSITIONS } from '../shared/aiDroneScore.js';
 
 const score = () => ({ version: 1, title: '鲸向星河', synopsis: '星海里的鲸与你相遇', seed: 123,
   scenes: ['ring', 'whale', 'galaxy', 'heart'].map((shape, index) => ({ name: `场景${index}`, description: '蓝鲸从星环中游向星河', shape, color: '#40AAFF', accent: '#FFDD99', duration: 10, motion: 'turn', transition: 'morph' })) });
@@ -159,6 +159,9 @@ test('the model prompt includes a genuinely schema-valid four-scene example and 
     assert.match(content, /禁止照抄/); assert.match(content, /非空单行/);
     assert.match(content, /非 outline 不得提供 paths/); assert.match(content, /不能退化成单个点/);
     assert.match(content, /seed 必须精确使用/);
+    for (const [field, values] of [['shape', AI_DRONE_SHAPES], ['motion', AI_DRONE_MOTIONS], ['transition', AI_DRONE_TRANSITIONS]]) assert.ok(content.includes(`${field} = ${JSON.stringify(values)}`));
+    assert.match(content, /严禁发明、翻译、组合或混用/);
+    assert.match(content, /必须使用outline并提供paths/);
   }
 });
 
@@ -233,6 +236,76 @@ test('schema failures preserve every validator error code without relaxing outpu
   for (const [reason, mutate] of mutations) {
     const director = createAiDroneDirector({ config: config(), fetchImpl: async () => provider(mutate(score())) });
     try { await assert.rejects(director.generate(input()), { code: 'AI_DRONE_INVALID_SCORE', phase: 'score_schema', reason, charged: true }); }
+    finally { await director.close(); }
+  }
+});
+
+test('provider choices only canonicalize case, whitespace and a finite same-meaning alias list before strict validation', async () => {
+  const cases = [
+    ['shape', 'circle', 'ring'], ['motion', 'rotate', 'turn'], ['motion', 'rotation', 'turn'],
+    ['motion', 'static', 'still'], ['motion', 'breathing', 'breathe'], ['motion', 'pulse', 'breathe'], ['transition', 'fade', 'morph'],
+    ...AI_DRONE_SHAPES.filter(value => value !== 'outline').map(value => ['shape', ` ${value.toUpperCase()} `, value]),
+    ...AI_DRONE_MOTIONS.map(value => ['motion', ` ${value.toUpperCase()} `, value]),
+    ...AI_DRONE_TRANSITIONS.map(value => ['transition', ` ${value.toUpperCase()} `, value]),
+  ];
+  for (const [field, original, expected] of cases) {
+    let calls = 0;
+    const value = score(); value.scenes[2][field] = original;
+    const director = createAiDroneDirector({ config: config(), fetchImpl: async () => { calls++; return provider(value); } }), body = input();
+    try {
+      const first = await director.generate(body);
+      assert.equal(first.show.score.scenes[2][field], expected);
+      assert.equal(validateAiDroneScore(first.show.score), first.show.score);
+      assert.equal(value.scenes[2][field], original);
+      assert.deepEqual((await director.generate(body)).show, first.show);
+      assert.equal(calls, 1); assert.equal(director.usage(body.guestId).usage.used, 1);
+    } finally { await director.close(); }
+  }
+});
+
+test('unknown or cross-field choices stay rejected with safe location diagnostics and cannot execute or trigger a paid retry', async () => {
+  const cases = [
+    ['shape', 'dragon'], ['shape', 'spiral'], ['shape', 'rotate'], ['shape', '__proto__'], ['shape', 'constructor'],
+    ['motion', 'fly'], ['motion', 'circle'], ['motion', 'morph'], ['transition', 'turn'], ['transition', 'explode'],
+    ['shape', 'globalThis.AI_DRONE_EXECUTED = true'], ['shape', { code: 'PRIVATE CODE' }], ['motion', null], ['transition', ['morph']],
+  ];
+  globalThis.AI_DRONE_EXECUTED = false;
+  try {
+    for (const [field, original] of cases) {
+      let calls = 0;
+      const value = score(); value.scenes[3][field] = original;
+      const store = createAiDroneStore({ dbPath: ':memory:' });
+      const director = createAiDroneDirector({ config: config(), store, fetchImpl: async () => { calls++; return provider(value); } }), body = input();
+      try {
+        await assert.rejects(director.generate(body), { code: 'AI_DRONE_INVALID_SCORE', reason: 'AI_SCORE_CHOICE', field, sceneIndex: 3, charged: true });
+        const failure = store.request(body.guestId, body.requestId).error;
+        assert.equal(failure.field, field); assert.equal(failure.sceneIndex, 3);
+        assert.deepEqual(Object.keys(failure).sort(), ['status', 'code', 'message', 'charged', 'phase', 'reason', 'field', 'sceneIndex', 'finishedAt', 'durationMs'].sort());
+        assert.doesNotMatch(JSON.stringify(failure), /PRIVATE|AI_DRONE_EXECUTED|__proto__|constructor/);
+        await assert.rejects(director.generate(body), { code: 'AI_DRONE_INVALID_SCORE', reason: 'AI_SCORE_CHOICE', field, sceneIndex: 3, replayed: true, charged: true });
+        assert.equal(calls, 1); assert.equal(director.usage(body.guestId).usage.used, 1);
+      } finally { await director.close(); }
+    }
+    assert.equal(globalThis.AI_DRONE_EXECUTED, false);
+  } finally { delete globalThis.AI_DRONE_EXECUTED; }
+});
+
+test('choice normalization cannot drop unsupported fields, invent paths or repair unsafe numeric and geometry data', async () => {
+  const base = () => ({ ...score(), scenes: score().scenes.map(scene => ({ ...scene, shape: 'circle', motion: 'rotate', transition: 'fade' })) });
+  const cases = [
+    ['AI_SCORE_FIELDS', () => ({ ...base(), script: 'PRIVATE SCRIPT' })],
+    ['AI_SCORE_FIELDS', () => JSON.parse(JSON.stringify(base()).replace('"version":1', '"version":1,"__proto__":{"polluted":true}'))],
+    ['AI_SCORE_FIELDS', () => ({ ...base(), scenes: base().scenes.map(scene => ({ ...scene, camera: 'PRIVATE CAMERA' })) })],
+    ['AI_SCORE_DURATION', () => ({ ...base(), scenes: base().scenes.map(scene => ({ ...scene, duration: '12' })) })],
+    ['AI_SCORE_COLOR', () => ({ ...base(), scenes: base().scenes.map(scene => ({ ...scene, color: '#fff' })) })],
+    ['AI_SCORE_OUTLINE', () => ({ ...base(), scenes: base().scenes.map(scene => ({ ...scene, shape: ' OUTLINE ' })) })],
+    ['AI_SCORE_OUTLINE', () => ({ ...base(), scenes: base().scenes.map(scene => ({ ...scene, shape: 'outline', paths: [[[0, 0], [2, 1]]] })) })],
+    ['AI_SCORE_OUTLINE', () => ({ ...base(), scenes: base().scenes.map(scene => ({ ...scene, paths: [[[-1, 0], [1, 0]]] })) })],
+  ];
+  for (const [reason, create] of cases) {
+    let calls = 0;
+    const director = createAiDroneDirector({ config: config(), fetchImpl: async () => { calls++; return provider(create()); } });
+    try { await assert.rejects(director.generate(input()), { code: 'AI_DRONE_INVALID_SCORE', reason, charged: true }); assert.equal(calls, 1); }
     finally { await director.close(); }
   }
 });

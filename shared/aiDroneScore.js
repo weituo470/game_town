@@ -2,6 +2,7 @@
 export const AI_DRONE_SHAPES = Object.freeze(['ring', 'sphere', 'heart', 'star', 'galaxy', 'helix', 'flower', 'bird', 'whale', 'mountain', 'city', 'outline']);
 export const AI_DRONE_MOTIONS = Object.freeze(['still', 'turn', 'breathe', 'wave']);
 export const AI_DRONE_TRANSITIONS = Object.freeze(['morph', 'sweep', 'burst']);
+export const AI_DRONE_CHOICE_FIELDS = Object.freeze(['shape', 'motion', 'transition']);
 export const AI_DRONE_LIMITS = Object.freeze({ bytes: 32768, title: 48, synopsis: 240, sceneName: 32, description: 160, minScenes: 4, maxScenes: 7, minDuration: 8, maxDuration: 18, maxPaths: 6, maxPathPoints: 24, maxPoints: 120, maxSeed: 2147483647 });
 const accepted = new WeakSet();
 const ROOT_KEYS = ['version', 'title', 'synopsis', 'seed', 'scenes'];
@@ -25,8 +26,15 @@ function text(value, maximum, label) {
   if (!result || Array.from(result).length > maximum) fail('AI_SCORE_TEXT', `${label}为空或超过长度限制。`);
   return result;
 }
-function choice(value, choices, label) {
-  if (!choices.includes(value)) fail('AI_SCORE_CHOICE', `${label}不在当前支持范围内。`);
+function choice(value, choices, label, field, sceneIndex) {
+  if (!choices.includes(value)) {
+    const error = new AiDroneScoreError('AI_SCORE_CHOICE', `${label}不在当前支持范围内。`);
+    // These identifiers come only from the fixed validation call sites, never
+    // from model values, paths or error text.
+    error.field = field;
+    error.sceneIndex = sceneIndex;
+    throw error;
+  }
   return value;
 }
 function color(value) {
@@ -67,12 +75,12 @@ export function validateAiDroneScore(raw) {
   if (value.version !== 1) fail('AI_SCORE_VERSION', '暂不支持这个演出版本。');
   if (!Number.isInteger(value.seed) || value.seed < 1 || value.seed > AI_DRONE_LIMITS.maxSeed) fail('AI_SCORE_SEED', '演出随机种子无效。');
   if (!Array.isArray(value.scenes) || value.scenes.length < AI_DRONE_LIMITS.minScenes || value.scenes.length > AI_DRONE_LIMITS.maxScenes || !dense(value.scenes)) fail('AI_SCORE_SCENES', '演出需要包含 4–7 个章节。');
-  const scenes = value.scenes.map(scene => {
+  const scenes = value.scenes.map((scene, sceneIndex) => {
     object(scene, SCENE_KEYS, SCENE_KEYS.filter(key => key !== 'paths'));
     if (!Number.isInteger(scene.duration) || scene.duration < AI_DRONE_LIMITS.minDuration || scene.duration > AI_DRONE_LIMITS.maxDuration) fail('AI_SCORE_DURATION', '每个章节时长需要为 8–18 秒的整数。');
-    const shape = choice(scene.shape, AI_DRONE_SHAPES, '编队形状');
+    const shape = choice(scene.shape, AI_DRONE_SHAPES, '编队形状', 'shape', sceneIndex);
     if (shape !== 'outline' && Object.hasOwn(scene, 'paths')) fail('AI_SCORE_OUTLINE', '只有自定义轮廓可以包含折线。');
-    return Object.freeze({ name: text(scene.name, AI_DRONE_LIMITS.sceneName, '章节名称'), description: text(scene.description, AI_DRONE_LIMITS.description, '章节说明'), shape, color: color(scene.color), accent: color(scene.accent), duration: scene.duration, motion: choice(scene.motion, AI_DRONE_MOTIONS, '运动方式'), transition: choice(scene.transition, AI_DRONE_TRANSITIONS, '转场方式'), ...(shape === 'outline' ? { paths: outline(scene.paths) } : {}) });
+    return Object.freeze({ name: text(scene.name, AI_DRONE_LIMITS.sceneName, '章节名称'), description: text(scene.description, AI_DRONE_LIMITS.description, '章节说明'), shape, color: color(scene.color), accent: color(scene.accent), duration: scene.duration, motion: choice(scene.motion, AI_DRONE_MOTIONS, '运动方式', 'motion', sceneIndex), transition: choice(scene.transition, AI_DRONE_TRANSITIONS, '转场方式', 'transition', sceneIndex), ...(shape === 'outline' ? { paths: outline(scene.paths) } : {}) });
   });
   const score = Object.freeze({ version: 1, title: text(value.title, AI_DRONE_LIMITS.title, '演出名称'), synopsis: text(value.synopsis, AI_DRONE_LIMITS.synopsis, '演出简介'), seed: value.seed, scenes: Object.freeze(scenes) });
   if (encoder.encode(JSON.stringify(score)).byteLength > AI_DRONE_LIMITS.bytes) fail('AI_SCORE_TOO_LARGE', '演出数据超过 32 KiB，请精简内容。');

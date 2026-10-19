@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { AI_DRONE_MAX_PROMPT, createAiDroneClient, createAiDroneRequest } from '../../lib/aiDroneClient.js';
 import { AI_DRONE_LIBRARY_LIMIT, createAiDroneLibrary } from '../../lib/aiDroneLibrary.js';
+import { AI_DRONE_FEEDBACK_STEPS, aiDroneElapsedSeconds, aiDroneQuotaFeedback, aiDroneStageFeedback, runAiDronePreparation } from '../../lib/aiDroneFeedback.js';
 import { validateAiDroneScore } from '../../../shared/aiDroneScore.js';
 import './ai-drone-studio.css';
 
@@ -9,17 +10,19 @@ const EXAMPLES = [
   { label: '未来小镇', prompt: '以未来小镇为题，从城市轮廓到飞鸟，再旋入星系，最后让所有灯光汇聚成一颗金色星星。' },
   { label: '山海相逢', prompt: '山峦被日光唤醒，飞鸟越过海面，鲸鱼跃入夜空，最后以一圈暖金色光环收束。' },
 ];
-const STAGES = { identity: '正在连接游客身份…', generating: 'AI 正在编排章节与灯光，通常需要数十秒…', validating: '正在校验节目与准备预览…', loading: '正在载入本机节目，不会调用 AI…' };
 const SHAPES = { ring: '光环', sphere: '球体', heart: '心形', star: '星芒', galaxy: '星系', helix: '螺旋', flower: '花朵', bird: '飞鸟', whale: '鲸鱼', mountain: '山峦', city: '城市', outline: '原创轮廓' };
 const MOTIONS = { still: '静置', turn: '旋转', breathe: '呼吸', wave: '波动' };
 const TRANSITIONS = { morph: '渐变成形', sweep: '扫光转场', burst: '散开重聚' };
 const durationLabel = milliseconds => `${Math.floor(milliseconds / 60000)} 分 ${Math.round(milliseconds / 1000) % 60} 秒`;
 
-async function prepareShow(show) {
-  const score = validateAiDroneScore(show.score);
-  // The compiler and geometry stay outside the town's eager entry bundle.
-  const { createAiDroneRuntime } = await import('../../../shared/aiDroneShow.js');
-  return { show: { ...show, score }, runtime: createAiDroneRuntime(score) };
+async function prepareShow(show, options) {
+  return runAiDronePreparation(async signal => {
+    const score = validateAiDroneScore(show.score);
+    // The compiler and geometry stay outside the town's eager entry bundle.
+    const { createAiDroneRuntime } = await import('../../../shared/aiDroneShow.js');
+    if (signal.aborted) throw Object.assign(new Error('已取消节目预览准备。'), { name: 'AbortError' });
+    return { show: { ...show, score }, runtime: createAiDroneRuntime(score) };
+  }, options);
 }
 
 export default function AiDroneStudio({ onPlay, onClose }) {
@@ -37,11 +40,39 @@ export default function AiDroneStudio({ onPlay, onClose }) {
   const [current, setCurrent] = useState(null);
   const [notice, setNotice] = useState('');
   const [error, setError] = useState('');
+  const [elapsed, setElapsed] = useState(0);
+  const [feedbackKind, setFeedbackKind] = useState('');
+  const [feedbackFocus, setFeedbackFocus] = useState(0);
   const flight = useRef(null);
   const statusFlight = useRef(null);
   const usageFlight = useRef(null);
   const mounted = useRef(false);
+  const startedAt = useRef(0);
+  const feedbackRef = useRef(null);
   const busy = Boolean(stage);
+  const stageFeedback = aiDroneStageFeedback(stage, elapsed);
+  const showFeedback = busy || Boolean(error || notice || current);
+  const feedbackTitle = stageFeedback?.title || (error ? '本次未生成成功' : feedbackKind === 'canceled' ? '已取消等待' : current ? '节目已就绪' : '操作提示');
+
+  // This measures elapsed wall time only; it never invents a completion percentage.
+  useEffect(() => {
+    if (!busy) return undefined;
+    const update = () => setElapsed(aiDroneElapsedSeconds(startedAt.current, performance.now()));
+    update();
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  }, [busy]);
+
+  useEffect(() => {
+    if (!feedbackFocus || !feedbackRef.current) return;
+    const heading = feedbackRef.current.closest('.dialog')?.querySelector('.dialog-heading');
+    const headerHeight = heading?.getBoundingClientRect().height || 0;
+    // The dialog scrolls underneath its sticky header. Keep the complete status
+    // heading and elapsed counter below it at every font size and breakpoint.
+    feedbackRef.current.style.setProperty('--ai-feedback-scroll-offset', `${Math.max(130, Math.ceil(headerHeight) + 20)}px`);
+    feedbackRef.current.focus({ preventScroll: true });
+    feedbackRef.current.scrollIntoView({ block: 'start', behavior: window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth' });
+  }, [feedbackFocus]);
 
   async function checkStatus() {
     statusFlight.current?.abort();
@@ -100,36 +131,52 @@ export default function AiDroneStudio({ onPlay, onClose }) {
     flight.current = controller;
     setError('');
     setNotice('');
+    startedAt.current = performance.now();
+    setElapsed(0);
+    setFeedbackKind('');
+    setStage('identity');
+    setFeedbackFocus(value => value + 1);
     try {
       const request = createAiDroneRequest({ mode, prompt });
       const response = await client.generate(request, { signal: controller.signal, onStage: value => { if (mounted.current) setStage(value); } });
       if (controller.signal.aborted || !mounted.current) return;
       setUsage(response.usage);
-      const prepared = await prepareShow(response.show);
+      const remainingMs = Math.max(1, 60000 - (performance.now() - startedAt.current));
+      const prepared = await prepareShow(response.show, { signal: controller.signal, timeoutMs: Math.min(10000, remainingMs) });
       if (controller.signal.aborted || !mounted.current) return;
       setCurrent(prepared);
-      setNotice(response.replayed ? '已取回这次请求的节目，没有重复调用 AI。' : '节目已就绪。先检查章节，再开始演出。');
+      setFeedbackKind('ready');
+      setNotice(response.replayed ? '已取回这次请求的节目，没有重复调用 AI。点击「立即观看」开始演出。' : '编排已完成。点击「立即观看」进入天空，也可以先查看下方章节。');
     } catch (failure) {
       if (!mounted.current) return;
-      if (failure.name === 'AbortError' || controller.signal.aborted) setNotice('已取消等待，上一份节目仍然保留。此次调用可能已计入今日额度。');
+      if (failure.name === 'AbortError' || controller.signal.aborted) {
+        setFeedbackKind('canceled');
+        setNotice('已取消等待，上一份节目仍然保留。此次调用可能已计入今日额度。');
+      }
       else {
         if (failure.usage) setUsage(failure.usage);
-        setError(failure.name === 'AiDroneClientError' ? failure.message : '节目校验未通过，已保留上一份作品；不会自动重试。');
+        setError(['AiDroneClientError', 'AiDronePreparationError'].includes(failure.name) ? failure.message : '节目校验未通过，已保留上一份作品；不会自动重试。');
       }
     } finally {
       if (flight.current === controller) flight.current = null;
-      if (mounted.current) { setStage(''); void refreshUsage(); }
+      if (mounted.current) {
+        setElapsed(aiDroneElapsedSeconds(startedAt.current, performance.now()));
+        setStage(''); setFeedbackFocus(value => value + 1); void refreshUsage();
+      }
     }
   }
 
   async function load(entry) {
     if (busy) return;
+    const controller = new AbortController();
+    flight.current = controller;
+    startedAt.current = performance.now(); setElapsed(0); setFeedbackKind('');
     setStage('loading'); setError(''); setNotice('');
     try {
-      const prepared = await prepareShow(entry);
-      if (mounted.current) { setCurrent(prepared); setNotice('已载入本机节目，回放不消耗生成额度。'); }
-    } catch { if (mounted.current) setError('这份本机节目无法读取，已保留当前节目。'); }
-    finally { if (mounted.current) setStage(''); }
+      const prepared = await prepareShow(entry, { signal: controller.signal, timeoutMs: 10000 });
+      if (mounted.current && !controller.signal.aborted) { setCurrent(prepared); setFeedbackKind('ready'); setNotice('已载入本机节目，回放不消耗生成额度。'); }
+    } catch (failure) { if (mounted.current) setError(failure.name === 'AiDronePreparationError' ? failure.message : '这份本机节目无法读取，已保留当前节目。'); }
+    finally { if (flight.current === controller) flight.current = null; if (mounted.current) { setStage(''); setFeedbackFocus(value => value + 1); } }
   }
 
   function save() {
@@ -148,6 +195,22 @@ export default function AiDroneStudio({ onPlay, onClose }) {
   return <div className="ai-drone-studio">
     <p className="ai-drone-intro">写下主题，让 AI 为小镇编排一场灯光演出。</p>
     <div className="ai-drone-scope">仅个人观演 · 不同步全房间 · 非真实无人机飞控</div>
+    {showFeedback && <section ref={feedbackRef} className={`ai-drone-feedback${error ? ' ai-drone-feedback-error' : ''}`} tabIndex={-1} aria-labelledby="ai-drone-feedback-title">
+      <div className="ai-drone-feedback-heading">
+        <div role={error ? 'alert' : 'status'} aria-live={error ? 'assertive' : 'polite'} aria-atomic="true">
+          <h3 id="ai-drone-feedback-title">{busy && <span className="ai-drone-wait" aria-hidden="true"/>}{feedbackTitle}</h3>
+          <p>{stageFeedback ? stageFeedback.description : error || notice}</p>
+        </div>
+        {busy && <span className="ai-drone-elapsed" aria-live="off">已等待 <strong>{elapsed}</strong> 秒</span>}
+      </div>
+      {stageFeedback?.stepIndex >= 0 && <ol className="ai-drone-steps" aria-label="真实请求阶段">{AI_DRONE_FEEDBACK_STEPS.map((label, index) => <li key={label} data-state={index < stageFeedback.stepIndex ? 'complete' : index === stageFeedback.stepIndex ? 'current' : 'waiting'} aria-current={index === stageFeedback.stepIndex ? 'step' : undefined}><span aria-hidden="true">{index < stageFeedback.stepIndex ? '✓' : index + 1}</span>{label}<span className="ai-drone-meta">{index < stageFeedback.stepIndex ? '已完成' : index === stageFeedback.stepIndex ? '进行中' : '待开始'}</span></li>)}</ol>}
+      {stageFeedback?.waiting && <p className="ai-drone-waiting-note" role="status">{stageFeedback.waiting}</p>}
+      {busy && stage !== 'loading' && <button className="ai-drone-secondary" type="button" onClick={() => flight.current?.abort()}>取消等待</button>}
+      {!busy && current && <div className="ai-drone-ready">
+        <div><strong>{current.show.score.title}</strong><span className="ai-drone-meta">{current.show.score.scenes.length} 个章节 · 全程 {durationLabel(current.runtime.program.duration)}</span></div>
+        <div className="ai-drone-play-bar"><button type="button" className="ai-drone-primary" onClick={() => onPlay(current.runtime)}>{error || feedbackKind === 'canceled' ? '观看上一份节目' : '立即观看'}</button><button type="button" className="ai-drone-secondary" disabled={!saved.available} onClick={save}>保存到本机</button><span className="ai-drone-meta">回放不消耗额度</span></div>
+      </div>}
+    </section>}
     <form className="ai-drone-workspace" onSubmit={generate} aria-busy={busy}>
       <fieldset className="ai-drone-mode" disabled={busy}>
         <legend>创作方式</legend>
@@ -159,17 +222,14 @@ export default function AiDroneStudio({ onPlay, onClose }) {
       <div className="ai-drone-examples" aria-label="填写示例主题"><span className="ai-drone-meta">试一个主题</span>{EXAMPLES.map(example => <button type="button" key={example.label} disabled={busy} onClick={() => { setMode('prompt'); setPrompt(example.prompt); }}>{example.label}</button>)}</div>
       <p id="ai-drone-privacy" className="ai-drone-policy">主题会发送至 DeepSeek，请勿填写隐私。每位游客按北京时间每日 5 次，另有同 IP 防刷限制；调用后失败或取消也可能扣次。</p>
       <div className="ai-drone-request-bar">
-        <button className="ai-drone-primary" type="submit" disabled={busy || checking || !service?.enabled || (mode === 'prompt' && !prompt.trim()) || usage?.remaining === 0}>{mode === 'improv' ? '即兴生成一场' : '生成演出'}</button>
-        {busy && stage !== 'loading' && <button className="ai-drone-secondary" type="button" onClick={() => flight.current?.abort()}>取消等待</button>}
-        <span className="ai-drone-meta">{usage ? `今日剩余 ${usage.remaining} / ${usage.limit} 次 · 北京时间 00:00 重置` : '生成前不调用模型'}</span>
+        <button className="ai-drone-primary" type="submit" disabled={busy || checking || !service?.enabled || (mode === 'prompt' && !prompt.trim()) || usage?.remaining === 0}>{stageFeedback?.button || (mode === 'improv' ? '即兴生成一场' : '生成演出')}</button>
+        <span className="ai-drone-meta">{aiDroneQuotaFeedback(usage, stage)}</span>
         <button className="ai-drone-text-button" type="button" disabled={usageChecking || busy} onClick={() => void refreshUsage(true)}>{usageChecking ? '正在检查额度…' : '重新检查额度'}</button>
       </div>
       <div className="ai-drone-live" role="status" aria-live="polite">
-        {busy ? <p><span className="ai-drone-wait" aria-hidden="true"/>{STAGES[stage]}</p> : checking ? <p>正在检查 AI 编导服务…</p> : service?.enabled === false ? <p>AI 编导暂未开放。你仍可载入本机保存的节目回放。</p> : null}
-        {!busy && notice && <p>{notice}</p>}
+        {!busy && checking ? <p>正在检查 AI 编导服务…</p> : !busy && service?.enabled === false ? <p>AI 编导暂未开放。你仍可载入本机保存的节目回放。</p> : null}
       </div>
       {(statusError || (!busy && !checking && !service?.enabled)) && <div className="ai-drone-status-retry">{statusError && <p>{statusError}</p>}<button type="button" className="ai-drone-secondary" onClick={() => void checkStatus()} disabled={checking || busy}>重新检查服务</button></div>}
-      {error && <p className="ai-drone-error" role="alert">{error}</p>}
     </form>
 
     {current && <section className="ai-drone-preview" aria-labelledby="ai-drone-show-title">
@@ -182,7 +242,6 @@ export default function AiDroneStudio({ onPlay, onClose }) {
           <div className="ai-drone-scene-meta"><span>{SHAPES[scene.shape]} · {MOTIONS[scene.motion]} · {TRANSITIONS[scene.transition]}</span><span className="ai-drone-colors"><i style={{ backgroundColor: scene.color }} aria-hidden="true"/><i style={{ backgroundColor: scene.accent }} aria-hidden="true"/><span>{scene.color} / {scene.accent}</span></span></div>
         </div>
       </li>)}</ol>
-      <div className="ai-drone-play-bar"><button type="button" className="ai-drone-primary" disabled={busy} onClick={() => onPlay(current.runtime)}>开始演出</button><button type="button" className="ai-drone-secondary" disabled={busy || !saved.available} onClick={save}>保存到本机</button><span className="ai-drone-meta">回放不消耗额度</span></div>
     </section>}
 
     <section className="ai-drone-library" aria-labelledby="ai-drone-library-title">

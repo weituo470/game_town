@@ -79,6 +79,9 @@ test('failure metadata is an allowlist of enums and integer timing, never arbitr
   assert.ok(Object.isFrozen(AI_DRONE_FAILURE_PHASES)); assert.ok(Object.isFrozen(AI_DRONE_FAILURE_REASONS));
   assert.deepEqual(sanitizeAiDroneFailureMetadata({ phase: 'score_schema', reason: 'AI_SCORE_OUTLINE', finishedAt: 100, durationMs: 25, prompt: 'PRIVATE', token: 'PRIVATE', rawResponse: 'PRIVATE' }), { phase: 'score_schema', reason: 'AI_SCORE_OUTLINE', finishedAt: 100, durationMs: 25 });
   for (const value of [null, {}, { phase: 'PRIVATE KEY', reason: 'PRIVATE MODEL JSON', finishedAt: '100', durationMs: -1 }, { phase: {}, reason: [], finishedAt: Infinity, durationMs: NaN }]) assert.deepEqual(sanitizeAiDroneFailureMetadata(value), { phase: 'unknown', reason: 'unknown' });
+  for (const field of ['shape', 'motion', 'transition']) for (const sceneIndex of [0, 6]) assert.deepEqual(sanitizeAiDroneFailureMetadata({ phase: 'score_schema', reason: 'AI_SCORE_CHOICE', field, sceneIndex, value: 'PRIVATE MODEL' }), { phase: 'score_schema', reason: 'AI_SCORE_CHOICE', field, sceneIndex });
+  for (const patch of [{ field: 'PRIVATE KEY' }, { field: '__proto__' }, { field: {} }, { sceneIndex: -1 }, { sceneIndex: 7 }, { sceneIndex: 0.5 }, { sceneIndex: '1' }, { sceneIndex: Infinity }]) assert.deepEqual(sanitizeAiDroneFailureMetadata({ phase: 'score_schema', reason: 'AI_SCORE_CHOICE', field: 'shape', sceneIndex: 0, ...patch }), { phase: 'score_schema', reason: 'AI_SCORE_CHOICE' });
+  assert.deepEqual(sanitizeAiDroneFailureMetadata({ phase: 'provider_request', reason: 'provider_http', field: 'shape', sceneIndex: 0 }), { phase: 'provider_request', reason: 'provider_http' });
 });
 
 test('store persists only sanitized failure diagnostics and never supplied failure message or prompt', () => {

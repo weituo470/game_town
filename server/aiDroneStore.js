@@ -2,6 +2,7 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createHmac, randomBytes } from 'node:crypto';
+import { AI_DRONE_CHOICE_FIELDS, AI_DRONE_LIMITS as SCORE_LIMITS } from '../shared/aiDroneScore.js';
 
 export const AI_DRONE_DEFAULT_LIMITS = Object.freeze({ daily: 5, ipMinute: 3, ipDaily: 30, concurrent: 2, guestConcurrent: 1 });
 export const AI_DRONE_FAILURE_PHASES = Object.freeze(['provider_request', 'provider_body', 'provider_output', 'score_json', 'score_schema', 'storage', 'lifecycle', 'unknown']);
@@ -16,6 +17,8 @@ export const AI_DRONE_FAILURE_REASONS = Object.freeze([
 export function sanitizeAiDroneFailureMetadata(value) {
   return { phase: AI_DRONE_FAILURE_PHASES.includes(value?.phase) ? value.phase : 'unknown',
     reason: AI_DRONE_FAILURE_REASONS.includes(value?.reason) ? value.reason : 'unknown',
+    ...(value?.reason === 'AI_SCORE_CHOICE' && AI_DRONE_CHOICE_FIELDS.includes(value?.field) && Number.isSafeInteger(value?.sceneIndex) && value.sceneIndex >= 0 && value.sceneIndex < SCORE_LIMITS.maxScenes
+      ? { field: value.field, sceneIndex: value.sceneIndex } : {}),
     ...(Number.isSafeInteger(value?.finishedAt) && value.finishedAt >= 0 ? { finishedAt: value.finishedAt } : {}),
     ...(Number.isSafeInteger(value?.durationMs) && value.durationMs >= 0 ? { durationMs: value.durationMs } : {}) };
 }

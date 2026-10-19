@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { validateAiDroneScore, AiDroneScoreError, AI_DRONE_SHAPES, AI_DRONE_MOTIONS, AI_DRONE_TRANSITIONS, AI_DRONE_LIMITS } from '../shared/aiDroneScore.js';
+import { validateAiDroneScore, AiDroneScoreError, AI_DRONE_SHAPES, AI_DRONE_MOTIONS, AI_DRONE_TRANSITIONS, AI_DRONE_CHOICE_FIELDS, AI_DRONE_LIMITS } from '../shared/aiDroneScore.js';
 
 const scene = (extra = {}) => ({ name: '鲸向星河', description: '蓝鲸游过星环，花朵在天空绽放。', shape: 'whale', color: '#32abef', accent: '#ffe1a0', duration: 10, motion: 'wave', transition: 'morph', ...extra });
 const score = (extra = {}) => ({ version: 1, title: ' 星海来信 ', synopsis: '一场从海洋驶向银河的天空故事。', seed: 428, scenes: Array.from({ length: 4 }, () => scene()), ...extra });
@@ -69,6 +69,20 @@ test('scene enums, hex color and integer second bounds are strict', () => {
   for (const duration of [8, 18]) assert.equal(validateAiDroneScore(score({ scenes: Array.from({ length: 4 }, () => scene({ duration })) })).scenes[0].duration, duration);
   for (const key of ['color', 'accent']) for (const color of ['red', '#fff', '#FFFFFF80', 'url(test)', '#gg00ff', 0]) rejected(score({ scenes: Array.from({ length: 4 }, () => scene({ [key]: color })) }), 'AI_SCORE_COLOR');
   for (const key of ['shape', 'motion', 'transition']) rejected(score({ scenes: Array.from({ length: 4 }, () => scene({ [key]: 'arbitrary-script' })) }), 'AI_SCORE_CHOICE');
+});
+
+test('choice errors identify only a fixed field and bounded scene index without echoing model values', () => {
+  assert.ok(Object.isFrozen(AI_DRONE_CHOICE_FIELDS));
+  for (const field of AI_DRONE_CHOICE_FIELDS) for (let sceneIndex = 0; sceneIndex < 7; sceneIndex++) {
+    const value = score({ scenes: Array.from({ length: 7 }, () => scene()) });
+    value.scenes[sceneIndex][field] = 'PRIVATE MODEL VALUE';
+    assert.throws(() => validateAiDroneScore(value), error => error.code === 'AI_SCORE_CHOICE' && error.field === field && error.sceneIndex === sceneIndex && !JSON.stringify(error).includes('PRIVATE') && !error.message.includes('PRIVATE'));
+  }
+  // Canonicalization belongs exclusively to the server provider boundary, not
+  // to local imports, saved scores, runtime or untrusted renderer data.
+  for (const [field, aliases] of [['shape', ['circle', ' RING ', 'Ring']], ['motion', ['rotate', 'rotation', 'static', 'breathing', 'pulse', ' TURN ']], ['transition', ['fade', ' MORPH ']]]) {
+    for (const value of aliases) rejected(score({ scenes: Array.from({ length: 4 }, () => scene({ [field]: value })) }), 'AI_SCORE_CHOICE');
+  }
 });
 
 test('outline uses frozen 2D normalized lines, never raw world points or degeneracy', () => {
