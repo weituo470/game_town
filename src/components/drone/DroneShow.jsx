@@ -37,12 +37,12 @@ function createPadGeometry() {
 
 // Assets are allocated after commit, not during a potentially discarded React
 // render. Each StrictMode setup owns and disposes its own independent buffers.
-function createDroneVisual(count, gl, program = 'avatar') {
+function createDroneVisual(count, gl, program = 'avatar', aiRuntime) {
   const group = new THREE.Group();
   group.name = program === 'blackhole' ? 'BlackHoleSkyApparition' : program === 'droplet' ? 'DoomsdayDroneFleet' : 'LawOfHeavenDroneFleet';
   const fleet = createDroneFleet(count);
   const seats = selectDroneSeats(fleet);
-  updateDroneProgram(fleet, 0, { program });
+  updateDroneProgram(fleet, 0, { program, aiRuntime });
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.BufferAttribute(fleet.positions, 3).setUsage(THREE.DynamicDrawUsage));
   geometry.setAttribute('color', new THREE.BufferAttribute(fleet.colors, 3).setUsage(THREE.DynamicDrawUsage));
@@ -128,7 +128,7 @@ function createDroneVisual(count, gl, program = 'avatar') {
         trails.visible = false;
         return false;
       }
-      updateDroneProgram(fleet, safeTime, { reducedMotion, program });
+      updateDroneProgram(fleet, safeTime, { reducedMotion, program, aiRuntime });
       battle?.update(safeTime, reducedMotion);
       if (blackHole) {
         blackHole.update(safeTime, reducedMotion);
@@ -142,7 +142,7 @@ function createDroneVisual(count, gl, program = 'avatar') {
       geometry.attributes.position.needsUpdate = true;
       geometry.attributes.color.needsUpdate = true;
       geometry.attributes.aSize.needsUpdate = true;
-      const state = sampleDroneProgram(safeTime, program);
+      const state = sampleDroneProgram(safeTime, program, aiRuntime);
       padUniforms.uTime.value = state.seconds;
       padUniforms.uActivity.value = ['lighting', 'ascent', 'returning', 'landing'].includes(state.phase) ? 1 : 0.18;
       padUniforms.uReducedMotion.value = reducedMotion ? 1 : 0;
@@ -187,7 +187,7 @@ function createDroneVisual(count, gl, program = 'avatar') {
 }
 
 /** A deterministic world-space show. It never moves the player's camera. */
-export default function DroneShow({ timeRef = ZERO_TIME, reducedMotion = false, quality = 'high', fleetRef, onSeatsReady, firstPersonSeatId = null, program = 'avatar' }) {
+export default function DroneShow({ timeRef = ZERO_TIME, reducedMotion = false, quality = 'high', fleetRef, onSeatsReady, firstPersonSeatId = null, program = 'avatar', aiRuntime }) {
   const host = useRef();
   const visual = useRef();
   const telemetryFrame = useRef(0);
@@ -195,7 +195,7 @@ export default function DroneShow({ timeRef = ZERO_TIME, reducedMotion = false, 
   const count = quality === 'low' ? Math.min(2048, DRONE_COUNT) : DRONE_COUNT;
   useLayoutEffect(() => {
     const parent = host.current;
-    const asset = createDroneVisual(count, gl, program);
+    const asset = createDroneVisual(count, gl, program, aiRuntime);
     visual.current = asset;
     if(fleetRef)fleetRef.current=asset.fleet;
     onSeatsReady?.(asset.seats);
@@ -206,7 +206,7 @@ export default function DroneShow({ timeRef = ZERO_TIME, reducedMotion = false, 
       if (visual.current === asset) visual.current = null;
       if (fleetRef?.current===asset.fleet) fleetRef.current=null;
     };
-  }, [count, gl, fleetRef, onSeatsReady, program]);
+  }, [count, gl, fleetRef, onSeatsReady, program, aiRuntime]);
   useFrame(state => {
     const measure = Boolean(state.gl.domElement?.dataset) && typeof performance !== 'undefined' && telemetryFrame.current++ % 90 === 0;
     const start = measure ? performance.now() : 0;
@@ -222,11 +222,11 @@ export default function DroneShow({ timeRef = ZERO_TIME, reducedMotion = false, 
 }
 
 /** Only mount while player camera control is explicitly disabled by the host. */
-export function DroneCamera({ timeRef = ZERO_TIME, reducedMotion = false, view = 'cinematic', fleetRef, seatId = '', lookInputRef, recenterRef, telemetryRef, onLookStatus, program = 'avatar' }) {
+export function DroneCamera({ timeRef = ZERO_TIME, reducedMotion = false, view = 'cinematic', fleetRef, seatId = '', lookInputRef, recenterRef, telemetryRef, onLookStatus, program = 'avatar', aiRuntime }) {
   const camera = useThree(state => state.camera);
   const look=useRef({yaw:0,pitch:0}),keys=useRef({}),seatsCache=useRef(null);
   const recentered=useRef(recenterRef?.current??0);
-  const fpv=view==='fpv'&&!reducedMotion&&getDroneProgram(program).supportsFpv;
+  const fpv=view==='fpv'&&!reducedMotion&&getDroneProgram(program,aiRuntime).supportsFpv;
   function stopLook(){keys.current={};if(lookInputRef)lookInputRef.current={};}
   useEffect(()=>{look.current={yaw:0,pitch:0};stopLook();},[view,seatId]);
   useEffect(()=>{
@@ -269,7 +269,7 @@ export function DroneCamera({ timeRef = ZERO_TIME, reducedMotion = false, view =
       look.current.pitch=clampLookPitch(look.current.pitch+((k.ArrowUp||touch.up?1:0)-(k.ArrowDown||touch.down?1:0))*dt*.7);
       pose=sampleDroneFirstPerson(fleet,seat.index,{...look.current,aspect,reducedMotion});
       if(telemetryRef&&pose)Object.assign(telemetryRef.current,{altitude:pose.altitude,identity:pose.identity,seatId:seat.id});
-    }else pose=program==='carrier-battle'?sampleCarrierBattleCamera(timeRef.current,aspect,reducedMotion):program==='blackhole'?sampleBlackHoleCamera(timeRef.current,aspect,reducedMotion):program==='droplet'?sampleDropletCamera(timeRef.current,aspect,reducedMotion):sampleDroneCamera(timeRef.current,aspect,reducedMotion);
+    }else pose=program==='ai'&&aiRuntime?aiRuntime.camera(timeRef.current,aspect,reducedMotion):program==='carrier-battle'?sampleCarrierBattleCamera(timeRef.current,aspect,reducedMotion):program==='blackhole'?sampleBlackHoleCamera(timeRef.current,aspect,reducedMotion):program==='droplet'?sampleDropletCamera(timeRef.current,aspect,reducedMotion):sampleDroneCamera(timeRef.current,aspect,reducedMotion);
     if(!pose)return;
     if(state.camera.fov!==pose.fov||state.camera.far!==pose.far||state.camera.near!==pose.near){state.camera.fov=pose.fov;state.camera.far=pose.far;state.camera.near=pose.near;state.camera.updateProjectionMatrix();}
     state.camera.position.set(...pose.position);

@@ -98,7 +98,10 @@ export default function DroneShowControls({
   seats = [], seatId = '', onSeatChange, onRecenter, lookStatus = 'ready', telemetryRef, lookInputRef,
 }) {
   const { state } = controller;
-  const program = getDroneProgram(state.program);
+  const program = getDroneProgram(state.program, state.aiRuntime);
+  const isAi = program.id === 'ai';
+  const programmeMenu = state.aiRuntime ? [...DRONE_PROGRAM_MENU, state.aiRuntime.program] : DRONE_PROGRAM_MENU;
+  const programmeSelector = <div className="drone-program" role="group" aria-label="选择无人机演出节目"><span>切换演出</span><div className="drone-program-buttons">{programmeMenu.map(item => <button key={item.id} type="button" className="drone-action" aria-label={item.title} aria-pressed={program.id === item.id} onClick={() => controller.setProgram(item.id)}>{item.shortTitle || item.title}</button>)}</div></div>;
   const isDroplet = program.id === 'droplet';
   const isBattle = program.id === 'carrier-battle';
   const isBlackHole = program.id === 'blackhole';
@@ -123,7 +126,7 @@ export default function DroneShowControls({
   const selectedId = selectedSeat?.id ?? '';
   const altitude = telemetry.seatId === selectedId ? telemetry.altitude : undefined;
   const identity = telemetry.seatId === selectedId ? telemetry.identity : selectedSeat?.identity;
-  const sample = sampleDroneProgram(state.elapsedMs, program.id);
+  const sample = sampleDroneProgram(state.elapsedMs, program.id, state.aiRuntime);
   const currentIndex = state.ended ? performanceChapters.length - 1 : Math.max(0, performanceChapters.findIndex(item => state.elapsedMs >= item.start && state.elapsedMs < item.end));
   const chapter = performanceChapters[currentIndex];
   const chapterLabel = motionEnabled && sample.phase === 'avatar' ? '法相 · 舒缓观演' : sample.cueLabel || chapter?.label;
@@ -155,7 +158,7 @@ export default function DroneShowControls({
     audioRef.current?.dispose(); audioRef.current = null;
     setAudioStatus('off'); setAudioError('');
     clearLookInput(lookInputRef);
-  }, [program.id, lookInputRef]);
+  }, [program.id, state.aiRuntime, lookInputRef]);
   useEffect(() => {
     if (!fpv) {
       clearLookInput(lookInputRef);
@@ -168,7 +171,7 @@ export default function DroneShowControls({
     return () => { clearInterval(timer); clearLookInput(lookInputRef); };
   }, [fpv, telemetryRef, lookInputRef]);
   useEffect(() => {
-    if (audioStatus !== 'on' || !audioRef.current) return undefined;
+    if (program.supportsAudio === false || audioStatus !== 'on' || !audioRef.current) return undefined;
     const player = audioRef.current;
     const scheduler = createDroneAudioScheduler({
       timeRef: controller.timeRef,
@@ -213,19 +216,19 @@ export default function DroneShowControls({
     }
   }
 
-  const restart = () => controller.start({ speed: state.speed, view: state.view, program: program.id });
+  const restart = () => controller.start({ speed: state.speed, view: state.view, program: program.id, aiRuntime: state.aiRuntime });
   const restartLabel = '从头观看';
   const playLabel = state.ended ? '重新演出' : state.paused ? '继续演出' : '暂停';
-  return <section className={`drone-show-controls${fpv ? ' drone-show-fpv' : ''}${isDroplet ? ' drone-show-droplet' : ''}${isBattle ? ' drone-show-battle' : ''}${isBlackHole ? ' drone-show-blackhole' : ''}${motionEnabled ? ' drone-reduced-motion' : ''}`} data-drone-program={program.id} data-drone-cue={sample.cue || sample.phase} aria-label="无人机演出观演控制">
+  return <section className={`drone-show-controls${isAi ? ' drone-show-ai' : ''}${fpv ? ' drone-show-fpv' : ''}${isDroplet ? ' drone-show-droplet' : ''}${isBattle ? ' drone-show-battle' : ''}${isBlackHole ? ' drone-show-blackhole' : ''}${motionEnabled ? ' drone-reduced-motion' : ''}`} data-drone-program={program.id} data-drone-cue={sample.cue || sample.phase} aria-label="无人机演出观演控制">
     <header className="drone-masthead">
       <div className="drone-title-block">
-        <span className="drone-kicker"><span aria-hidden="true"/>{isBattle ? '小镇东港 · 科幻空战' : isBlackHole ? '小镇天穹 · 深空奇观' : isDroplet ? '小镇天穹 · 镜面水滴与立方舰阵' : '小镇天穹 · 无人机史诗'}</span>
+        <span className="drone-kicker"><span aria-hidden="true"/>{isAi ? '小镇天穹 · AI 演出导演' : isBattle ? '小镇东港 · 科幻空战' : isBlackHole ? '小镇天穹 · 深空奇观' : isDroplet ? '小镇天穹 · 镜面水滴与立方舰阵' : '小镇天穹 · 无人机史诗'}</span>
         <h1>{fpv ? '编队第一视角' : isDroplet ? <><span>水滴</span><span className="drone-title-divider" aria-hidden="true"> · </span><span className="drone-title-subject">末日之战</span></> : program.title}</h1>
         <div className="drone-current-chapter" aria-live="polite" aria-atomic="true"><span>{String(currentIndex + 1).padStart(2, '0')}</span>{state.ended ? (isBattle ? '空战落幕 · 母舰归港' : isBlackHole ? '奇观落幕 · 星光归寂' : isDroplet ? '演绎落幕 · 无人机已归航' : '礼成 · 万灯归航') : chapterLabel}</div>
       </div>
       <button ref={exitRef} type="button" className="drone-exit" onClick={onClose} aria-label="退出观演，回到小镇"><X size={19}/><span>退出观演</span><kbd>Esc</kbd></button>
       <div className="drone-view-bar">
-        <div className="drone-program" role="group" aria-label="选择无人机演出节目"><span>切换演出</span><div className="drone-program-buttons">{DRONE_PROGRAM_MENU.map(item => <button key={item.id} type="button" className="drone-action" aria-label={item.title} aria-pressed={program.id === item.id} onClick={() => controller.setProgram(item.id)}>{item.shortTitle || item.title}</button>)}</div></div>
+        {!isAi && programmeSelector}
         {program.supportsFpv && <div className="drone-view-switch" role="group" aria-label="无人机观演视角">
           <button type="button" className="drone-action" aria-pressed={!fpv} onClick={() => controller.setView('cinematic')}>全景观演</button>
           <button type="button" className="drone-action" aria-pressed={fpv} disabled={fpvUnavailable} aria-describedby={fpvUnavailable ? 'drone-motion-view-note' : undefined} onClick={() => controller.setView('fpv')}>编队第一视角</button>
@@ -270,6 +273,7 @@ export default function DroneShowControls({
         <button type="button" className="drone-action drone-details-toggle" aria-expanded={details} aria-controls="drone-show-details" onClick={() => setDetails(value => !value)}><span>{details ? '收起' : '分幕与设置'}</span><ChevronDown size={18}/></button>
       </div>
       <div id="drone-show-details" className="drone-details" hidden={!details}>
+        {isAi && programmeSelector}
         <nav className="drone-chapters" aria-label="无人机演出章节">
           {performanceChapters.map((item, index) => <button type="button" key={item.id} className={`drone-chapter${item.id === chapter?.id ? ' drone-chapter-active' : ''}`} aria-current={item.id === chapter?.id ? 'step' : undefined} onClick={() => controller.seek(item.start)}><span>{String(index + 1).padStart(2, '0')}</span>{item.label}</button>)}
         </nav>

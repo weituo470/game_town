@@ -28,9 +28,17 @@ function ProgrammeArt({ id }) {
 }
 
 /** Only public performance scores are selectable; ambient sky events are not. */
-export default function DroneInvitation({ onStart }) {
+export default function DroneInvitation({ onStart, onAiDrone }) {
   return <section className="drone-programme" aria-labelledby="drone-invitation-title">
     <header className="drone-programme-heading"><span className="drone-invitation-kicker">小镇天幕 · 光影剧场</span><h3 id="drone-invitation-title">选择你想看的演出</h3><p>选择法天象地、水滴之战或空天母舰；观演中可切换节目，也可随时回到小镇。</p></header>
+    {onAiDrone && <article className="drone-invitation drone-invitation-ai">
+      <div className="drone-invitation-copy">
+        <span className="drone-invitation-kicker">AI 演出导演 · 让灵感升空</span>
+        <h4>写一句话，点亮一片天空</h4>
+        <p>输入主题，或让 AI 即兴创作。预览分幕后，在小镇观看完整的起飞、变阵与归航；喜欢的节目可以保存重播。</p>
+        <button type="button" className="drone-invitation-start" onClick={onAiDrone}><Sparkles size={19} aria-hidden="true"/>AI 即兴 / 命题演出<ArrowUpRight size={19} aria-hidden="true"/></button>
+      </div>
+    </article>}
     {DRONE_PROGRAM_MENU.map(program => <article className={`drone-invitation drone-invitation-${program.id}`} key={program.id} aria-labelledby={`drone-programme-${program.id}`}>
       <ProgrammeArt id={program.id}/>
       <div className="drone-invitation-copy">

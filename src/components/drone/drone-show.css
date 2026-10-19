@@ -190,3 +190,8 @@
 }
 .drone-reduced-motion, .drone-reduced-motion * { animation: none !important; transition: none !important; }
 @media (prefers-reduced-motion: reduce) { .drone-show-controls, .drone-show-controls * { animation: none !important; transition: none !important; } }
+
+/* AI titles vary in length; leave the sky clear and keep programme choices in details. */
+.drone-show-ai .drone-title-block h1 { font-size: clamp(1.5rem, 3vw, 2.25rem); max-width: min(34rem, 65vw); line-height: 1.4; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+.drone-show-ai .drone-details .drone-program { margin-bottom: 18px; }
+@media (max-width: 600px) { .drone-show-ai .drone-title-block h1 { max-width: calc(100vw - 150px); font-size: 1.5rem; } .drone-show-ai .drone-details .drone-program-buttons { flex-wrap: wrap; overflow: visible; } }

@@ -105,4 +105,10 @@ node scripts/import-npc-personas.mjs ./my-personas
 
 ## 8. 发布前检查
 
+### AI 无人机编导
+
+该可选功能默认 `AI_DRONE_ENABLED=false`，使用独立的每日额度账本。启用需同时提供有效的服务端 NPC DeepSeek 配置，并将 `NPC_LLM_ENABLED` 和 `AI_DRONE_ENABLED` 设为 `true`；这也会启用原有 NPC 文字聊天。新增生成默认每游客按北京时间每天 5 次，另有同 IP 与并发限制；本机载入回放不消耗次数。完整公开配置、接口、存储和限制见 [AI 无人机编导](AI_DRONE_DIRECTOR.md)。
+
+### 公网检查
+
 不要提交 `.env`、`*.local.json`、`.data/`、真实令牌、用户上传图片或供应商返回的私有素材。公网部署应额外设置 HTTPS、WebSocket 升级代理、可信来源、持久化签名、备份与供应商侧硬额度。原站的 SSH、Nginx、PM2 配置不属于本开源仓库。

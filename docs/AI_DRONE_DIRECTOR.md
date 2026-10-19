@@ -1,0 +1,159 @@
+# AI 无人机编导
+
+在小镇中输入主题，或让 AI 即兴创作一份节目单，再由现有 Three.js 演出引擎播放。AI 仅生成受限 JSON 数据，不能运行代码、下载模型或控制真实无人机。
+
+## 使用方式
+
+1. 打开小镇中的 **AI 编导** 入口。
+2. 选择「命题创作」并输入最多 400 字的主题，或选择「即兴创作」，可附加灵感方向。
+3. 点击生成。成功后查看章节、配色和总时长，点击「开始演出」。起飞、归航与熄灯由引擎自动补齐。
+4. 可保存到本机，之后载入回放，不再调用模型或消耗生成额度。
+
+当前版本仅供**个人观演**，不会广播给整个联机房间。它不是专业无人机飞控系统，不承诺现实飞行安全间距、可导出航线、自动配乐或配音。复杂人物、文字与任意物体的精准造型不在第一版能力保证内。
+
+## 服务端启用
+
+运行环境与主项目一致：**Node.js 24.13.0 或更新的 24.x**。后端使用内置 `node:sqlite`，无须为此新增数据库依赖。
+
+AI 编导默认关闭。收费能力必须由部署者主动启用并承担供应商费用。当前适配器复用服务端的 NPC DeepSeek 配置，固定使用模型标识 `deepseek-flash` 和 DeepSeek 官方 API 地址。模型标识以本适配器代码为准，不会根据宣传名称自动换模型或路由到其他供应商。
+
+将以下配置写入本机私有 `.env`，不要提交真实密钥：
+
+```dotenv
+# Both switches are required by the shared server-only provider configuration.
+AI_DRONE_ENABLED=true
+NPC_LLM_ENABLED=true
+NPC_LLM_API_KEY=
+NPC_LLM_BASE_URL=https://api.deepseek.com/v1
+NPC_LLM_MODEL=deepseek-flash
+
+# Durable private SQLite file, relative to the process working directory.
+AI_DRONE_DB=.data/ai-drone.sqlite
+
+# Positive integers; 0 does NOT mean unlimited.
+AI_DRONE_DAILY_LIMIT=5
+AI_DRONE_IP_MINUTE_LIMIT=3
+AI_DRONE_IP_DAILY_LIMIT=30
+```
+
+只在本机私有配置中填写自己的 `NPC_LLM_API_KEY`。现有 `npm run dev` 和 `npm start` 不会自动加载 `.env`，需显式启动：
+
+```bash
+npm ci
+node --env-file=.env scripts/dev.mjs
+```
+
+生产运行先构建，再启动：
+
+```bash
+npm run build
+node --env-file=.env server/index.js
+```
+
+`NPC_LLM_ENABLED=true` 同时启用项目原有的 NPC 文字聊天；它有独立的费用和限流设置。若只希望启用无人机编导而关闭 NPC 聊天，需要先拆分服务端配置，不能假定上述设置只影响编导。
+
+其他可选配置沿用项目已有的 `GUEST_SECRET`、`ALLOWED_ORIGINS`、主机与端口设置。公开部署应配置稳定的游客签名密钥、HTTPS、可信反向代理和持久化私有数据目录；不要为绕过跨域或限流直接信任任意客户端的代理头。子路径部署的客户端 API 使用 `appUrl`，前端构建 base 与服务器路由前缀须一致。
+
+设置 `AI_DRONE_ENABLED=false` 并重启后端即可关闭新生成。关闭或配置缺失时，界面明确显示未开放，**不会伪造 AI 节目**；已有本机节目仍可载入回放。
+
+## 额度、并发与失败语义
+
+默认限制：
+
+| 项目 | 默认值 |
+| --- | --- |
+| 每位游客每天 | 5 次，北京时间 00:00 重置 |
+| 同一 IP 每分钟 | 3 次 |
+| 同一 IP 每天 | 30 次 |
+| 全服务同时编导 | 2 个请求 |
+| 同一游客同时编导 | 1 个请求 |
+| 供应商请求时限 | 45 秒 |
+| 客户端生成全链时限 | 60 秒，包含游客身份建立 |
+
+前三项可通过上述环境变量调整；界面说明默认按 5 次设计，改变产品额度时应同时调整公开文案。并发限制固定在服务端。额度限制不是供应商账单上限：部署者仍应设置供应商自己的预算和告警。
+
+服务端先原子预占额度，再开始模型调用。已预占并开始的请求，即使超时、取消、返回无效 JSON 或服务重启，也可能计入额度，不自动退回。浏览器的取消按钮会中断等待并向后端传播取消，但不能保证供应商未产生费用。
+
+请求以游客身份和 UUID `requestId` 做持久化幂等处理。同一请求号不会再次调用供应商；重复取回已完成请求返回 `replayed: true`，复用请求号但更换主题会被拒绝。客户端不会自动重试收费请求，401 也不会自动重新建身份并重发。
+
+额度存于 SQLite，服务重启不会自然归零。默认数据库位于私有 `.data/`，不得放进静态资源目录或提交到 Git。当前版本没有自动历史清理任务；运营者需规划私有访问权限、备份和保留策略，不应随意删除账本来“修复”额度。
+
+## 接口契约
+
+以下路径相对于应用 base。接口使用同源请求，后端会校验游客签名；模型密钥不发送给浏览器。
+
+| 接口 | 用途 |
+| --- | --- |
+| `GET /api/drone-director/status` | 查询是否启用、模型及限制；不建立游客、不调用模型 |
+| `POST /api/guest` | 首次生成时建立游客身份，客户端存入独立 `sessionStorage` 项 |
+| `POST /api/drone-director/usage` | 请求体 `{ "token": "当前游客签名凭据" }`；只读查询额度 |
+| `POST /api/drone-director/generate` | 请求体 `{ "token": "当前游客签名凭据", "requestId": "UUID", "mode": "prompt", "prompt": "演出主题" }` |
+
+`mode` 为 `prompt` 或 `improv`。命题需要非空主题，即兴可留空。成功响应结构：
+
+```text
+{
+  show: { id, createdAt, mode, prompt, provider, model, score },
+  usage: { limit, used, remaining, resetAt },
+  replayed: false
+}
+```
+
+`createdAt` 和 `resetAt` 均为 Unix 毫秒时间戳；`resetAt` 是服务端计算的下一次北京时间零点。使用量接口返回 `{ usage }`。失败返回安全错误码、中文说明、`charged`、`replayed`，可包含 `usage`；不能把 `charged: false` 理解为“供应商的最终账单已核验”。
+
+模型输出不保证每次合规：格式校验失败时不会启动演出，也不会偷偷重试。界面明确区分格式不合规、上游失败和超时；已经发起的模型调用仍计入额度。运维排查只记录限定枚举的失败阶段/原因及完成时间，不记录原始模型响应或凭据。旧失败记录可能缺少结束时间，不能用响应头耗时或超时租约推算完整生成耗时。
+
+客户端在服务端给出的重置时刻、标签页重新可见时刷新额度，也提供手动「重新检查额度」。这些只读操作不触发模型生成。
+
+## JSON 与渲染边界
+
+`shared/aiDroneScore.js` 是服务端与客户端共用的严格校验器。成功返回独立、深冻结的规范化节目；失败不启动演出。它拒绝未知字段、无效枚举、非有限数值和不支持的版本，不使用 `eval`、`new Function` 或动态资源 URL。
+
+节目结构示例：
+
+```json
+{
+  "version": 1,
+  "title": "山海相逢",
+  "synopsis": "飞鸟越过山峦，鲸鱼游向星海。",
+  "seed": 2026,
+  "scenes": [
+    { "name": "群山醒来", "description": "山峦在暖金色中呼吸。", "shape": "mountain", "color": "#FFD38C", "accent": "#FFF1CE", "duration": 12, "motion": "breathe", "transition": "morph" },
+    { "name": "飞鸟过海", "description": "蓝色飞鸟轻轻起伏。", "shape": "bird", "color": "#77CCFF", "accent": "#FFFFFF", "duration": 12, "motion": "wave", "transition": "sweep" },
+    { "name": "鲸游星海", "description": "鲸鱼缓缓转身。", "shape": "whale", "color": "#70B8FF", "accent": "#C0E8FF", "duration": 12, "motion": "turn", "transition": "morph" },
+    { "name": "相逢之环", "description": "灯光重聚成温暖的环。", "shape": "ring", "color": "#FFD38C", "accent": "#FFFAE8", "duration": 12, "motion": "still", "transition": "burst" }
+  ]
+}
+```
+
+主要边界：
+
+- 4–7 幕，每幕整数 8–18 秒；这些时长不包含引擎自动加入的起飞和回收。
+- `shape`：`ring`、`sphere`、`heart`、`star`、`galaxy`、`helix`、`flower`、`bird`、`whale`、`mountain`、`city`、`outline`。
+- `motion`：`still`、`turn`、`breathe`、`wave`；`transition`：`morph`、`sweep`、`burst`。
+- 颜色仅接受 `#RRGGBB`；`seed` 是 1–2147483647 的整数，相同节目可确定性回放。
+- 仅 `outline` 可附加二维 `paths`：最多 6 条折线，每条 2–24 个点，总计最多 120 点，坐标范围 `[-1, 1]`。
+- 节目最多 32 KiB；供应商整个响应最多 64 KiB。不是任意 3D 模型生成接口。
+
+编导面板和几何编译器按需懒加载。首屏不需要为尚未打开的 AI 创作面板解析全部造型代码；加载预算脚本校验实际构建依赖图，不能用它代替真实设备帧率测试。
+
+## 本机保存与隐私
+
+本机节目库最多保留 5 份，保存第 6 份会替换最早保存的一份。只保存经过校验的节目和 `id`、创作模式、创建/保存时间，不保存模型密钥、游客凭据或完整接口响应。损坏、过大或旧版本数据会被安全跳过；浏览器存储不可用时会明确报错，不假称保存成功。
+
+游客签名凭据单独保存在 `sessionStorage`，同一标签页刷新不会主动更换身份；凭据过期或被服务端拒绝后，下一次主动生成才重新建立身份。它不是跨设备账号，也不能替代账号级防滥用机制。
+
+主题会发送给 DeepSeek，不要填写隐私。服务端为幂等、额度和结果取回保存游客标识、请求记录、带服务端随机盐的 IP 摘要、成功节目及其主题，以及安全错误结果。节目库删除仅删除浏览器副本，不代表删除供应商或服务端历史。
+
+## 验证
+
+以下命令不需要模型密钥，不会产生供应商费用：
+
+```bash
+node --test tests/ai-drone-*.test.js
+npm run check:readability
+npm run build
+node scripts/check-loading-budget.mjs
+```
+
+运行真实生成之前应单独确认费用预算。验收至少包含命题与即兴、取消/超时、服务关闭、额度耗尽与跨日刷新、本机保存回放、桌面与约 390px 手机宽度。单元测试、静态字号检查和构建通过都不等于真实浏览器视觉验收通过。

@@ -122,6 +122,6 @@ test('black hole host uses the existing canvas, hides aircraft and disposes the 
   assert.match(scene, /points\.visible = trails\.visible = bases\.visible = pads\.visible = false/);
   assert.match(scene, /blackHole\.update\(safeTime, reducedMotion\)/);
   assert.match(scene, /blackHole\?\.dispose\(\)/);
-  assert.match(scene, /getDroneProgram\(program\)\.supportsFpv/);
+  assert.match(scene, /getDroneProgram\(program,aiRuntime\)\.supportsFpv/);
   assert.doesNotMatch(scene, /<Canvas\b|new THREE\.WebGLRenderer/);
 });

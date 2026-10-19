@@ -14,6 +14,9 @@
 .drone-programme-heading p { margin: 0; font-size: var(--text-body); line-height: 1.8; }
 .drone-invitation { display: grid; grid-template-columns: minmax(120px, 170px) minmax(0, 1fr); align-items: center; gap: 24px; padding: 24px; margin: 0 0 20px; color: #f8edcf; background: radial-gradient(ellipse at 8% 60%, #1b3b4d, transparent 60%), #0a162a; border: 1px solid #aa925c80; border-radius: 8px; overflow: hidden; }
 .drone-invitation-art { color: #edce83; }
+.drone-invitation-ai { grid-template-columns: minmax(0, 1fr); background: #fff8e7; color: #29261f; }
+.drone-invitation-ai .drone-invitation-kicker { color: #66522d; }
+.drone-invitation-ai .drone-invitation-copy p { color: #4c493e; }
 .drone-invitation-art svg { display: block; width: 100%; max-height: 230px; filter: drop-shadow(0 0 9px #dbb76760); }
 .drone-invitation-kicker { display: block; color: #aed9d2; font-size: var(--text-meta); line-height: 1.7; letter-spacing: .16em; }
 .drone-invitation-copy h4 { margin: 8px 0; font-family: 'Songti SC', 'SimSun', serif; font-size: clamp(1.5rem, 3vw, 2rem); font-weight: 600; letter-spacing: .06em; }

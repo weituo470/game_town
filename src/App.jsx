@@ -31,6 +31,7 @@ const DRONE_NIGHT_TIME = Object.freeze({ current: 90000 });
 // Non-scene features should not compete with the first 3D frame or compile
 // their game logic before the visitor has chosen to open them.
 const MiniGame = React.lazy(() => import('./components/MiniGame.jsx'));
+const AiDroneStudio = React.lazy(() => import('./components/drone/AiDroneStudio.jsx'));
 const NpcDirectory = React.lazy(() => import('./components/NpcDirectory.jsx'));
 const CharacterStudio = React.lazy(() => import('./components/CharacterStudio.jsx'));
 const GptParkExperience = React.lazy(() => import('./components/gpt/GptParkExperience.jsx'));
@@ -185,19 +186,21 @@ export default function App() {
   const beginExploring = useCallback(() => setViewMode(mode => mode === 'wonder' ? 'first-person' : mode === 'overview' ? 'follow' : mode), []);
   const openAtlas = useCallback(() => { setMapOpen(false); setModal({ type: 'atlas' }); }, []);
   const openWonders = useCallback(() => { inputRef.current = { ...EMPTY_INPUT }; setMapOpen(false); setModal({ type: 'wonders' }); }, []);
+  const openAiDrone = useCallback(() => { inputRef.current = { ...EMPTY_INPUT }; document.exitPointerLock?.(); setMapOpen(false); setModal({ type: 'ai-drone' }); }, []);
   const observeWonder = useCallback(id => { if (!WONDERS.some(w => w.id === id)) return; inputRef.current = { ...EMPTY_INPUT }; document.exitPointerLock?.(); setMapOpen(false); setModal(null); setViewMode('wonder'); setDestination({ id, nonce: Date.now() }); }, []);
   const openGptPark = useCallback(() => { inputRef.current = { ...EMPTY_INPUT }; document.exitPointerLock?.(); setMapOpen(false); setModal({ type: 'gpt-park' }); }, []);
   const openDeepSeekPark = useCallback(() => { inputRef.current = { ...EMPTY_INPUT }; document.exitPointerLock?.(); setMapOpen(false); setModal({ type: 'deepseek-park' }); }, []);
   const [storageOk, setStorageOk] = useState(true);
   const [reducedMotion, setReducedMotion] = useState(() => window.matchMedia('(prefers-reduced-motion: reduce)').matches);
   const inputRef = useRef({ ...EMPTY_INPUT });
-  const openDroneShow = useCallback((program = 'avatar') => {
+  const openDroneShow = useCallback((program = 'avatar', aiRuntime) => {
     droneReturn.current = { view: viewMode === 'drone' ? 'overview' : viewMode, focus: document.activeElement };
     inputRef.current = { ...EMPTY_INPUT };
     document.exitPointerLock?.();
     outdoor.exit();
     setMapOpen(false); setModal(null); setViewMode('drone');
-    drone.start({ program: getDroneProgram(program).ambientOnly ? 'avatar' : getDroneProgram(program).id });
+    const metadata = getDroneProgram(program, aiRuntime);
+    drone.start({ program: metadata.ambientOnly ? 'avatar' : metadata.id, aiRuntime });
   }, [viewMode, drone.start, outdoor.exit]);
   const closeDroneShow = useCallback(() => {
     drone.close();
@@ -308,7 +311,7 @@ export default function App() {
       <MultiplayerStatus multiplayer={multiplayer} onClick={() => { setMapOpen(false); setModal({ type: 'multiplayer' }); }}/><button className="help-button" aria-label="怎么玩" onClick={() => setModal({ type: 'help' })}><HelpCircle size={20}/><span>怎么玩</span></button>
     </header>
     <main className={`town-shell is-${viewMode}${droneWatching && drone.state.view === 'fpv' && !reducedMotion ? ' is-drone-fpv' : ''}${nearestWonder ? ' has-wonder' : ''}${outdoor.selected ? ' has-outdoor-game' : ''}${flying && !outdoor.selected ? ' is-flying' : ''}`} inert={!!modal} aria-label="游戏小镇探索场景">
-      <div className="world-stage"><SceneBoundary><Suspense fallback={null}><Town onSkyAppearance={skyAppearance} suspended={['cinema', 'gpt-park', 'deepseek-park'].includes(modal?.type)} onGptSelect={openGptPark} onDeepSeekSelect={openDeepSeekPark} active={!droneWatching && !modal && !mapOpen} droneTimeRef={droneWatching ? drone.timeRef : npcTimeRef} droneFpv={{ program: droneWatching ? drone.state.program : 'avatar', view: drone.state.view, seatId: droneSeatId, onSeatsReady: setDroneSeats, lookInputRef: droneLookInput, recenterRef: droneRecenter, telemetryRef: droneTelemetry, onLookStatus: setDroneLookStatus }} network={multiplayer} inputRef={inputRef} destination={destination} onNearest={setNearest} onReady={sceneReady} reducedMotion={reducedMotion} completedIds={completedIds} onInspectResidents={inspectResidents} viewMode={viewMode} onStartExploring={beginExploring} onLookStatus={setLookStatus} timeRef={droneWatching ? DRONE_NIGHT_TIME : timeRef} npcTimeRef={npcTimeRef} onNearestNpc={setNearestNpc} nearestNpcId={nearestNpc} characterAsset={characterAsset} onNearestWonder={setNearestWonder} outdoorRef={outdoor.runtimeRef} outdoorSelected={outdoor.selected} onOutdoorStart={startOutdoor} onNearestOutdoor={setNearestOutdoor} flightRef={flightRef} onFlyingChange={setFlying}/></Suspense></SceneBoundary></div>
+      <div className="world-stage"><SceneBoundary><Suspense fallback={null}><Town onSkyAppearance={skyAppearance} suspended={['cinema', 'gpt-park', 'deepseek-park'].includes(modal?.type)} onGptSelect={openGptPark} onDeepSeekSelect={openDeepSeekPark} active={!droneWatching && !modal && !mapOpen} droneTimeRef={droneWatching ? drone.timeRef : npcTimeRef} droneFpv={{ aiRuntime: droneWatching ? drone.state.aiRuntime : undefined, program: droneWatching ? drone.state.program : 'avatar', view: drone.state.view, seatId: droneSeatId, onSeatsReady: setDroneSeats, lookInputRef: droneLookInput, recenterRef: droneRecenter, telemetryRef: droneTelemetry, onLookStatus: setDroneLookStatus }} network={multiplayer} inputRef={inputRef} destination={destination} onNearest={setNearest} onReady={sceneReady} reducedMotion={reducedMotion} completedIds={completedIds} onInspectResidents={inspectResidents} viewMode={viewMode} onStartExploring={beginExploring} onLookStatus={setLookStatus} timeRef={droneWatching ? DRONE_NIGHT_TIME : timeRef} npcTimeRef={npcTimeRef} onNearestNpc={setNearestNpc} nearestNpcId={nearestNpc} characterAsset={characterAsset} onNearestWonder={setNearestWonder} outdoorRef={outdoor.runtimeRef} outdoorSelected={outdoor.selected} onOutdoorStart={startOutdoor} onNearestOutdoor={setNearestOutdoor} flightRef={flightRef} onFlyingChange={setFlying}/></Suspense></SceneBoundary></div>
       {!outdoor.selected && !droneWatching && <FlightStatus flightRef={flightRef} flying={flying} onToggleHover={requestHover} viewMode={viewMode}/>}
       {!outdoor.selected && !mapOpen && <OutdoorLauncher onStart={startOutdoor} nearest={nearestOutdoor}/>}
       {outdoor.selected && <OutdoorHud key={outdoor.selected} runtimeRef={outdoor.runtimeRef} selected={outdoor.selected} onExit={outdoor.exit} connected={multiplayer.status === 'connected'}/>}
@@ -337,7 +340,8 @@ export default function App() {
     {modal?.type === 'atlas' && <Dialog wide title="小镇街区导览" eyebrow="TOWN PLAN / TOWN + WONDERS" onClose={closeModal}><TownAtlas onTravel={travel} onOutdoorStart={startOutdoor} onGptTour={openGptPark} onDeepSeekTour={openDeepSeekPark}/></Dialog>}
     {modal?.type === 'gpt-park' && <GptEntryBoundary onClose={closeModal}><Suspense fallback={<Dialog title="GPT 主题园区" onClose={closeModal}><p role="status">正在打开 GPT 园区…</p></Dialog>}><GptParkExperience onClose={closeModal} onEnterTown={() => travel('gpt')} reducedMotion={reducedMotion}/></Suspense></GptEntryBoundary>}
     {modal?.type === 'deepseek-park' && <DeepSeekEntryBoundary onClose={closeModal}><Suspense fallback={<Dialog title="DeepSeek 主题园区" onClose={closeModal}><p role="status">正在打开 DeepSeek 园区…</p></Dialog>}><DeepSeekParkExperience onClose={closeModal} onEnterTown={() => travel(DEEPSEEK_PARK.id)} reducedMotion={reducedMotion}/></Suspense></DeepSeekEntryBoundary>}
-    {modal?.type === 'wonders' && <Dialog wide title="奇观时刻" eyebrow="PLAYTOWN / ONE CONNECTED WORLD" onClose={closeModal}><WonderSchedule onDroneShow={openDroneShow} onImmerse={observeWonder} timeRef={npcTimeRef} onTravel={travel} reducedMotion={reducedMotion} onReducedMotion={setReducedMotion}/></Dialog>}
+    {modal?.type === 'wonders' && <Dialog wide title="奇观时刻" eyebrow="PLAYTOWN / ONE CONNECTED WORLD" onClose={closeModal}><WonderSchedule onDroneShow={openDroneShow} onAiDrone={openAiDrone} onImmerse={observeWonder} timeRef={npcTimeRef} onTravel={travel} reducedMotion={reducedMotion} onReducedMotion={setReducedMotion}/></Dialog>}
+    {modal?.type === 'ai-drone' && <Dialog wide title="AI 演出导演" eyebrow="PLAYTOWN / SKY STUDIO" onClose={closeModal}><Suspense fallback={<p role="status">正在打开天空创作台…</p>}><AiDroneStudio onClose={closeModal} onPlay={runtime => openDroneShow('ai', runtime)}/></Suspense></Dialog>}
     {modal?.type === 'characters' && <Dialog wide title="小镇居民" eyebrow="MEET THE RESIDENTS" onClose={closeModal}><Suspense fallback={<p role="status">正在打开居民名册…</p>}><NpcDirectory key={modal.npcId || 'directory'} initialNpcId={modal.npcId} timeRef={npcTimeRef} animalPlayer={animalPlayer.current}/></Suspense></Dialog>}
     {modal?.type === 'character-studio' && <Dialog wide title="我的 3D 角色" eyebrow="CHARACTER STUDIO / PRIVATE" onClose={closeModal}><CharacterStudioBoundary><Suspense fallback={<p className="character-entry-message" role="status">正在打开角色工坊…</p>}><CharacterStudio onCharacterChanged={onCharacterChanged} onEnterTown={enterTownWithCharacter}/></Suspense></CharacterStudioBoundary></Dialog>}
     {modal?.type === 'multiplayer' && <Dialog title="同游小镇" eyebrow="INVITE YOUR FRIENDS" onClose={closeModal}><MultiplayerPanel multiplayer={multiplayer} onContinue={closeModal}/></Dialog>}

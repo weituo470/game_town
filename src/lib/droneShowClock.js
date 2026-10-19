@@ -1,4 +1,4 @@
-import { DRONE_PROGRAMS, getDroneProgram } from '../../shared/dronePrograms.js';
+import { DRONE_PROGRAMS, getDroneProgram, isAiDroneRuntime } from '../../shared/dronePrograms.js';
 
 export const DEFAULT_DRONE_SHOW_DURATION = 150_000;
 
@@ -23,6 +23,8 @@ export function createDroneShowClock({ now = defaultNow, duration, allowEncore =
   let view = 'cinematic';
   let reducedMotion = false;
   let program = 'avatar';
+  let aiRuntime = null;
+  const metadata = () => getDroneProgram(program, aiRuntime);
   let encoreFrom = null;
   let pendingEncore = false;
   const current = () => {
@@ -46,7 +48,7 @@ export function createDroneShowClock({ now = defaultNow, duration, allowEncore =
   };
   const snapshot = () => {
     const elapsedMs = current();
-    return { active, elapsedMs, paused, speed, view, program, reducedMotion, encoreFrom, ended: elapsedMs >= length };
+    return { active, elapsedMs, paused, speed, view, program, reducedMotion, encoreFrom, ended: elapsedMs >= length, ...(aiRuntime ? { aiRuntime } : {}) };
   };
   const enterEncore = () => {
     pendingEncore = false;
@@ -75,15 +77,18 @@ export function createDroneShowClock({ now = defaultNow, duration, allowEncore =
       return allowEncore === true && active && program === 'droplet' && state.ended ? enterEncore() : state;
     },
     start(options = {}) {
+      // Invalid new AI scores must not replace the last working performance.
+      if (options.program === 'ai' && !isAiDroneRuntime(options.aiRuntime || aiRuntime)) return snapshot();
       pendingEncore = false;
       encoreFrom = null;
-      if (DRONE_PROGRAMS.some(item => item.id === options.program)) program = options.program;
-      length = customDuration ?? getDroneProgram(program).duration;
+      if (options.program === 'ai') { aiRuntime = options.aiRuntime || aiRuntime; program = 'ai'; }
+      else if (DRONE_PROGRAMS.some(item => item.id === options.program)) program = options.program;
+      length = customDuration ?? metadata().duration;
       anchorNow = readNow();
       anchorElapsed = clampTime(options.elapsedMs ?? 0, length);
       speed = options.speed === 2 ? 2 : 1;
       view = ['free', 'fpv'].includes(options.view) ? options.view : 'cinematic';
-      if (!getDroneProgram(program).supportsFpv) view = 'cinematic';
+      if (!metadata().supportsFpv) view = 'cinematic';
       active = true;
       paused = anchorElapsed >= length;
       return snapshot();
@@ -118,12 +123,12 @@ export function createDroneShowClock({ now = defaultNow, duration, allowEncore =
       return snapshot();
     },
     setView(value) {
-      if (!getDroneProgram(program).supportsFpv && value !== 'cinematic') return snapshot();
+      if (!metadata().supportsFpv && value !== 'cinematic') return snapshot();
       if (['cinematic', 'free', 'fpv'].includes(value)) view = value;
       return snapshot();
     },
     setProgram(value) {
-      if (!DRONE_PROGRAMS.some(item => item.id === value)) return snapshot();
+      if (!(value === 'ai' && aiRuntime) && !DRONE_PROGRAMS.some(item => item.id === value)) return snapshot();
       if (value === program) {
         // A deliberate re-selection still does not restart. It does cancel an
         // uncommitted automatic hand-off, including one detected by this read.
@@ -133,7 +138,7 @@ export function createDroneShowClock({ now = defaultNow, duration, allowEncore =
       pendingEncore = false;
       encoreFrom = null;
       program = value;
-      length = customDuration ?? getDroneProgram(program).duration;
+      length = customDuration ?? metadata().duration;
       anchorElapsed = 0;
       anchorNow = readNow();
       paused = !active;

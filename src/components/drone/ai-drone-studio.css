@@ -1,0 +1,71 @@
+.ai-drone-studio { --ai-ink: #38362e; --ai-muted: #686253; --ai-gold: #f1d492; --ai-line: #ddd5c4; color: var(--ai-ink); font-size: var(--text-body, 1.125rem); line-height: 1.8; }
+.ai-drone-studio * { min-width: 0; }
+.ai-drone-studio p { font-size: var(--text-body, 1.125rem); line-height: 1.8; }
+.ai-drone-studio button, .ai-drone-studio label, .ai-drone-studio textarea { font-size: var(--text-control, 1rem); }
+.ai-drone-studio button { min-height: 44px; border-radius: 8px; line-height: 1.5; padding: 10px 16px; transition: background-color 160ms ease, border-color 160ms ease; }
+.ai-drone-studio button:focus-visible, .ai-drone-studio textarea:focus-visible, .ai-drone-studio input:focus-visible { outline: 3px solid #8a5c0e; outline-offset: 3px; }
+.ai-drone-studio button:disabled { opacity: .58; cursor: not-allowed; }
+.ai-drone-intro { max-width: 40em; }
+.ai-drone-scope, .ai-drone-meta { color: var(--ai-muted); font-size: var(--text-meta, .875rem); line-height: 1.7; }
+.ai-drone-scope { margin-top: 4px; }
+.ai-drone-workspace { margin-top: 24px; }
+.ai-drone-mode { display: flex; flex-wrap: wrap; gap: 8px 20px; border: 0; padding: 0; margin: 0 0 18px; }
+.ai-drone-mode legend { font-size: var(--text-body, 1.125rem); font-weight: 700; margin-bottom: 6px; }
+.ai-drone-mode label { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; cursor: pointer; }
+.ai-drone-mode input { accent-color: #805b1c; width: 20px; height: 20px; margin: 0; }
+.ai-drone-field-heading { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; margin-bottom: 8px; }
+.ai-drone-field-heading label { font-weight: 700; }
+.ai-drone-studio textarea { display: block; width: 100%; min-height: 130px; resize: vertical; border: 1px solid #a99b80; border-radius: 10px; background: #fffcf5; color: var(--ai-ink); padding: 13px 15px; line-height: 1.8; }
+.ai-drone-studio textarea::placeholder { color: #746c5c; opacity: 1; }
+.ai-drone-examples { display: flex; align-items: center; flex-wrap: wrap; gap: 6px 10px; margin-top: 8px; }
+.ai-drone-examples button { color: #76500d; padding-inline: 10px; text-decoration: underline; text-underline-offset: 4px; }
+.ai-drone-examples button:hover:not(:disabled) { background: #efe4ce; }
+.ai-drone-policy { margin: 16px 0; color: #5f594d; }
+.ai-drone-request-bar, .ai-drone-play-bar { display: flex; align-items: center; gap: 10px 14px; flex-wrap: wrap; }
+.ai-drone-primary { color: #3d2d0c; background: var(--ai-gold); border: 1px solid #b99550; font-weight: 700; }
+.ai-drone-primary:hover:not(:disabled) { background: #f9dfa3; }
+.ai-drone-secondary { color: #51462e; background: transparent; border: 1px solid #a99b80; }
+.ai-drone-secondary:hover:not(:disabled) { background: #efe4ce; }
+.ai-drone-live { margin-top: 12px; }
+.ai-drone-live p { display: flex; align-items: center; gap: 10px; }
+.ai-drone-wait { display: inline-block; width: 16px; height: 16px; border-radius: 50%; border: 2px solid #cab88c; border-top-color: #795216; flex-shrink: 0; animation: ai-drone-wait 900ms linear infinite; }
+.ai-drone-status-retry { margin-top: 12px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.ai-drone-error { margin-top: 12px; color: #9b3c26; }
+.ai-drone-preview, .ai-drone-library { margin-top: 28px; padding-top: 24px; border-top: 1px solid var(--ai-line); }
+.ai-drone-preview { animation: ai-drone-reveal 220ms ease-out both; }
+.ai-drone-section-heading, .ai-drone-chapter-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 8px 18px; flex-wrap: wrap; }
+.ai-drone-section-heading { margin-bottom: 10px; }
+.ai-drone-section-heading h3 { font-size: 1.375rem; line-height: 1.5; overflow-wrap: anywhere; }
+.ai-drone-flight-note { margin-top: 6px; }
+.ai-drone-chapters { list-style: none; margin: 22px 0; padding: 0; }
+.ai-drone-chapters li { display: grid; grid-template-columns: 32px minmax(0, 1fr); gap: 12px; padding: 17px 0; border-top: 1px solid var(--ai-line); }
+.ai-drone-chapter-number { color: #886721; font-size: var(--text-meta, .875rem); font-variant-numeric: tabular-nums; padding-top: 4px; }
+.ai-drone-chapter-heading h4 { margin: 0; font-size: var(--text-body, 1.125rem); line-height: 1.7; overflow-wrap: anywhere; }
+.ai-drone-chapter-copy p { margin-top: 4px; color: #514c42; }
+.ai-drone-scene-meta { display: flex; gap: 6px 18px; flex-wrap: wrap; align-items: center; margin-top: 8px; color: var(--ai-muted); font-size: var(--text-meta, .875rem); }
+.ai-drone-colors { display: inline-flex; gap: 5px; align-items: center; flex-wrap: wrap; }
+.ai-drone-colors i { display: inline-block; width: 14px; height: 14px; border: 1px solid #847860; border-radius: 50%; }
+.ai-drone-colors > span { margin-left: 3px; overflow-wrap: anywhere; }
+.ai-drone-saved-list { list-style: none; margin: 0; padding: 0; }
+.ai-drone-saved-list li { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px 16px; padding: 14px 0; border-bottom: 1px solid var(--ai-line); }
+.ai-drone-saved-list li > div:first-child { flex: 1 1 180px; }
+.ai-drone-saved-list strong { display: block; font-size: var(--text-body, 1.125rem); font-weight: 600; overflow-wrap: anywhere; }
+.ai-drone-saved-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.ai-drone-text-button { text-decoration: underline; text-underline-offset: 4px; color: #665125; }
+.ai-drone-text-button:hover:not(:disabled) { background: #efe4ce; }
+.ai-drone-storage-note { margin-top: 12px; }
+.ai-drone-back { margin-top: 22px; }
+@keyframes ai-drone-wait { to { transform: rotate(360deg); } }
+@keyframes ai-drone-reveal { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 480px) {
+  .ai-drone-request-bar, .ai-drone-play-bar { align-items: stretch; }
+  .ai-drone-request-bar .ai-drone-primary, .ai-drone-play-bar .ai-drone-primary { flex: 1 1 100%; }
+  .ai-drone-request-bar > .ai-drone-meta, .ai-drone-play-bar > .ai-drone-meta { flex-basis: 100%; }
+  .ai-drone-chapters li { grid-template-columns: 24px minmax(0, 1fr); gap: 8px; }
+  .ai-drone-examples { column-gap: 4px; }
+  .ai-drone-examples > span { flex-basis: 100%; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ai-drone-preview, .ai-drone-wait { animation: none; }
+  .ai-drone-studio button { transition: none; }
+}

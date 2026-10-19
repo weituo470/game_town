@@ -14,10 +14,18 @@ function visit(key) {
   for (const dependency of manifest[key].imports || []) visit(dependency);
 }
 visit('index.html');
-for (const name of ['MiniGame', 'NpcDirectory', 'CharacterStudio', 'GptParkExperience']) {
-  const entry = Object.keys(manifest).find(key => key.endsWith(`/${name}.jsx`));
+for (const name of ['MiniGame', 'NpcDirectory', 'CharacterStudio', 'GptParkExperience', 'AiDroneStudio']) {
+  // Shared exports can make Rollup name a dynamic entry by its emitted chunk
+  // instead of its original source path; check the same real dependency graph.
+  const entry = Object.keys(manifest).find(key => key.endsWith(`/${name}.jsx`)
+    || manifest[key].name === name && manifest[key].file.endsWith('.js'));
   assert.ok(entry, `${name} chunk exists`);
   assert.ok(!eager.has(entry), `${name} must stay out of the first scene's eager graph`);
+}
+// Vite may fold the compiler into its lazy importer instead of emitting an
+// independent entry. If it is a manifest entry, it must not become eager.
+for (const entry of Object.keys(manifest).filter(key => key === 'shared/aiDroneShow.js' || key.endsWith('/shared/aiDroneShow.js'))) {
+  assert.ok(!eager.has(entry), 'AI drone compiler/geometry must stay outside the initial eager graph');
 }
 const chunks = [...eager].map(key => {
   const file = manifest[key].file;

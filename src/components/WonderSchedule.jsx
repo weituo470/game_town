@@ -15,10 +15,10 @@ export function nextShowText(state) {
   const seconds = Math.ceil(state.nextIn / 1000);
   return `下一场 ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
-export default function WonderSchedule({ timeRef, onTravel, onImmerse, onDroneShow, reducedMotion, onReducedMotion }) {
+export default function WonderSchedule({ timeRef, onTravel, onImmerse, onDroneShow, onAiDrone, reducedMotion, onReducedMotion }) {
   const time = useWonderTime(timeRef);
   return <div className="wonder-schedule">
-    {onDroneShow && <DroneInvitation onStart={onDroneShow}/>}
+    {onDroneShow && <DroneInvitation onStart={onDroneShow} onAiDrone={onAiDrone}/>}
     <div className="wonder-lead"><span className="wonder-kicker">海洋 / 航海 / 航天</span><h3>同一座小镇，三处奇观。</h3><p>沿街走到海湾、登上航母甲板，或飞向北岸发射场。奇观与小镇共用天空和昼夜；观景镜头也留在这张地图里。每三分钟一轮，错峰演出。</p></div>
     <div className="wonder-programme">
       {WONDERS.map((w, index) => {

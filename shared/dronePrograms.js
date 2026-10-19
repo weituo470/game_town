@@ -37,17 +37,27 @@ export const DRONE_PROGRAMS = Object.freeze([
 // Ambient sky events are never selectable shows and cannot take over a player.
 export const DRONE_PROGRAM_MENU = Object.freeze(DRONE_PROGRAMS.filter(program => !program.ambientOnly));
 
-export function getDroneProgram(id = 'avatar') {
+// AI runtimes are created by the lazy studio from validated data. They are
+// explicit per-viewer values, never an executable programme from the network.
+export function isAiDroneRuntime(runtime) {
+  return runtime?.program?.id === 'ai' && Number.isFinite(runtime.program.duration)
+    && runtime.program.duration > 0 && ['sample', 'update', 'camera'].every(key => typeof runtime[key] === 'function');
+}
+
+export function getDroneProgram(id = 'avatar', aiRuntime) {
+  if (id === 'ai' && isAiDroneRuntime(aiRuntime)) return aiRuntime.program;
   return DRONE_PROGRAMS.find(program => program.id === id) || DRONE_PROGRAMS[0];
 }
 
-export function sampleDroneProgram(timeMs, program = 'avatar') {
+export function sampleDroneProgram(timeMs, program = 'avatar', aiRuntime) {
+  if (program === 'ai' && isAiDroneRuntime(aiRuntime)) return aiRuntime.sample(timeMs);
   if (program === 'blackhole') return sampleBlackHoleShow(timeMs);
   return program === 'carrier-battle' ? sampleCarrierBattle(timeMs)
     : program === 'droplet' ? sampleDropletShow(timeMs) : sampleDroneShow(timeMs);
 }
 
 export function updateDroneProgram(fleet, timeMs, options = {}) {
+  if (options.program === 'ai' && isAiDroneRuntime(options.aiRuntime)) return options.aiRuntime.update(fleet, timeMs, options);
   if (options.program === 'carrier-battle') {
     // This score uses solid aircraft and the existing harbour ship, never a
     // second 4096-light formation. Clear any cached lamps before switching.

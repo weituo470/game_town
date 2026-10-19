@@ -16,6 +16,7 @@ import { makeTownRoom } from './TownRoom.js';
 import { createReconnectDiagnostics } from './reconnectDiagnostics.js';
 import { loadNpcLlmConfig } from './npcLlmConfig.js';
 import { createNpcChatService } from './npcChat.js';
+import { createAiDroneDirector, loadAiDroneConfig, AiDroneDirectorError } from './aiDroneDirector.js';
 import { loadNpcTtsConfig } from './npcTtsConfig.js';
 import { createNpcSpeechService } from './npcSpeech.js';
 import { loadGameImageConfig, createGameImageModule } from './gameImages/index.js';
@@ -77,6 +78,7 @@ export async function createTownServer({
   allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://127.0.0.1:5173,http://localhost:5173,http://127.0.0.1:4173,http://localhost:4173').split(',').map(value => value.trim()).filter(Boolean),
   reconnectSeconds, maxRooms = 32,
   npcConfig = loadNpcLlmConfig(), npcFetch = globalThis.fetch,
+  aiDroneConfig = loadAiDroneConfig(), aiDroneFetch = globalThis.fetch, aiDroneStore, aiDroneNow,
   npcSpeechConfig = loadNpcTtsConfig(), npcSpeechFetch = globalThis.fetch,
   gameImageConfig = loadGameImageConfig(), gameImageProvider,
   gameCharacterConfig = loadGameCharacterConfig(), gameCharacterProvider,
@@ -87,6 +89,7 @@ export async function createTownServer({
   const requests = createRateLimiter({ limit: 120, windowMs: 60_000 });
   const creates = createRateLimiter({ limit: 12, windowMs: 60_000 });
   const npcChats = createNpcChatService({ config: npcConfig, fetchImpl: npcFetch });
+  const aiDroneDirector = createAiDroneDirector({ config: aiDroneConfig, fetchImpl: aiDroneFetch, store: aiDroneStore, ...(aiDroneNow ? { now: aiDroneNow } : {}) });
   const npcSpeech = createNpcSpeechService({ config: npcSpeechConfig, fetchImpl: npcSpeechFetch, resolveReply: input => npcChats.getReplyForSpeech(input) });
   // Open private stores only when the character workshop is used. Both stages
   // share one authenticated cookie identity, never a browser-supplied owner ID.
@@ -145,6 +148,29 @@ export async function createTownServer({
       if (['GET', 'HEAD'].includes(req.method) && !path.startsWith('/api/') && !path.startsWith('/matchmake/')) { await serveStatic(path, req, res); return; }
       const ip = getRequestClientIp(req, { trustProxyLoopback });
       if (!requests.take(ip)) throw fail(429, 'RATE_LIMITED', '请求太频繁，请稍后重试。');
+      if (path === '/api/drone-director/status' && req.method === 'GET') { json(res, 200, aiDroneDirector.status()); return; }
+      if (['/api/drone-director/generate', '/api/drone-director/usage'].includes(path) && req.method === 'POST') {
+        try {
+          const body = await readJson(req, 8192);
+          const guest = identity.verify(body.token);
+          if (!guest) throw fail(401, 'GUEST_EXPIRED', '编导身份已过期，请重新连接。');
+          if (path.endsWith('/usage')) { json(res, 200, aiDroneDirector.usage(guest.guestId)); return; }
+          const controller = new AbortController();
+          const disconnected = () => { if (!res.writableEnded) controller.abort(); };
+          res.once('close', disconnected);
+          try {
+            const result = await aiDroneDirector.generate({ guestId: guest.guestId, requestId: body.requestId, mode: body.mode, prompt: body.prompt, ip, signal: controller.signal });
+            json(res, 200, result);
+          } finally { res.removeListener('close', disconnected); }
+        } catch (error) {
+          if (error instanceof AiDroneDirectorError) {
+            json(res, error.status, { error: error.message, code: error.code, charged: error.charged, replayed: error.replayed, ...(error.usage ? { usage: error.usage } : {}) });
+          } else if (typeof error.code === 'string' && [400, 401, 413, 415].includes(error.status)) {
+            json(res, error.status, { error: error.message, code: error.code, charged: false, replayed: false });
+          } else json(res, 503, { error: 'AI 编导暂时不可用，请稍后再试。', code: 'AI_DRONE_UNAVAILABLE', charged: false, replayed: false });
+        }
+        return;
+      }
       if (/^\/api\/game-(?:images|characters)(?:\/|$)/.test(path)) {
         try {
           const module = path.startsWith('/api/game-images') ? await getImages() : await getCharacters();
@@ -248,6 +274,7 @@ export async function createTownServer({
       stopped = true;
       npcSpeech.close();
       npcChats.close();
+      await aiDroneDirector.close();
       if (charactersPromise) await charactersPromise.then(module => module.close()).catch(() => {});
       if (imagesPromise) await imagesPromise.then(module => module.close()).catch(() => {});
       await gameServer.gracefullyShutdown(false);
