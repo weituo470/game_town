@@ -1,0 +1,18 @@
+Mediabunny 1.61.6
+Copyright (c) 2026-present, Vanilagy and contributors.
+License: Mozilla Public License 2.0 (MPL-2.0).
+
+Game Town uses the unmodified Mediabunny package only as an optional,
+lazy-loaded browser MP4 encoding/muxing dependency. It is not relicensed
+under Game Town's MIT license. No Mediabunny source files were modified.
+
+The full license accompanies this notice in mediabunny-MPL-2.0.txt.
+Corresponding source for this exact version is available without charge:
+https://www.npmjs.com/package/mediabunny/v/1.61.6
+https://registry.npmjs.org/mediabunny/-/mediabunny-1.61.6.tgz
+The npm source archive includes the original TypeScript src/ directory.
+Upstream repository: https://github.com/Vanilagy/mediabunny
+Documentation: https://mediabunny.dev/
+
+Browser encoding availability depends on the browser and operating system.
+This notice does not grant rights to third-party codec patents or trademarks.

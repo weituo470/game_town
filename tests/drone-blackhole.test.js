@@ -106,7 +106,8 @@ test('black hole controls have their own labels, 90 second timeline, silent mode
   const file = new URL('../src/components/drone/DroneShowControls.jsx', import.meta.url);
   const { code } = await transformWithEsbuild(fs.readFileSync(file, 'utf8'), 'DroneShowControls.jsx', { loader: 'jsx', jsx: 'automatic', format: 'cjs' });
   const require = createRequire(file), module = { exports: {} };
-  vm.runInNewContext(code, { module, exports: module.exports, require: id => id.endsWith('.css') ? {} : require(id) });
+  // AI export is outside this silent legacy-show test; tested independently.
+  vm.runInNewContext(code, { module, exports: module.exports, require: id => id === './DroneVideoExport.jsx' ? { __esModule: true, default: () => null } : id.endsWith('.css') ? {} : require(id) });
   const clock = createDroneShowClock({ now: () => 0 }); clock.start({ program: 'blackhole', elapsedMs: 50000 });
   const render = () => renderToStaticMarkup(require('react').createElement(module.exports.default, { controller: { ...clock, state: clock.snapshot() }, onClose() {} }));
   const html = render();

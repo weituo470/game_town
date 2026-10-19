@@ -23,6 +23,7 @@
     "@react-three/drei": "^10.7.0",
     "@react-three/fiber": "^9.3.0",
     "lucide-react": "^0.468.0",
+    "mediabunny": "1.61.6",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "sharp": "0.35.5",

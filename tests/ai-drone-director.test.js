@@ -22,7 +22,9 @@ test('public open generation retains development notice without requiring a pass
   const settings = loadAiDroneConfig({ env: { AI_DRONE_ENABLED: 'true', AI_DRONE_ACCESS_REQUIRED: 'false', AI_DRONE_ACCESS_PASSWORD_HASH: 'unused-invalid-hash', AI_DRONE_DAILY_LIMIT: '0', AI_DRONE_IP_DAILY_LIMIT: '0' }, npcConfig: config() });
   assert.equal(settings.enabled, true); assert.equal(settings.accessRequired, false);
   let calls = 0, time = 100_000;
-  const director = createAiDroneDirector({ config: settings, now: () => time, fetchImpl: async () => { calls++; return provider(); } });
+  // The same fixed clock/IP must be repeatable without touching a persistent
+  // development or production quota database between test runs.
+  const director = createAiDroneDirector({ config: { ...settings, dbPath: ':memory:' }, now: () => time, fetchImpl: async () => { calls++; return provider(); } });
   try {
     const status = director.status();
     assert.equal(status.development, true); assert.notEqual(status.accessRequired, true);

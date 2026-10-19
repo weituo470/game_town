@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, ChevronDown, Pause, Play, RotateCcw, Sparkles, Volume2, VolumeX, X } from 'lucide-react';
 import { DRONE_PROGRAM_MENU, getDroneProgram, sampleDroneProgram } from '../../../shared/dronePrograms.js';
 import { DROPLET_SCORE } from '../../../shared/droneDroplet.js';
@@ -6,6 +6,7 @@ import { createDroneShowClock } from '../../lib/droneShowClock.js';
 import { createDroneShowAudio } from '../../lib/droneShowAudio.js';
 import { createDroneAudioScheduler } from '../../lib/droneAudioScheduler.js';
 import './drone-show.css';
+const DroneVideoExport = lazy(() => import('./DroneVideoExport.jsx'));
 
 const ACTIONS = ['start', 'close', 'togglePause', 'seek', 'setSpeed', 'setView', 'setReducedMotion', 'setProgram'];
 const LOOK_DIRECTIONS = ['left', 'right', 'up', 'down'];
@@ -100,6 +101,7 @@ export default function DroneShowControls({
   const { state } = controller;
   const program = getDroneProgram(state.program, state.aiRuntime);
   const isAi = program.id === 'ai';
+  const [recording, setRecording] = useState(false);
   const programmeMenu = state.aiRuntime ? [...DRONE_PROGRAM_MENU, state.aiRuntime.program] : DRONE_PROGRAM_MENU;
   const programmeSelector = <div className="drone-program" role="group" aria-label="选择无人机演出节目"><span>切换演出</span><div className="drone-program-buttons">{programmeMenu.map(item => <button key={item.id} type="button" className="drone-action" aria-label={item.title} aria-pressed={program.id === item.id} onClick={() => controller.setProgram(item.id)}>{item.shortTitle || item.title}</button>)}</div></div>;
   const isDroplet = program.id === 'droplet';
@@ -233,7 +235,7 @@ export default function DroneShowControls({
           <button type="button" className="drone-action" aria-pressed={!fpv} onClick={() => controller.setView('cinematic')}>全景观演</button>
           <button type="button" className="drone-action" aria-pressed={fpv} disabled={fpvUnavailable} aria-describedby={fpvUnavailable ? 'drone-motion-view-note' : undefined} onClick={() => controller.setView('fpv')}>编队第一视角</button>
         </div>}
-        {fpvUnavailable && <p id="drone-motion-view-note" className="drone-motion-view-note">{motionEnabled ? '减少动态 · 固定全景' : isBattle ? '红方来袭 · 青方护航 · 同地图实景' : isBlackHole ? '静默观演 · 深空全景' : '导演全景 · 暂不提供编队机位'}</p>}
+        {fpvUnavailable && <p id="drone-motion-view-note" className="drone-motion-view-note">{motionEnabled ? '减少动态 · 固定全景' : isBattle ? '红方来袭 · 青方护航 · 同地图实景' : isBlackHole ? '静默观演 · 深空全景' : program.cinematic ? '连续运镜 · 可导出 MP4' : '导演全景 · 暂不提供编队机位'}</p>}
         {fpv && <div className="drone-onboard">
           <div className="drone-onboard-actions">
             <label className="drone-seat"><span>机位</span><select aria-label="选择编队无人机" value={selectedId} disabled={!seats.length} onChange={event => { clearLookInput(lookInputRef); onSeatChange?.(event.target.value); }}>{seats.map(seat => <option key={seat.id} value={seat.id}>{seat.label}</option>)}</select></label>
@@ -259,6 +261,7 @@ export default function DroneShowControls({
     </header>
 
     <div className={`drone-console${details ? ' drone-details-open' : ''}`}>
+      <fieldset className="drone-playback-lock" disabled={recording} aria-label="演出播放控制">
       <div className="drone-timeline-heading">
         <span className="drone-status"><span aria-hidden="true" className={state.paused ? 'drone-status-paused' : ''}/>{state.ended ? (isBlackHole ? '演出结束 · 星光归寂' : '演出结束 · 已全部归航') : state.paused ? '演出已暂停' : '天穹正在上演'}</span>
         <output className="drone-time" aria-label={`演出进度 ${stamp(state.elapsedMs)}，总时长 ${stamp(program.duration)}`}>{stamp(state.elapsedMs)}<span> / {stamp(program.duration)}</span></output>
@@ -291,6 +294,8 @@ export default function DroneShowControls({
         {audioError && <p className="drone-audio-error" role="status">{audioError}</p>}
         <p className="drone-story-note">{program.note}</p>
       </div>
+      </fieldset>
+      {isAi && <Suspense fallback={<span className="drone-note">正在载入影片导出…</span>}><DroneVideoExport key={state.aiRuntime?.program?.sampleId || state.aiRuntime?.score?.title} controller={controller} program={program} onBusyChange={setRecording}/></Suspense>}
     </div>
   </section>;
 }

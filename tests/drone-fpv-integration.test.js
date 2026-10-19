@@ -462,6 +462,7 @@ function controlsHarness({ view = 'fpv', locked = false } = {}) {
     setInterval(callback) { timers.set(++timerId, callback); return timerId; }, clearInterval(id) { timers.delete(id); },
   };
   const Component = evaluate('src/components/drone/DroneShowControls.jsx', {
+    './DroneVideoExport.jsx': { __esModule: true, default: () => null },
     react: hooks.react, '../../../shared/droneShow.js': choreography,
     '../../lib/droneShowClock.js': clockModule, '../../lib/droneShowAudio.js': audioModule,
   }, globals).default;

@@ -7,6 +7,11 @@ const TAU = Math.PI * 2;
 const CENTER_Y = 72;
 const CENTER_Z = -8;
 const programs = new WeakMap();
+// Curated, bundled long-form programmes never enter the public AI validator.
+// Only this private registry can extend the scene count, after every scene has
+// passed the unchanged v1 validator in a normal 4–7-scene packet.
+const curatedScores = new WeakSet();
+const resolveScore = input => curatedScores.has(input) ? input : validateAiDroneScore(input);
 const caches = new WeakMap();
 const canonicalFrames = new WeakMap();
 const CANONICAL_COUNT = 4096;
@@ -22,7 +27,7 @@ const curve = (fn, count = 96) => Array.from({ length: count + 1 }, (_, i) => fn
 const ellipse = (cx, cy, rx, ry, depth = 0) => curve(t => [cx + Math.cos(t * TAU) * rx, cy + Math.sin(t * TAU) * ry, depth]);
 
 export function createAiDroneProgram(input) {
-  const score = validateAiDroneScore(input);
+  const score = resolveScore(input);
   if (programs.has(score)) return programs.get(score);
   const chapters = [
     { id: 'lighting', label: '星灯初醒', start: 0, end: 2000, description: '起降阵列依次点亮，等待这一场独一无二的演出。' },
@@ -43,7 +48,7 @@ export function createAiDroneProgram(input) {
 }
 
 export function sampleAiDroneShow(timeMs, input) {
-  const score = validateAiDroneScore(input), program = createAiDroneProgram(score);
+  const score = resolveScore(input), program = createAiDroneProgram(score);
   const elapsed = safeTime(timeMs, program.duration);
   const chapter = program.chapters.find(item => elapsed < item.end) || program.chapters.at(-1);
   const progress = clamp((elapsed - chapter.start) / (chapter.end - chapter.start));
@@ -233,7 +238,7 @@ function pointAt(frame, scene, index, localMs, reduced, output) {
 
 /** Pure absolute-time sampling, in-place typed buffers, no per-light allocations. */
 export function updateAiDroneFleet(fleet, timeMs, { score: input, reducedMotion = false } = {}) {
-  const score = validateAiDroneScore(input), program = createAiDroneProgram(score), cache = cacheFor(fleet, score);
+  const score = resolveScore(input), program = createAiDroneProgram(score), cache = cacheFor(fleet, score);
   const state = sampleAiDroneShow(timeMs, score), time = state.elapsed;
   const sceneIndex = state.sceneIndex, frame = cache.frames[sceneIndex], scene = score.scenes[sceneIndex];
   const chapter = program.chapters[sceneIndex + 2], localMs = Math.max(0, time - chapter.start);
@@ -294,6 +299,38 @@ function cameraFor(timeMs, aspect, reducedMotion, score, program) {
 
 /** Runtime object stays outside persisted JSON; no global mutable programme registry. */
 export function createAiDroneRuntime(input) {
-  const score = validateAiDroneScore(input), program = createAiDroneProgram(score);
+  const score = resolveScore(input), program = createAiDroneProgram(score);
   return Object.freeze({ score, program, sample: ms => sampleAiDroneShow(ms, score), update: (fleet, ms, options = {}) => updateAiDroneFleet(fleet, ms, { score, reducedMotion: Boolean(options.reducedMotion) }), camera: (ms, aspect, reducedMotion = false) => cameraFor(ms, aspect, reducedMotion, score, program) });
+}
+
+/** Bundled editorial content only. This factory is not used by any API route,
+ * JSON import, generated-score response, or local user-programme persistence.
+ * Public scores retain the existing 4–7 scenes / 8–18 seconds limits. */
+export function createCuratedAiDroneRuntime(input) {
+  const keys = ['version', 'title', 'synopsis', 'seed', 'scenes'];
+  if (!input || typeof input !== 'object' || Array.isArray(input)
+    || ![Object.prototype, null].includes(Object.getPrototypeOf(input))
+    || Reflect.ownKeys(input).length !== keys.length
+    || Reflect.ownKeys(input).some(key => !keys.includes(key))
+    || keys.some(key => !Object.hasOwn(Object.getOwnPropertyDescriptor(input, key) || {}, 'value'))) {
+    throw new TypeError('样板节目必须是完整的纯数据对象。');
+  }
+  if (!Array.isArray(input.scenes) || input.scenes.length < 4 || input.scenes.length > 32
+    || !Array.from({ length: input.scenes.length }, (_, index) => Object.hasOwn(Object.getOwnPropertyDescriptor(input.scenes, index) || {}, 'value')).every(Boolean)) {
+    throw new RangeError('样板节目需要 4–32 个经过验证的章节。');
+  }
+  const scenes = []; let metadata;
+  for (let offset = 0; offset < input.scenes.length;) {
+    const remaining = input.scenes.length - offset;
+    const count = remaining <= 7 ? remaining : Math.min(7, remaining - 4);
+    const packet = validateAiDroneScore({ ...input, scenes: input.scenes.slice(offset, offset + count) });
+    metadata ||= packet;
+    scenes.push(...packet.scenes); offset += count;
+  }
+  const duration = AI_DRONE_LAUNCH_MS + AI_DRONE_RETURN_MS + AI_DRONE_BLACKOUT_MS
+    + scenes.reduce((total, scene) => total + scene.duration * 1000, 0);
+  if (duration > 600000) throw new RangeError('样板节目最长为 10 分钟，包含完整起飞与归航。');
+  const score = Object.freeze({ ...metadata, scenes: Object.freeze(scenes) });
+  curatedScores.add(score);
+  return createAiDroneRuntime(score);
 }

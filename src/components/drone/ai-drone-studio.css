@@ -1,4 +1,16 @@
 .ai-drone-studio { --ai-ink: #38362e; --ai-muted: #686253; --ai-gold: #f1d492; --ai-line: #ddd5c4; color: var(--ai-ink); font-size: var(--text-body, 1.125rem); line-height: 1.8; }
+.drone-sample-library { margin-bottom: 30px; padding-bottom: 20px; border-bottom: 1px solid var(--ai-line); }
+.drone-sample-list { list-style: none; padding: 0; margin: 18px 0 0; }
+.drone-sample-list > li { display: grid; grid-template-columns: 34px minmax(0, 1fr) auto; gap: 16px; align-items: start; border-top: 1px solid var(--ai-line); padding: 22px 0; }
+.drone-sample-number { color: #866225; font-size: var(--text-meta, .875rem); padding-top: 5px; }
+.drone-sample-copy h4 { margin: 0; font-size: 1.375rem; line-height: 1.5; color: #38362e; }
+.drone-sample-copy p { margin: 8px 0; }
+.drone-sample-action { display: flex; flex-direction: column; align-items: flex-end; gap: 14px; }
+.drone-sample-duration { font-size: 1.5rem; line-height: 1.5; font-variant-numeric: tabular-nums; color: #705224; }
+@media (max-width: 600px) {
+  .drone-sample-list > li { grid-template-columns: 26px minmax(0, 1fr); gap: 8px; }
+  .drone-sample-action { grid-column: 2; flex-direction: row; align-items: center; justify-content: space-between; gap: 10px; }
+}
 .ai-drone-studio * { min-width: 0; }
 .ai-drone-studio p { font-size: var(--text-body, 1.125rem); line-height: 1.8; }
 .ai-drone-studio button, .ai-drone-studio label, .ai-drone-studio textarea { font-size: var(--text-control, 1rem); }

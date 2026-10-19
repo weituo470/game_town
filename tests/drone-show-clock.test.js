@@ -96,6 +96,9 @@ test('show HUD exposes a labelled timeline, exit, pause and nine navigable chapt
   vm.runInNewContext(transformed.code, {
     module, exports: module.exports,
     require(id) {
+      // This suite exercises the legacy HUD; the AI-only export child has its
+      // own compiled component/lifecycle coverage in drone-cinema-ui.test.js.
+      if (id === './DroneVideoExport.jsx') return { __esModule: true, default: () => null };
       if (id.endsWith('droneShowClock.js')) return clockModule;
       if (id.endsWith('droneShowAudio.js')) return audioModule;
       if (id.endsWith('shared/droneShow.js')) return choreography;

@@ -7,6 +7,7 @@ import { SAOPass } from 'three/addons/postprocessing/SAOPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
 import { sampleDayNight } from '../../../shared/dayNight.js';
+import { notifyDroneVideoFrame } from '../../lib/droneVideoFrame.js';
 import { createFrameBudget, sampleFrameBudget, sceneRenderProfile, setSceneRenderRatio } from '../drone/dronePerformance.js';
 
 // All effects use the installed Three renderer. No second canvas, remote assets,
@@ -177,8 +178,9 @@ export default function SceneEffects({ performanceMode = 'town', faithfulBlackHo
     }
     const state = pipeline.current;
     gl.info.reset();
-    if (!state) { gl.render(scene, camera); return; }
+    if (!state) { gl.render(scene, camera); notifyDroneVideoFrame(gl.domElement); return; }
     state.composer.render(delta);
+    notifyDroneVideoFrame(gl.domElement);
     // The budget changes only after sustained slow frames, never on a single
     // seek / shader compile. DOM typography and all 4096 identities stay intact.
     const sample = sampleFrameBudget(state.budget, delta, document.hidden);

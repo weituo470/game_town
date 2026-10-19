@@ -78,6 +78,7 @@ test('waterdrop controls keep panorama-only viewing and the story chapters witho
   const require = createRequire(path), module = { exports: {} };
   const transformed = await transformWithEsbuild(fs.readFileSync(path, 'utf8'), 'DroneShowControls.jsx', { loader: 'jsx', jsx: 'automatic', format: 'cjs' });
   vm.runInNewContext(transformed.code, { module, exports: module.exports, require(id) {
+    if (id === './DroneVideoExport.jsx') return { __esModule: true, default: () => null };
     return id.endsWith('.css') ? {} : require(id);
   } });
   const clock = createDroneShowClock({ now: () => 0 });
@@ -118,6 +119,7 @@ test('the delayed-explosion shortcut seeks the derived score boundary and preser
   const react = require('react');
   const transformed = await transformWithEsbuild(fs.readFileSync(path, 'utf8'), 'DroneShowControls.jsx', { loader: 'jsx', jsx: 'automatic', format: 'cjs' });
   vm.runInNewContext(transformed.code, { module, exports: module.exports, require(id) {
+    if (id === './DroneVideoExport.jsx') return { __esModule: true, default: () => null };
     if (id === 'react') return { ...react, useState: initial => [typeof initial === 'function' ? initial() : initial, () => {}], useRef: value => ({ current: value }), useEffect() {} };
     return id.endsWith('.css') ? {} : require(id);
   } });

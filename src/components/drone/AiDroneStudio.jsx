@@ -4,6 +4,7 @@ import { AI_DRONE_LIBRARY_LIMIT, createAiDroneLibrary } from '../../lib/aiDroneL
 import { AI_DRONE_FEEDBACK_STEPS, aiDroneElapsedSeconds, aiDroneQuotaExhausted, aiDroneQuotaFeedback, aiDroneStageFeedback, aiDroneUnlimited, runAiDronePreparation } from '../../lib/aiDroneFeedback.js';
 import { validateAiDroneScore } from '../../../shared/aiDroneScore.js';
 import './ai-drone-studio.css';
+import DroneSampleLibrary from './DroneSampleLibrary.jsx';
 
 const EXAMPLES = [
   { label: '鲸落星海', prompt: '一只蓝色鲸鱼穿过星海，化为盛放的花，再汇成温暖的心。先安静，后惊喜，最后留一点余韵。' },
@@ -201,6 +202,7 @@ export default function AiDroneStudio({ onPlay, onClose }) {
   }
 
   return <div className="ai-drone-studio">
+    <DroneSampleLibrary onPlay={onPlay} disabled={busy}/>
     {development && <aside className="ai-drone-development" aria-label="AI 演出测试状态"><strong>开发中 · 仅供测试</strong><p>AI 即兴与命题编排仍在完善，效果与稳定性尚未定型。{accessRequired ? '输入测试密码后才能生成；本机已保存的节目仍可直接回放。' : '请将生成结果作为测试预览。'}</p></aside>}
     <p className="ai-drone-intro">写下主题，让 AI 为小镇编排一场灯光演出。</p>
     <div className="ai-drone-scope">仅个人观演 · 不同步全房间 · 非真实无人机飞控</div>

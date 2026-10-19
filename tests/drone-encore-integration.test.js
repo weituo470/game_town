@@ -17,6 +17,9 @@ const { code } = await transformWithEsbuild(fs.readFileSync(file, 'utf8'), path,
 function load(hooks, globals, clock, audioFactory) {
   const module = { exports: {} };
   vm.runInNewContext(code, { module, exports: module.exports, ...globals, require(id) {
+    // This suite retains its real clock/audio/HUD assertions; AI recording is
+    // independently executed by the cinema component integration harness.
+    if (id === './DroneVideoExport.jsx') return { __esModule: true, default: () => null };
     if (id === 'react') return hooks.react;
     if (id === '../../lib/droneShowClock.js') return { createDroneShowClock: () => clock };
     if (id === '../../lib/droneShowAudio.js') return { createDroneShowAudio: audioFactory };
