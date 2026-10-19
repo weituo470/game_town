@@ -111,6 +111,8 @@ function createDroneVisual(count, gl, program = 'avatar', aiRuntime) {
 
   const battle = program === 'droplet' ? createDropletBattleVisual() : null;
   if (battle) group.add(battle.group);
+  const spectacle = program === 'ai' && aiRuntime?.program?.sampleVisual === 'spectacle-v2' ? aiRuntime.visualFactory?.(count) : null;
+  if (spectacle) group.add(spectacle.group);
   const blackHole = program === 'blackhole' ? createBlackHoleVisual() : null;
   if (blackHole) {
     group.add(blackHole.group);
@@ -129,6 +131,7 @@ function createDroneVisual(count, gl, program = 'avatar', aiRuntime) {
       // The composer may render below device DPR. Match its actual pixel
       // buffer so adaptive resolution does not enlarge the aircraft lights.
       uniforms.uViewportHeight.value = viewportHeight;
+      spectacle?.update(safeTime, reducedMotion, viewportHeight);
       if (!needsFleetUpdate(safeTime, reducedMotion, firstPersonSeatId)) {
         trails.visible = false;
         return false;
@@ -183,6 +186,7 @@ function createDroneVisual(count, gl, program = 'avatar', aiRuntime) {
     },
     dispose() {
       battle?.dispose();
+      spectacle?.dispose();
       blackHole?.dispose();
       bases.dispose();
       for (const item of [geometry, material, trailGeometry, trailMaterial, baseGeometry, baseMaterial, padGeometry, padMaterial]) item.dispose();

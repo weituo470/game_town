@@ -22,12 +22,12 @@ export default function DroneSampleLibrary({ onPlay, disabled = false }) {
     finally { flight.current = false; if (alive.current) setLoading(''); }
   }
   return <section className="drone-sample-library" aria-labelledby="drone-sample-title">
-    <div className="ai-drone-section-heading"><h3 id="drone-sample-title">导演样板 · 即点即播</h3><span className="ai-drone-meta">当前会话编排 · 回放零模型调用</span></div>
-    <p>完整起飞、天空叙事、归航谢幕，配有连续电影运镜。进入观演后可导出纯画面的 MP4。</p>
+    <div className="ai-drone-section-heading"><h3 id="drone-sample-title">短篇试映 · 两分钟内</h3><span className="ai-drone-meta">当前会话编排 · 回放零模型调用</span></div>
+    <p>三场重新编排的立体灯光秀：凤凰复燃、巨鲸跃海、逆重力星门。烟花与机群分层演绎，含起飞、运镜和归航，可导出 MP4。</p>
     <ol className="drone-sample-list">{DRONE_SAMPLE_PROGRAMS.map((show, index) => <li key={show.id}>
       <div className="drone-sample-number" aria-hidden="true">0{index + 1}</div>
-      <div className="drone-sample-copy"><h4>{show.title}</h4><p>{show.description}</p><span className="ai-drone-meta">自动运镜 · 保留独立灯点 · 无配乐</span></div>
-      <div className="drone-sample-action"><span className="drone-sample-duration">{duration(show.duration)}</span><button type="button" className="ai-drone-primary" disabled={disabled || Boolean(loading)} onClick={() => void play(show.id)} aria-label={`观看样板：${show.title}`}>{loading === show.id ? '正在布置天空…' : '观看样板'}</button></div>
+      <div className="drone-sample-copy"><h4>{show.title}</h4><p>{show.description}</p><span className="ai-drone-meta">立体编舞 · 烟花高潮 · 独立灯点 · 无配乐</span></div>
+      <div className="drone-sample-action"><span className="drone-sample-duration">{duration(show.duration)}</span><button type="button" className="ai-drone-primary" disabled={disabled || Boolean(loading)} onClick={() => void play(show.id)} aria-label={`观看样板：${show.title}`}>{loading === show.id ? '正在布置天空…' : '观看短秀'}</button></div>
     </li>)}</ol>
     {error && <p className="ai-drone-error" role="alert">{error}</p>}
   </section>;

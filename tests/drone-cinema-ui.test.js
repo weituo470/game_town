@@ -51,7 +51,7 @@ async function component(name, dependencies = {}, globals = {}) {
 }
 const capability = { mp4: { supported: true }, webm: { supported: true } };
 async function exportHarness(settings = {}) {
-  const runtime = samples.createDroneSampleRuntime('voyage-of-light'), stateHooks = hooks();
+  const runtime = samples.createDroneSampleRuntime('phoenix-rebirth'), stateHooks = hooks();
   let time = 1000, tree, startCalls = 0, importCalls = 0;
   const clock = createDroneShowClock({ now: () => time }); clock.start({ program: 'ai', aiRuntime: runtime, elapsedMs: 50000, speed: 2 });
   const busy = [], recorders = [], canvas = { width: 1280, height: 720 };
@@ -66,7 +66,7 @@ async function exportHarness(settings = {}) {
       },
       async stop(reason) { this.stopReasons.push(reason); this.state = { phase: 'processing' }; this.input.onState(this.state);
         if (settings.stopGate?.[index]) await settings.stopGate[index].promise;
-        const result = { url: 'blob:test-film', bytes: 1024, durationMs: reason === 'complete' ? 600000 : 2000, extension: 'mp4', reason };
+        const result = { url: 'blob:test-film', bytes: 1024, durationMs: reason === 'complete' ? 108000 : 2000, extension: 'mp4', reason };
         this.state = { phase: 'ready', result }; this.input.onState(this.state); return result;
       },
       cancel() { this.cancels++; this.state = { phase: 'idle' }; this.input?.onState(this.state); return Promise.resolve(null); },
@@ -84,10 +84,10 @@ async function exportHarness(settings = {}) {
     get tree() { return tree; }, get startCalls() { return startCalls; }, async settle() { await flush(); render(); } };
 }
 
-test('sample library renders real 10/4/5-minute catalogue and discards late playback after close', async () => {
+test('sample library renders three under-two-minute shows and discards late playback after close', async () => {
   const Static = await component('DroneSampleLibrary');
   const html = renderToStaticMarkup(React.createElement(Static, { onPlay() {} }));
-  for (const value of ['10:00', '4:00', '5:00', '当前会话编排', '无配乐', '回放零模型调用']) assert.ok(html.includes(value));
+  for (const value of ['1:48', '1:52', '1:40', '当前会话编排', '无配乐', '回放零模型调用']) assert.ok(html.includes(value));
   assert.equal((html.match(/aria-label="观看样板：/g) || []).length, 3);
   const stateHooks = hooks(), gate = deferred(), played = [];
   const Component = await component('DroneSampleLibrary', { react: stateHooks.react }, { __loadSamples: () => gate.promise });
@@ -117,25 +117,25 @@ test('cancelled encoder startup cannot overwrite an immediate replacement record
   assert.equal(h.recorders[0].cancels >= 1, true); h.dispose();
 });
 
-test('natural ten-minute completion stops only once and offers a real MP4-labelled result', async () => {
+test('natural 108-second completion stops only once and offers a real MP4-labelled result', async () => {
   const h = await exportHarness(); h.click('从头录制 MP4'); await h.settle();
   assert.equal(h.clock.snapshot().elapsedMs, 0); assert.equal(h.clock.snapshot().speed, 1); assert.equal(h.clock.snapshot().view, 'cinematic');
   h.recorders[0].input.onProgress({ durationMs: 12000, bytes: 1024, frames: 100 }); h.render();
   assert.match(text(h.tree), /当前实际采样约 8\.3 帧\/秒/);
   h.recorders[0].input.onProgress({ durationMs: 12000, bytes: 1024, frames: 360 }); h.render();
   assert.doesNotMatch(text(h.tree), /视频可能不流畅/);
-  h.advance(600000); h.render(); await h.settle();
+  h.advance(108000); h.render(); await h.settle();
   assert.deepEqual(h.recorders[0].stopReasons, ['complete']);
-  assert.equal(h.clock.snapshot().ended, true); assert.match(text(h.tree), /全片已完成。 录制用时 10:00/);
+  assert.equal(h.clock.snapshot().ended, true); assert.match(text(h.tree), /全片已完成。 录制用时 1:48/);
   assert.doesNotMatch(text(h.tree), /视频时长/);
   const preview = elements(h.tree).find(item => item.type === 'video');
   preview.props.onLoadedMetadata({ currentTarget: { duration: NaN } }); h.render();
-  assert.match(text(h.tree), /录制用时 10:00/);
+  assert.match(text(h.tree), /录制用时 1:48/);
   // Explicit unit-test metadata, not a claim that this mock encoded a file:
   // the UI must use the player's measured duration, never recorder wall time.
-  preview.props.onLoadedMetadata({ currentTarget: { duration: 597.5 } }); h.render();
-  assert.match(text(h.tree), /视频时长 9:57/);
-  assert.doesNotMatch(text(h.tree), /录制用时 10:00/);
+  preview.props.onLoadedMetadata({ currentTarget: { duration: 105.5 } }); h.render();
+  assert.match(text(h.tree), /视频时长 1:45/);
+  assert.doesNotMatch(text(h.tree), /录制用时 1:48/);
   const link = elements(h.tree).find(item => item.type === 'a'); assert.ok(link.props.download.endsWith('.mp4')); assert.equal(link.props.href, 'blob:test-film');
   h.dispose(); assert.ok(h.recorders[0].disposed > 0);
 });
@@ -157,8 +157,8 @@ test('unmount cancels in-flight preparation and cannot resume the show when it f
   assert.equal(h.startCalls, 1); assert.ok(h.recorders[0].disposed >= 1); assert.equal(h.busy.at(-1), false);
 });
 
-test('real sample HUD exposes the 600-second timeline and locks scrubbing while its export child is busy', async () => {
-  const runtime = samples.createDroneSampleRuntime('voyage-of-light'), clock = createDroneShowClock({ now: () => 0 });
+test('real sample HUD exposes the 108-second timeline and locks scrubbing while its export child is busy', async () => {
+  const runtime = samples.createDroneSampleRuntime('phoenix-rebirth'), clock = createDroneShowClock({ now: () => 0 });
   clock.start({ program: 'ai', aiRuntime: runtime });
   const stateHooks = hooks();
   // Execute the real HUD and preserve the child's props across its lazy
@@ -174,11 +174,11 @@ test('real sample HUD exposes the 600-second timeline and locks scrubbing while 
   assert.equal(exportLoads, 1);
   const render = () => { stateHooks.begin(); const tree = Component({ controller: { ...clock, state: clock.snapshot() }, onClose() {} }); stateHooks.commit(); return tree; };
   let tree = render(), nodes = elements(tree);
-  assert.equal(nodes.find(item => item.type === 'input' && item.props.type === 'range').props.max, 600000);
-  assert.match(text(tree), /0:00 \/ 10:00/);
+  assert.equal(nodes.find(item => item.type === 'input' && item.props.type === 'range').props.max, 108000);
+  assert.match(text(tree), /0:00 \/ 1:48/);
   nodes.find(item => item.type === ExportChild).props.onBusyChange(true);
   tree = render(); nodes = elements(tree);
   assert.equal(nodes.find(item => item.type === 'fieldset' && item.props.className === 'drone-playback-lock').props.disabled, true);
-  assert.equal(nodes.find(item => item.type === ExportChild).props.program.sampleId, 'voyage-of-light');
+  assert.equal(nodes.find(item => item.type === ExportChild).props.program.sampleId, 'phoenix-rebirth');
   stateHooks.dispose();
 });
