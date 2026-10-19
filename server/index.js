@@ -159,7 +159,7 @@ export async function createTownServer({
           const disconnected = () => { if (!res.writableEnded) controller.abort(); };
           res.once('close', disconnected);
           try {
-            const result = await aiDroneDirector.generate({ guestId: guest.guestId, requestId: body.requestId, mode: body.mode, prompt: body.prompt, ip, signal: controller.signal });
+            const result = await aiDroneDirector.generate({ guestId: guest.guestId, requestId: body.requestId, mode: body.mode, prompt: body.prompt, accessPassword: body.accessPassword, ip, signal: controller.signal });
             json(res, 200, result);
           } finally { res.removeListener('close', disconnected); }
         } catch (error) {

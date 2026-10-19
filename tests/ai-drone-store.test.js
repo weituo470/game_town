@@ -14,6 +14,94 @@ test('AI daily usage uses Beijing calendar midnight rather than server timezone 
   assert.notEqual(aiDroneDay(before).key, aiDroneDay(before + 1).key);
 });
 
+test('store allows numeric zero only for daily caps and rejects invalid protection configuration before opening a database', () => {
+  for (const key of ['daily', 'ipDaily']) {
+    const store = createAiDroneStore({ dbPath: ':memory:', limits: { [key]: 0 } });
+    try { assert.equal(store.usage('guest').unlimited === true, key === 'daily'); }
+    finally { store.close(); }
+    for (const value of [-0, -1, .5, null, undefined, '', '0', false, true, NaN, Infinity]) assert.throws(() => createAiDroneStore({ dbPath: ':memory:', limits: { [key]: value } }), /Invalid AI director quota/);
+  }
+  for (const key of ['ipMinute', 'concurrent', 'guestConcurrent']) for (const value of [0, -0, -1, .5, null, undefined, '', '0', false, NaN, Infinity]) assert.throws(() => createAiDroneStore({ dbPath: ':memory:', limits: { [key]: value } }), /Invalid AI director quota/);
+  const finite = createAiDroneStore({ dbPath: ':memory:' });
+  try { assert.deepEqual(Object.keys(finite.usage('guest')).sort(), ['limit', 'used', 'remaining', 'resetAt'].sort()); assert.equal(finite.usage('guest').limit, 5); }
+  finally { finite.close(); }
+});
+
+test('unlimited daily counters survive 35 requests, restart and Beijing midnight without resetting audit or request identity', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ai-drone-unlimited-store-')), dbPath = join(dir, 'test.sqlite');
+  let time = Date.parse('2026-10-18T08:00:00Z');
+  const options = { dbPath, now: () => time, limits: { daily: 0, ipDaily: 0 } };
+  let store = createAiDroneStore(options);
+  const first = entry(), records = [];
+  try {
+    for (let index = 0; index < 35; index++) {
+      const current = index === 0 ? first : entry({ guestId: first.guestId });
+      records.push(current);
+      const reserved = store.reserve(current);
+      assert.deepEqual(reserved.usage, { unlimited: true, limit: null, remaining: null, used: index + 1, resetAt: Date.parse('2026-10-18T16:00:00Z') });
+      if (index % 2) store.fail(current.guestId, current.requestId, { code: 'AI_DRONE_UPSTREAM' });
+      else store.complete(current.guestId, current.requestId, { id: `show-${index}` });
+      time += 60_001;
+    }
+    store.close(); store = createAiDroneStore(options);
+    assert.equal(store.usage(first.guestId).used, 35);
+    for (const current of records) assert.ok(store.reserve(current).prior);
+    assert.equal(store.usage(first.guestId).used, 35);
+    time = Date.parse('2026-10-18T16:00:00Z');
+    assert.equal(store.usage(first.guestId).used, 0);
+    assert.equal(store.reserve(first).prior.result.id, 'show-0');
+    assert.equal(store.usage(first.guestId).used, 0);
+    const next = entry({ guestId: first.guestId });
+    assert.equal(store.reserve(next).usage.used, 1);
+    store.complete(next.guestId, next.requestId, {});
+  } finally { store.close(); rmSync(dir, { recursive: true }); }
+});
+
+test('each daily cap is independently optional while short rate and concurrency remain enforced', () => {
+  for (const [limits, code] of [[{ daily: 0, ipDaily: 2 }, 'AI_DRONE_IP_DAILY_LIMIT'], [{ daily: 2, ipDaily: 0 }, 'AI_DRONE_DAILY_LIMIT']]) {
+    const store = createAiDroneStore({ dbPath: ':memory:', limits }), first = entry();
+    try {
+      for (let index = 0; index < 2; index++) { const current = entry({ guestId: first.guestId }); store.reserve(current); store.complete(current.guestId, current.requestId, {}); }
+      assert.throws(() => store.reserve(first), { code });
+      assert.equal(store.usage(first.guestId).used, 2);
+    } finally { store.close(); }
+  }
+  let time = Date.parse('2026-10-18T08:00:00Z');
+  const store = createAiDroneStore({ dbPath: ':memory:', now: () => time, limits: { daily: 0, ipDaily: 0 } }), first = entry();
+  try {
+    for (let index = 0; index < 3; index++) { const current = entry({ guestId: first.guestId }); store.reserve(current); store.complete(current.guestId, current.requestId, {}); }
+    assert.throws(() => store.reserve(first), { code: 'AI_DRONE_IP_RATE_LIMIT', charged: false });
+    assert.equal(store.usage(first.guestId).used, 3);
+    time += 60_001;
+    store.reserve(first);
+    assert.throws(() => store.reserve(entry({ guestId: first.guestId, ip: 'other' })), { code: 'AI_DRONE_IN_FLIGHT', charged: false });
+    const second = entry({ ip: 'other-two' }); store.reserve(second);
+    assert.throws(() => store.reserve(entry({ ip: 'other-three' })), { code: 'AI_DRONE_CAPACITY', charged: false });
+    assert.equal(store.reserve(first).prior.state, 'pending');
+    assert.equal(store.usage(first.guestId).used, 4);
+  } finally { store.close(); }
+});
+
+test('switching existing finite audit to unlimited preserves rows and neutralizes old replay wording without rewriting history', () => {
+  const db = new DatabaseSync(':memory:');
+  let time = Date.parse('2026-10-18T08:00:00Z');
+  let store = createAiDroneStore({ db, now: () => time });
+  const first = entry(), legacy = { status: 502, code: 'AI_DRONE_UPSTREAM', message: '本次已计入额度', charged: true, phase: 'provider_request', reason: 'provider_http', finishedAt: time, durationMs: 0 };
+  try {
+    store.reserve(first); store.fail(first.guestId, first.requestId, legacy);
+    db.prepare('UPDATE ai_drone_requests SET error=? WHERE guest_id=? AND request_id=?').run(JSON.stringify(legacy), first.guestId, first.requestId);
+    for (let index = 1; index < 5; index++) { time += 60_001; const current = entry({ guestId: first.guestId }); store.reserve(current); store.complete(current.guestId, current.requestId, {}); }
+    assert.throws(() => store.reserve(entry({ guestId: first.guestId })), { code: 'AI_DRONE_DAILY_LIMIT' });
+    store.close(); store = createAiDroneStore({ db, now: () => time, limits: { daily: 0, ipDaily: 0 } });
+    assert.equal(store.usage(first.guestId).used, 5);
+    const replay = store.reserve(first).prior.error;
+    assert.doesNotMatch(replay.message, /额度|扣次/); assert.equal(replay.reason, 'provider_http'); assert.equal(replay.charged, true);
+    assert.deepEqual(JSON.parse(db.prepare('SELECT error FROM ai_drone_requests WHERE request_id=?').get(first.requestId).error), legacy);
+    const sixth = entry({ guestId: first.guestId }); assert.equal(store.reserve(sixth).usage.used, 6); store.complete(sixth.guestId, sixth.requestId, {});
+    assert.equal(db.prepare('SELECT count(*) AS count FROM ai_drone_requests').get().count, 6);
+  } finally { store.close(); db.close(); }
+});
+
 test('AI store persists successful/failed request IDs, usage and hashed IP limits across reopening', () => {
   const dir = mkdtempSync(join(tmpdir(), 'ai-drone-store-')), dbPath = join(dir, 'test.sqlite');
   let time = Date.parse('2026-10-18T08:00:00Z');

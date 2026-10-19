@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { AI_DRONE_FEEDBACK_STEPS, aiDroneElapsedSeconds, aiDroneQuotaFeedback, aiDroneStageFeedback, runAiDronePreparation } from '../src/lib/aiDroneFeedback.js';
+import { AI_DRONE_FEEDBACK_STEPS, aiDroneElapsedSeconds, aiDroneQuotaExhausted, aiDroneQuotaFeedback, aiDroneStageFeedback, aiDroneUnlimited, runAiDronePreparation } from '../src/lib/aiDroneFeedback.js';
 import { createAiDroneClient, createAiDroneRequest } from '../src/lib/aiDroneClient.js';
 
 test('elapsed feedback is real floored duration, never negative or non-finite', () => {
@@ -41,11 +41,63 @@ test('waiting copy changes at 15/30 seconds without promising a made-up completi
 
 test('unknown quota never says no model request during generation', () => {
   for (const stage of ['identity', 'generating', 'validating']) {
-    assert.equal(aiDroneQuotaFeedback(null, stage), '本次完成后更新剩余额度');
+    assert.equal(aiDroneQuotaFeedback(null, stage), '本次完成后更新服务状态');
     assert.doesNotMatch(aiDroneQuotaFeedback(null, stage), /不调用模型/);
   }
   assert.match(aiDroneQuotaFeedback(null, ''), /尚未提交生成请求时/);
   assert.match(aiDroneQuotaFeedback({ remaining: 3, limit: 5 }, 'generating'), /今日剩余 3 \/ 5 次/);
+});
+
+test('unlimited service immediately replaces old exhausted quota and never shows a daily reset', () => {
+  const stale = { limit: 5, used: 5, remaining: 0 };
+  const service = { unlimited: true, limit: null };
+  const fresh = { unlimited: true, limit: null, used: 108, remaining: null };
+  for (const usage of [null, stale, fresh]) {
+    assert.equal(aiDroneUnlimited(usage, service), true);
+    assert.equal(aiDroneQuotaExhausted(usage, service), false);
+    const message = aiDroneQuotaFeedback(usage, 'generating', service);
+    assert.match(message, /不限制生成次数/);
+    assert.doesNotMatch(message, /剩余|重置|00:00|null|108|扣次|额度/);
+  }
+  assert.equal(aiDroneUnlimited(fresh, null), true);
+  assert.equal(aiDroneQuotaExhausted(fresh, null), false);
+  assert.equal(aiDroneQuotaExhausted(stale, { unlimited: false, limit: 5 }), true);
+  assert.equal(aiDroneQuotaExhausted({ ...stale, used: 4, remaining: 1 }, null), false);
+});
+
+test('confirmed finite service overrides old unlimited usage while unknown status falls back safely', () => {
+  const oldUnlimited = { unlimited: true, limit: null, used: 108, remaining: null };
+  const finite = { unlimited: false, limit: 5 };
+  assert.equal(aiDroneUnlimited(oldUnlimited, finite), false);
+  assert.equal(aiDroneQuotaExhausted(oldUnlimited, finite), true);
+  assert.match(aiDroneQuotaFeedback(oldUnlimited, '', finite), /今日剩余 0 \/ 5 次/);
+  assert.doesNotMatch(aiDroneQuotaFeedback(oldUnlimited, '', finite), /不限制|null/);
+  assert.equal(aiDroneQuotaExhausted({ ...oldUnlimited, used: 2 }, finite), false);
+  assert.match(aiDroneQuotaFeedback({ ...oldUnlimited, used: 2 }, '', finite), /今日剩余 3 \/ 5 次/);
+  for (const unknown of [null, {}, { unlimited: false, limit: null }]) {
+    assert.equal(aiDroneUnlimited(oldUnlimited, unknown), true);
+    assert.match(aiDroneQuotaFeedback(oldUnlimited, '', unknown), /不限制生成次数/);
+  }
+  const oldFinite = { limit: 5, used: 5, remaining: 0 };
+  assert.equal(aiDroneQuotaExhausted(oldFinite, { unlimited: true, limit: null }), false);
+  assert.equal(aiDroneQuotaExhausted(oldFinite, { unlimited: false, limit: 10 }), false);
+  assert.match(aiDroneQuotaFeedback(oldFinite, '', { unlimited: false, limit: 10 }), /今日剩余 5 \/ 10 次/);
+});
+
+test('wait and load feedback has no obsolete charge or quota language', () => {
+  for (const stage of ['identity', 'generating', 'validating', 'loading']) {
+    for (const elapsed of [0, 15, 30]) assert.doesNotMatch(JSON.stringify(aiDroneStageFeedback(stage, elapsed)), /额度|扣次|计入/);
+  }
+});
+
+test('password-protected generation does not claim access validation completed before the response', () => {
+  const waiting = aiDroneStageFeedback('generating', 15, { accessRequired: true });
+  assert.match(waiting.title, /验证权限并编排/);
+  assert.match(waiting.button, /验证并生成/);
+  assert.match(waiting.description, /先验证测试密码，通过后才调用 AI/);
+  assert.doesNotMatch(waiting.description, /已通过|已验证/);
+  assert.match(aiDroneStageFeedback('generating', 15).description, /等待 DeepSeek/);
+  assert.equal(aiDroneStageFeedback('loading', 0, { accessRequired: true }).stepIndex, -1);
 });
 
 test('mock transport keeps the visible step at AI compilation until an actual response arrives', async () => {

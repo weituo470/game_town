@@ -23,11 +23,11 @@ export function sanitizeAiDroneFailureMetadata(value) {
     ...(Number.isSafeInteger(value?.durationMs) && value.durationMs >= 0 ? { durationMs: value.durationMs } : {}) };
 }
 const FAILURE_MESSAGES = Object.freeze({
-  AI_DRONE_UPSTREAM: { status: 502, message: 'AI 编导暂时未完成，请稍后再试；本次已计入额度。' },
-  AI_DRONE_INVALID_SCORE: { status: 502, message: 'AI 返回的编排未通过安全校验，未启动演出；本次已计入额度。' },
-  AI_DRONE_TIMEOUT: { status: 504, message: 'AI 编导超过45秒未完成；本次已计入额度，请稍后再试。' },
-  AI_DRONE_CANCELLED: { status: 499, message: '此次编排已取消；已开始的模型调用计入额度。' },
-  AI_DRONE_INTERRUPTED: { status: 503, message: '编导服务正在重启；已开始的请求计入额度，不会重复调用模型。' },
+  AI_DRONE_UPSTREAM: { status: 502, message: 'AI 编导暂时未完成，请稍后再试；不会自动重试本次请求。' },
+  AI_DRONE_INVALID_SCORE: { status: 502, message: 'AI 返回的编排未通过安全校验，未启动演出；不会自动重试。' },
+  AI_DRONE_TIMEOUT: { status: 504, message: 'AI 编导超过45秒未完成；不会自动重试，请稍后再试。' },
+  AI_DRONE_CANCELLED: { status: 499, message: '此次编排已取消；不会自动重试已开始的请求。' },
+  AI_DRONE_INTERRUPTED: { status: 503, message: '编导服务正在重启；同一请求不会重复调用模型。' },
 });
 const DAY = 86_400_000;
 const OFFSET = 8 * 60 * 60 * 1000;
@@ -38,10 +38,15 @@ export function aiDroneDay(time) {
 export class AiDroneStoreError extends Error {
   constructor(status, code, message) { super(message); this.name = 'AiDroneStoreError'; this.status = status; this.code = code; this.charged = false; }
 }
-const interrupted = Object.freeze({ status: 503, code: 'AI_DRONE_INTERRUPTED', message: '编导请求已中断，本次已计入额度；同一请求不会再次调用模型。', charged: true });
+const interrupted = Object.freeze({ status: 503, code: 'AI_DRONE_INTERRUPTED', message: '编导请求已中断；同一请求不会再次调用模型。', charged: true });
 
 /** Atomic, persistent reservations: once claimed, one request ID can never call the provider again. */
 export function createAiDroneStore({ dbPath = '.data/ai-drone.sqlite', db, now = Date.now, limits = AI_DRONE_DEFAULT_LIMITS } = {}) {
+  const settings = { ...AI_DRONE_DEFAULT_LIMITS, ...limits };
+  for (const key of Object.keys(AI_DRONE_DEFAULT_LIMITS)) {
+    const minimum = key === 'daily' || key === 'ipDaily' ? 0 : 1;
+    if (!Number.isSafeInteger(settings[key]) || settings[key] < minimum || Object.is(settings[key], -0)) throw new Error('Invalid AI director quota configuration.');
+  }
   const ownDb = !db;
   if (!db) {
     if (dbPath !== ':memory:') mkdirSync(dirname(resolve(dbPath)), { recursive: true });
@@ -59,15 +64,15 @@ export function createAiDroneStore({ dbPath = '.data/ai-drone.sqlite', db, now =
     CREATE INDEX IF NOT EXISTS ai_drone_pending ON ai_drone_requests(state,lease_until);`);
   db.prepare('INSERT OR IGNORE INTO ai_drone_metadata(key,value) VALUES (?,?)').run('ip-salt', randomBytes(32).toString('hex'));
   const salt = db.prepare('SELECT value FROM ai_drone_metadata WHERE key=?').get('ip-salt').value;
-  const settings = { ...AI_DRONE_DEFAULT_LIMITS, ...limits };
-  for (const key of Object.keys(AI_DRONE_DEFAULT_LIMITS)) if (!Number.isSafeInteger(settings[key]) || settings[key] < 1) throw new Error('Invalid AI director quota configuration.');
   let closed = false;
   const checkOpen = () => { if (closed) throw new Error('AI director store is closed.'); };
   function usage(guestId, time = now()) {
     checkOpen();
     const day = aiDroneDay(time);
     const used = Number(db.prepare('SELECT count(*) AS n FROM ai_drone_requests WHERE guest_id=? AND day=?').get(guestId, day.key).n);
-    return { limit: settings.daily, used, remaining: Math.max(0, settings.daily - used), resetAt: day.resetAt };
+    return settings.daily === 0
+      ? { unlimited: true, limit: null, remaining: null, used, resetAt: day.resetAt }
+      : { limit: settings.daily, used, remaining: Math.max(0, settings.daily - used), resetAt: day.resetAt };
   }
   function request(guestId, requestId, time = now()) {
     checkOpen();
@@ -77,7 +82,15 @@ export function createAiDroneStore({ dbPath = '.data/ai-drone.sqlite', db, now =
       db.prepare("UPDATE ai_drone_requests SET state='failed',error=? WHERE guest_id=? AND request_id=? AND state='pending'").run(JSON.stringify(error), guestId, requestId);
       row = db.prepare('SELECT * FROM ai_drone_requests WHERE guest_id=? AND request_id=?').get(guestId, requestId);
     }
-    return row ? { state: row.state, fingerprint: row.fingerprint, result: row.result ? JSON.parse(row.result) : null, error: row.error ? JSON.parse(row.error) : null } : null;
+    if (!row) return null;
+    let error = row.error ? JSON.parse(row.error) : null;
+    // Old finite-mode failures may mention a deducted allowance. Keep the audit
+    // row intact, but project fixed neutral messages after opting into unlimited.
+    if (error && settings.daily === 0) {
+      const code = Object.hasOwn(FAILURE_MESSAGES, error.code) ? error.code : 'AI_DRONE_UPSTREAM';
+      error = { ...FAILURE_MESSAGES[code], code, charged: true, ...sanitizeAiDroneFailureMetadata(error) };
+    }
+    return { state: row.state, fingerprint: row.fingerprint, result: row.result ? JSON.parse(row.result) : null, error };
   }
   function reserve({ guestId, requestId, fingerprint, ip, timeoutMs = 45_000 }) {
     checkOpen();
@@ -88,8 +101,8 @@ export function createAiDroneStore({ dbPath = '.data/ai-drone.sqlite', db, now =
       const prior = request(guestId, requestId, time);
       if (prior) { db.exec('COMMIT'); return { prior, usage: usage(guestId, time) }; }
       const count = (sql, ...args) => Number(db.prepare(sql).get(...args).n);
-      if (usage(guestId, time).remaining < 1) throw new AiDroneStoreError(429, 'AI_DRONE_DAILY_LIMIT', '今天的 AI 编导额度已用完，北京时间零点恢复。');
-      if (count('SELECT count(*) AS n FROM ai_drone_requests WHERE ip_hash=? AND created_at>=?', ipHash, day.start) >= settings.ipDaily) throw new AiDroneStoreError(429, 'AI_DRONE_IP_DAILY_LIMIT', '当前网络今天的 AI 编导请求较多，请明天再试。');
+      if (settings.daily !== 0 && usage(guestId, time).remaining < 1) throw new AiDroneStoreError(429, 'AI_DRONE_DAILY_LIMIT', '今天的 AI 编导额度已用完，北京时间零点恢复。');
+      if (settings.ipDaily !== 0 && count('SELECT count(*) AS n FROM ai_drone_requests WHERE ip_hash=? AND created_at>=?', ipHash, day.start) >= settings.ipDaily) throw new AiDroneStoreError(429, 'AI_DRONE_IP_DAILY_LIMIT', '当前网络今天的 AI 编导请求较多，请明天再试。');
       if (count('SELECT count(*) AS n FROM ai_drone_requests WHERE ip_hash=? AND created_at>?', ipHash, time - 60_000) >= settings.ipMinute) throw new AiDroneStoreError(429, 'AI_DRONE_IP_RATE_LIMIT', '当前网络请求较快，请一分钟后再试。');
       if (count("SELECT count(*) AS n FROM ai_drone_requests WHERE guest_id=? AND state='pending' AND lease_until>?", guestId, time) >= settings.guestConcurrent) throw new AiDroneStoreError(429, 'AI_DRONE_IN_FLIGHT', '请等待你正在编排的演出完成。');
       if (count("SELECT count(*) AS n FROM ai_drone_requests WHERE state='pending' AND lease_until>?", time) >= settings.concurrent) throw new AiDroneStoreError(503, 'AI_DRONE_CAPACITY', 'AI 编导正在服务其他观众，请稍后再试。');

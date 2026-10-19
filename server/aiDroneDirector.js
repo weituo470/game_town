@@ -1,5 +1,6 @@
 import { createHash, randomInt, randomUUID } from 'node:crypto';
 import { loadNpcLlmConfig } from './npcLlmConfig.js';
+import { AiDroneAccessError, createAiDroneAccess, isAiDroneAccessHash } from './aiDroneAccess.js';
 import { AI_DRONE_DEFAULT_LIMITS, AI_DRONE_FAILURE_REASONS, AiDroneStoreError, createAiDroneStore, sanitizeAiDroneFailureMetadata } from './aiDroneStore.js';
 import { validateAiDroneScore, AI_DRONE_SHAPES, AI_DRONE_MOTIONS, AI_DRONE_TRANSITIONS, AI_DRONE_LIMITS as SCORE_LIMITS } from '../shared/aiDroneScore.js';
 
@@ -7,12 +8,20 @@ export const AI_DRONE_LIMITS = Object.freeze({ ...AI_DRONE_DEFAULT_LIMITS, promp
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const CONTROL = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/u;
 const boundedInteger = (value, fallback, max = 1000) => Number.isSafeInteger(Number(value)) && Number(value) >= 1 ? Math.min(max, Number(value)) : fallback;
+// Only an explicit zero disables the two daily caps. Empty, boolean, signed,
+// decimal and exponent spellings must never accidentally opt out of protection.
+function configuredLimit(value, fallback, max, allowUnlimited = false) {
+  const literal = typeof value === 'string' ? value.trim() : value;
+  const parsed = typeof literal === 'number' ? literal : typeof literal === 'string' && /^\d+$/.test(literal) ? Number(literal) : NaN;
+  if (allowUnlimited && (literal === '0' || (literal === 0 && !Object.is(literal, -0)))) return 0;
+  return Number.isSafeInteger(parsed) && parsed >= 1 ? Math.min(max, parsed) : fallback;
+}
 export class AiDroneDirectorError extends Error {
   constructor(status, code, message, extra = {}) { super(message); this.name = 'AiDroneDirectorError'; Object.assign(this, { status, code, charged: false, replayed: false }, extra); }
 }
 const problem = (status, code, message, extra) => new AiDroneDirectorError(status, code, message, extra);
-const upstream = (phase = 'provider_request', reason = 'provider_network') => problem(502, 'AI_DRONE_UPSTREAM', 'AI 编导暂时未完成，请稍后再试；本次已计入额度。', { phase, reason });
-const invalidScore = (reason = 'schema_invalid', phase = 'score_schema') => problem(502, 'AI_DRONE_INVALID_SCORE', 'AI 返回的编排未通过安全校验，未启动演出；本次已计入额度。', { phase, reason });
+const upstream = (phase = 'provider_request', reason = 'provider_network') => problem(502, 'AI_DRONE_UPSTREAM', 'AI 编导暂时未完成，请稍后再试；不会自动重试本次请求。', { phase, reason });
+const invalidScore = (reason = 'schema_invalid', phase = 'score_schema') => problem(502, 'AI_DRONE_INVALID_SCORE', 'AI 返回的编排未通过安全校验，未启动演出；不会自动重试。', { phase, reason });
 const CHOICE_RULES = Object.freeze([
   Object.freeze({ field: 'shape', choices: AI_DRONE_SHAPES, aliases: Object.freeze({ circle: 'ring' }) }),
   Object.freeze({ field: 'motion', choices: AI_DRONE_MOTIONS, aliases: Object.freeze({ rotate: 'turn', rotation: 'turn', static: 'still', breathing: 'breathe', pulse: 'breathe' }) }),
@@ -40,13 +49,16 @@ function normalizeProviderChoices(value) {
 
 export function loadAiDroneConfig({ env = process.env, npcConfig } = {}) {
   const limits = {
-    daily: boundedInteger(env.AI_DRONE_DAILY_LIMIT, 5),
-    ipMinute: boundedInteger(env.AI_DRONE_IP_MINUTE_LIMIT, 3),
-    ipDaily: boundedInteger(env.AI_DRONE_IP_DAILY_LIMIT, 30, 100_000),
+    daily: configuredLimit(env.AI_DRONE_DAILY_LIMIT, 5, 1000, true),
+    ipMinute: configuredLimit(env.AI_DRONE_IP_MINUTE_LIMIT, 3, 1000),
+    ipDaily: configuredLimit(env.AI_DRONE_IP_DAILY_LIMIT, 30, 100_000, true),
     concurrent: 2, guestConcurrent: 1,
   };
-  const common = { provider: 'DeepSeek', model: 'deepseek-flash', dbPath: env.AI_DRONE_DB || '.data/ai-drone.sqlite', limits, timeoutMs: 45_000, maxTokens: 4000 };
+  const accessRequired = env.AI_DRONE_ACCESS_REQUIRED === 'true';
+  const common = { provider: 'DeepSeek', model: 'deepseek-flash', dbPath: env.AI_DRONE_DB || '.data/ai-drone.sqlite', limits, timeoutMs: 45_000, maxTokens: 4000, accessRequired,
+    ...(accessRequired ? { accessPasswordHash: env.AI_DRONE_ACCESS_PASSWORD_HASH } : {}) };
   if (env.AI_DRONE_ENABLED !== 'true') return Object.freeze({ ...common, enabled: false, reason: 'disabled' });
+  if (accessRequired && !isAiDroneAccessHash(common.accessPasswordHash)) return Object.freeze({ ...common, enabled: false, reason: 'access-not-configured' });
   const npc = npcConfig || loadNpcLlmConfig({ env });
   if (!npc.enabled) return Object.freeze({ ...common, enabled: false, reason: 'not-configured' });
   return Object.freeze({ ...common, enabled: true, apiKey: npc.apiKey, baseURL: npc.baseURL, model: npc.model });
@@ -95,28 +107,34 @@ async function readProviderData(response) {
   } finally { reader.releaseLock(); }
 }
 
-function validateInput(input) {
+function validateCaller(input) {
   if (!input || typeof input !== 'object' || Array.isArray(input)) throw problem(400, 'INVALID_REQUEST', '编导请求格式不正确。');
   if (typeof input.guestId !== 'string' || !UUID.test(input.guestId)) throw problem(401, 'INVALID_GUEST', '游客身份已过期，请重新连接。');
+  if (typeof input.ip !== 'string' || !input.ip || input.ip.length > 160) throw problem(400, 'INVALID_REQUEST', '无法验证网络来源。');
+  if (input.signal !== undefined && !(input.signal instanceof AbortSignal)) throw problem(400, 'INVALID_REQUEST', '编导请求格式不正确。');
+}
+function validateInput(input) {
+  validateCaller(input);
   if (typeof input.requestId !== 'string' || !UUID.test(input.requestId)) throw problem(400, 'INVALID_REQUEST_ID', '请求编号无效，请重新生成。');
   if (!['prompt', 'improv'].includes(input.mode)) throw problem(400, 'INVALID_REQUEST', '请选择命题或即兴模式。');
   if (input.prompt !== undefined && typeof input.prompt !== 'string') throw problem(400, 'INVALID_PROMPT', '主题必须是文字。');
   const prompt = (input.prompt || '').trim();
   if ((input.mode === 'prompt' && !prompt) || Array.from(prompt).length > 400 || CONTROL.test(prompt)) throw problem(400, 'INVALID_PROMPT', '命题需要包含1至400个字符，且不能含有特殊控制字符。');
-  if (typeof input.ip !== 'string' || !input.ip || input.ip.length > 160) throw problem(400, 'INVALID_REQUEST', '无法验证网络来源。');
-  if (input.signal !== undefined && !(input.signal instanceof AbortSignal)) throw problem(400, 'INVALID_REQUEST', '编导请求格式不正确。');
-  return { ...input, prompt, requestId: input.requestId.toLowerCase() };
+  // Explicit projection: accessPassword and arbitrary browser fields must never
+  // reach prompts, fingerprints, SQLite reservations or returned show data.
+  return { guestId: input.guestId, requestId: input.requestId.toLowerCase(), mode: input.mode, prompt, ip: input.ip, signal: input.signal };
 }
 
 export function createAiDroneDirector({ config = loadAiDroneConfig(), fetchImpl = globalThis.fetch, now = Date.now, store } = {}) {
   const limits = { ...AI_DRONE_DEFAULT_LIMITS, ...config.limits, concurrent: 2, guestConcurrent: 1 };
   const timeoutMs = boundedInteger(config.timeoutMs, 45_000, 45_000);
-  const enabled = config.enabled === true && typeof config.apiKey === 'string' && !!config.apiKey && config.model === 'deepseek-flash' && /^https:\/\/api\.deepseek\.com(?:\/v1)?\/?$/.test(config.baseURL || '');
+  const access = createAiDroneAccess({ required: config.accessRequired === true, passwordHash: config.accessPasswordHash, now });
+  const enabled = access.configured && config.enabled === true && typeof config.apiKey === 'string' && !!config.apiKey && config.model === 'deepseek-flash' && /^https:\/\/api\.deepseek\.com(?:\/v1)?\/?$/.test(config.baseURL || '');
   const flights = new Map();
   let closed = false;
   const getStore = () => store ||= createAiDroneStore({ dbPath: config.dbPath, now, limits });
   const safeUsage = guestId => { try { return getStore().usage(guestId); } catch { return undefined; } };
-  function status() { return { enabled: enabled && !closed, provider: 'DeepSeek', model: 'deepseek-flash', limit: limits.daily, limits: { ...AI_DRONE_LIMITS, ...limits, timeoutMs }, ...(!enabled ? { reason: config.reason || 'not-configured' } : {}) }; }
+  function status() { return { enabled: enabled && !closed, provider: 'DeepSeek', model: 'deepseek-flash', limit: limits.daily === 0 ? null : limits.daily, ...(limits.daily === 0 ? { unlimited: true } : {}), ...(access.required ? { accessRequired: true, development: true } : {}), limits: { ...AI_DRONE_LIMITS, ...limits, timeoutMs }, ...(!enabled ? { reason: !access.configured ? 'access-not-configured' : config.reason || 'not-configured' } : {}) }; }
   function usage(guestId) {
     if (typeof guestId !== 'string' || !UUID.test(guestId)) throw problem(401, 'INVALID_GUEST', '游客身份已过期，请重新连接。');
     if (!enabled || closed) throw problem(503, 'AI_DRONE_DISABLED', 'AI 编导暂未开启，请先欣赏精选演出。');
@@ -131,8 +149,18 @@ export function createAiDroneDirector({ config = loadAiDroneConfig(), fetchImpl 
   }
   async function generate(raw) {
     if (!enabled || closed) throw problem(503, 'AI_DRONE_DISABLED', 'AI 编导暂未开启，请先欣赏精选演出。');
+    validateCaller(raw);
+    if (raw.signal?.aborted) throw problem(499, 'AI_DRONE_CANCELLED', '此次编排已取消，未调用模型。');
+    if (access.required) {
+      try { await access.verify({ password: raw.accessPassword, ip: raw.ip }); }
+      catch (error) {
+        if (error instanceof AiDroneAccessError) throw problem(error.status, error.code, error.message);
+        throw problem(503, 'AI_DRONE_ACCESS_BUSY', '测试验证繁忙，请稍后再试');
+      }
+      if (closed) throw problem(503, 'AI_DRONE_DISABLED', 'AI 编导暂未开启，请先欣赏精选演出。');
+    }
     const input = validateInput(raw);
-    if (input.signal?.aborted) throw problem(499, 'AI_DRONE_CANCELLED', '此次编排已取消，未计入额度。');
+    if (input.signal?.aborted) throw problem(499, 'AI_DRONE_CANCELLED', '此次编排已取消，未调用模型。');
     const fingerprint = createHash('sha256').update(JSON.stringify([input.mode, input.prompt])).digest('hex');
     let storage;
     try { storage = getStore(); } catch { throw problem(503, 'AI_DRONE_UNAVAILABLE', 'AI 编导暂时不可用，请稍后再试。'); }
@@ -149,9 +177,9 @@ export function createAiDroneDirector({ config = loadAiDroneConfig(), fetchImpl 
     let rejectAbort, abortError;
     const aborted = new Promise((_, reject) => { rejectAbort = reject; });
     const stop = error => { if (abortError) return; abortError = error; controller.abort(); rejectAbort(error); };
-    const onCancel = () => stop(problem(499, 'AI_DRONE_CANCELLED', '此次编排已取消；已开始的模型调用计入额度。', { reason: 'cancelled' }));
+    const onCancel = () => stop(problem(499, 'AI_DRONE_CANCELLED', '此次编排已取消；不会自动重试已开始的请求。', { reason: 'cancelled' }));
     input.signal?.addEventListener('abort', onCancel, { once: true });
-    const timer = setTimeout(() => stop(problem(504, 'AI_DRONE_TIMEOUT', 'AI 编导超过45秒未完成；本次已计入额度，请稍后再试。', { reason: 'timeout' })), timeoutMs);
+    const timer = setTimeout(() => stop(problem(504, 'AI_DRONE_TIMEOUT', 'AI 编导超过45秒未完成；不会自动重试，请稍后再试。', { reason: 'timeout' })), timeoutMs);
     const flight = { stop, promise: null };
     flights.set(`${input.guestId}:${input.requestId}`, flight);
     const operation = async () => {
@@ -208,7 +236,8 @@ export function createAiDroneDirector({ config = loadAiDroneConfig(), fetchImpl 
   }
   return { status, usage, generate, async close() {
     if (closed) return; closed = true;
-    for (const flight of flights.values()) flight.stop(problem(503, 'AI_DRONE_INTERRUPTED', '编导服务正在重启；已开始的请求计入额度，不会重复调用模型。', { reason: 'interrupted' }));
+    access.close();
+    for (const flight of flights.values()) flight.stop(problem(503, 'AI_DRONE_INTERRUPTED', '编导服务正在重启；同一请求不会重复调用模型。', { reason: 'interrupted' }));
     await Promise.allSettled([...flights.values()].map(flight => flight.promise));
     store?.close();
   } };

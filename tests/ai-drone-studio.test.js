@@ -15,8 +15,8 @@ test('studio lazily imports the runtime compiler and never evaluates model code'
   assert.match(studio, /onPlay\(current\.runtime\)/);
 });
 
-test('studio presents bounded labeled input, honest disabled status, cancellation and quota disclosure', () => {
-  for (const expected of ['htmlFor="ai-drone-prompt"', 'maxLength={AI_DRONE_MAX_PROMPT}', 'aria-describedby="ai-drone-privacy"', 'aria-busy={busy}', '取消等待', 'DeepSeek', '每日 5 次', '同 IP', '失败或取消也可能扣次', '仅个人观演', '非真实无人机飞控', '不会自动重试', 'AI 编导暂未开放']) assert.ok(studio.includes(expected), expected);
+test('studio presents bounded labeled input, honest disabled status, cancellation and service policy', () => {
+  for (const expected of ['htmlFor="ai-drone-prompt"', 'maxLength={AI_DRONE_MAX_PROMPT}', 'aria-describedby="ai-drone-privacy"', 'aria-busy={busy}', '取消等待', 'DeepSeek', '不限制生成次数', '短时间请求频率', '仅个人观演', '非真实无人机飞控', '不会自动重试', 'AI 编导暂未开放']) assert.ok(studio.includes(expected), expected);
   assert.match(studio, /disabled=\{busy \|\| checking \|\| !service\?\.enabled/);
   assert.equal((studio.match(/label: '/g) ?? []).length, 3);
   assert.doesNotMatch(studio, /Math\.random|progressbar|百分之/);
@@ -32,7 +32,7 @@ test('generation has immediate prominent feedback and only measures elapsed time
   assert.match(studio, /已等待 <strong>\{elapsed\}<\/strong> 秒/);
   assert.match(studio, /stageFeedback\?\.button/);
   assert.match(studio, /aria-live="off"/);
-  assert.match(studio, /aiDroneQuotaFeedback\(usage, stage\)/);
+  assert.match(studio, /aiDroneQuotaFeedback\(usage, stage, service\)/);
   assert.doesNotMatch(studio, /生成前不调用模型/);
 });
 
@@ -75,7 +75,7 @@ test('failure and cancellation do not clear the last good preview or auto-retry 
   assert.equal((studio.match(/client\.generate\(/g) ?? []).length, 1);
   assert.doesNotMatch(studio, /setCurrent\(null\)/);
   assert.match(studio, /flight\.current\?\.abort\(\)/);
-  assert.match(studio, /回放不消耗生成额度/);
+  assert.match(studio, /回放不会调用 AI/);
   assert.match(studio, /不保存模型密钥/);
 });
 
@@ -84,15 +84,52 @@ test('studio is a dialog child, not a second modal or focus trap', () => {
   assert.match(studio, /onClick=\{onClose\}/);
 });
 
-test('quota can recover at Beijing midnight, on tab return and through a manual action without generating', () => {
+test('limited quota can recover at Beijing midnight; unlimited status uses no midnight timer', () => {
   assert.match(studio, /usage\.resetAt - Date\.now\(\) \+ 100/);
-  assert.match(studio, /\[usage\?\.resetAt\]/);
+  assert.match(studio, /if \(unlimited \|\| !usage\?\.resetAt\) return undefined/);
+  assert.match(studio, /\[usage\?\.resetAt, unlimited\]/);
   assert.match(studio, /document\.addEventListener\('visibilitychange', refreshVisible\)/);
   assert.match(studio, /document\.removeEventListener\('visibilitychange', refreshVisible\)/);
   assert.match(studio, /document\.visibilityState === 'visible'/);
-  assert.match(studio, /重新检查额度/);
+  assert.match(studio, /更新服务状态/);
   assert.match(studio, /onClick=\{\(\) => void refreshUsage\(true\)\}/);
   assert.match(studio, /return \(\) => clearTimeout\(timer\)/);
+});
+
+test('unlimited status overrides stale exhausted usage without changing local library storage count', () => {
+  assert.match(studio, /const unlimited = aiDroneUnlimited\(usage, service\)/);
+  assert.match(studio, /aiDroneQuotaExhausted\(usage, service\)/);
+  assert.doesNotMatch(studio, /usage\?\.remaining === 0|每日 5 次|扣次|计入今日额度|检查额度/);
+  assert.match(studio, /unlimited \? '不限制生成次数/);
+  assert.match(studio, /仅限制本机保存 \{AI_DRONE_LIBRARY_LIMIT\} 份，不代表生成次数限制/);
+  const refresh = studio.slice(studio.indexOf('async function refreshUsage'), studio.indexOf('async function generate'));
+  assert.match(refresh, /await client\.status/);
+  assert.match(refresh, /setService\(next\)/);
+  assert.doesNotMatch(refresh, /client\.generate|createAiDroneRequest/);
+});
+
+test('development notice and private password input guard generation without blocking library playback', () => {
+  assert.match(studio, /开发中 · 仅供测试/);
+  assert.match(studio, /const development = service\?\.development === true \|\| accessRequired/);
+  assert.match(studio, /type="password" autoComplete="off"/);
+  assert.match(studio, /maxLength=\{AI_DRONE_MAX_ACCESS_PASSWORD\}/);
+  assert.match(studio, /htmlFor="ai-drone-access-password"/);
+  assert.match(studio, /aria-describedby="ai-drone-access-help"/);
+  assert.match(studio, /const \[accessPassword, setAccessPassword\] = useState\(''\)/);
+  assert.match(studio, /验证密码并生成/);
+  assert.match(studio, /关闭后清除/);
+  assert.match(studio, /不会保存到本机节目，也不会发送给模型/);
+  const generate = studio.slice(studio.indexOf('async function generate'), studio.indexOf('async function load'));
+  assert.ok(generate.indexOf('validateAiDroneAccessPassword(accessPassword, accessRequired)') < generate.indexOf('new AbortController'));
+  assert.match(generate, /createAiDroneRequest\(\{ mode, prompt \}\)/);
+  assert.match(generate, /client\.generate\(request, \{ accessPassword,/);
+  const load = studio.slice(studio.indexOf('async function load'), studio.indexOf('function save'));
+  const save = studio.slice(studio.indexOf('function save'), studio.indexOf('function remove'));
+  assert.doesNotMatch(load, /accessPassword|accessRequired|client\.generate/);
+  assert.doesNotMatch(save, /accessPassword|accessRequired/);
+  assert.doesNotMatch(studio, /(?:localStorage|sessionStorage|console)\./);
+  assert.match(css, /\.ai-drone-access-field input[^}]+min-height: 48px/);
+  assert.match(css, /\.ai-drone-access-field input[^}]+font-size: var\(--text-control, 1rem\)/);
 });
 
 test('studio typography covers JSX classes, semantic tokens and mobile overrides', () => {

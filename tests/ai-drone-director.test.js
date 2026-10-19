@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { randomUUID } from 'node:crypto';
+import { randomUUID, scryptSync } from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
@@ -13,14 +14,180 @@ const score = () => ({ version: 1, title: '鲸向星河', synopsis: '星海里�
 const provider = (value = score()) => new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(value) } }] }), { headers: { 'content-type': 'application/json' } });
 const config = (overrides = {}) => ({ enabled: true, apiKey: 'test-key-never-log', baseURL: 'https://api.deepseek.com/v1', model: 'deepseek-flash', dbPath: ':memory:', timeoutMs: 1000, ...overrides });
 const input = (overrides = {}) => ({ guestId: randomUUID(), requestId: randomUUID(), mode: 'prompt', prompt: '鲸鱼遨游星河', ip: '127.0.0.1', ...overrides });
+const accessTestPassword = 'director-test-only-code';
+const accessSalt = 'abcdef0123456789abcdef0123456789';
+const accessTestHash = `scrypt1$${accessSalt}$${scryptSync(accessTestPassword, accessSalt, 32, { N: 16384, r: 8, p: 1 }).toString('hex')}`;
+
+test('access config is opt-in and missing or malformed server hash disables AI without exposing its value', async () => {
+  assert.equal(loadAiDroneConfig({ env: {}, npcConfig: config() }).accessRequired, false);
+  for (const value of [undefined, '', 'not-a-hash', {}, accessTestHash + '\n']) {
+    const settings = loadAiDroneConfig({ env: { AI_DRONE_ENABLED: 'true', AI_DRONE_ACCESS_REQUIRED: 'true', AI_DRONE_ACCESS_PASSWORD_HASH: value }, npcConfig: config() });
+    assert.equal(settings.enabled, false); assert.equal(settings.reason, 'access-not-configured');
+    // Direct configuration must fail closed as well, even if enabled was forced.
+    const director = createAiDroneDirector({ config: config({ accessRequired: true, accessPasswordHash: value }), fetchImpl() { assert.fail('provider not permitted'); } });
+    try {
+      assert.equal(director.status().enabled, false); assert.equal(director.status().accessRequired, true); assert.equal(director.status().development, true);
+      assert.doesNotMatch(JSON.stringify(director.status()), /scrypt1|accessPasswordHash|not-a-hash|director-test-only/);
+      await assert.rejects(director.generate(input({ accessPassword: accessTestPassword })), { code: 'AI_DRONE_DISABLED', charged: false });
+    } finally { await director.close(); }
+  }
+  const valid = loadAiDroneConfig({ env: { AI_DRONE_ENABLED: 'true', AI_DRONE_ACCESS_REQUIRED: 'true', AI_DRONE_ACCESS_PASSWORD_HASH: accessTestHash }, npcConfig: config() });
+  assert.equal(valid.enabled, true); assert.equal(valid.accessRequired, true);
+});
+
+test('password gate precedes prompt validation, reservation and replay; only authenticated request calls provider once', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ai-drone-access-')), dbPath = join(dir, 'test.sqlite');
+  let time = 100_000, calls = 0, sent;
+  const settings = config({ dbPath, accessRequired: true, accessPasswordHash: accessTestHash, limits: { daily: 0, ipDaily: 0 } });
+  let director = createAiDroneDirector({ config: settings, now: () => time, fetchImpl: async (_url, request) => { calls++; sent = request.body; return provider(); } });
+  const body = input();
+  try {
+    assert.equal(director.status().unlimited, true); assert.equal(director.status().accessRequired, true);
+    for (const accessPassword of [undefined, {}, '', 'wrong-test-code', 'x'.repeat(129)]) {
+      await assert.rejects(director.generate({ ...body, prompt: '', accessPassword }), { status: 403, code: 'AI_DRONE_ACCESS_DENIED', charged: false, replayed: false });
+    }
+    await assert.rejects(director.generate({ ...body, accessPassword: accessTestPassword }), { status: 429, code: 'AI_DRONE_ACCESS_RATE_LIMIT', charged: false });
+    assert.equal(calls, 0); assert.equal(director.usage(body.guestId).usage.used, 0);
+    time += 60_000;
+    await assert.rejects(director.generate({ ...body, accessPassword: 'still-wrong-code' }), { code: 'AI_DRONE_ACCESS_DENIED' });
+    assert.equal(calls, 0); assert.equal(director.usage(body.guestId).usage.used, 0);
+    const result = await director.generate({ ...body, accessPassword: accessTestPassword });
+    assert.equal(calls, 1); assert.equal(result.usage.used, 1); assert.equal(result.usage.unlimited, true);
+    assert.equal(sent.includes(accessTestPassword), false); assert.equal(sent.includes(accessTestHash), false);
+    assert.equal(JSON.stringify(result).includes(accessTestPassword), false); assert.equal(JSON.stringify(result).includes('accessPassword'), false);
+    await assert.rejects(director.generate(body), { code: 'AI_DRONE_ACCESS_DENIED', charged: false });
+    const replay = await director.generate({ ...body, accessPassword: accessTestPassword });
+    assert.equal(replay.replayed, true); assert.equal(calls, 1); assert.equal(replay.usage.used, 1);
+    await director.close();
+    const database = new DatabaseSync(dbPath);
+    try {
+      const rows = JSON.stringify(database.prepare('SELECT * FROM ai_drone_requests').all());
+      assert.equal(rows.includes(accessTestPassword), false); assert.equal(rows.includes(accessTestHash), false); assert.equal(rows.includes('accessPassword'), false);
+    } finally { database.close(); }
+    director = createAiDroneDirector({ config: settings, now: () => time, fetchImpl() { assert.fail('replay must not call provider'); } });
+    await assert.rejects(director.generate(body), { code: 'AI_DRONE_ACCESS_DENIED', charged: false });
+    assert.equal((await director.generate({ ...body, accessPassword: accessTestPassword })).replayed, true);
+  } finally { await director.close(); rmSync(dir, { recursive: true }); }
+});
+
+test('cancel or close while scrypt is pending cannot later reserve usage or call provider', async () => {
+  for (const action of ['cancel', 'close']) {
+    let calls = 0, reserved = 0;
+    const store = { reserve() { reserved++; throw Error('must not reserve'); }, close() {} };
+    const director = createAiDroneDirector({ store, config: config({ accessRequired: true, accessPasswordHash: accessTestHash }), fetchImpl() { calls++; } });
+    const controller = new AbortController();
+    const request = director.generate(input({ accessPassword: accessTestPassword, signal: controller.signal }));
+    const stopped = assert.rejects(request, error => error.charged === false && (action === 'cancel' ? error.code === 'AI_DRONE_CANCELLED' : error.code === 'AI_DRONE_ACCESS_BUSY'));
+    if (action === 'cancel') controller.abort(); else await director.close();
+    await stopped; assert.equal(calls, 0); assert.equal(reserved, 0); await director.close();
+  }
+});
 
 test('AI config is independent opt-in, inherits only validated model config, and keeps quotas server-owned', () => {
   assert.equal(loadAiDroneConfig({ env: {}, npcConfig: config() }).enabled, false);
   const enabled = loadAiDroneConfig({ env: { AI_DRONE_ENABLED: 'true', AI_DRONE_DAILY_LIMIT: '5', AI_DRONE_IP_MINUTE_LIMIT: '3' }, npcConfig: config() });
   assert.equal(enabled.enabled, true); assert.equal(enabled.timeoutMs, 45_000); assert.equal(enabled.maxTokens, 4000); assert.equal(enabled.limits.daily, 5);
   assert.equal(loadAiDroneConfig({ env: { AI_DRONE_ENABLED: 'true' }, npcConfig: { enabled: false } }).enabled, false);
-  assert.equal(loadAiDroneConfig({ env: { AI_DRONE_DAILY_LIMIT: '0' } }).limits.daily, 5);
+  assert.equal(loadAiDroneConfig({ env: { AI_DRONE_DAILY_LIMIT: '0' } }).limits.daily, 0);
   assert.equal(loadAiDroneConfig({ env: { AI_DRONE_DAILY_LIMIT: 'NaN' } }).limits.daily, 5);
+});
+
+test('only explicit daily zero enables unlimited; invalid values retain finite defaults and all safety limits', async () => {
+  for (const zero of [0, '0', ' 0 ']) {
+    const settings = loadAiDroneConfig({ env: { AI_DRONE_ENABLED: 'true', AI_DRONE_DAILY_LIMIT: zero, AI_DRONE_IP_DAILY_LIMIT: zero, AI_DRONE_IP_MINUTE_LIMIT: zero }, npcConfig: config() });
+    assert.deepEqual(settings.limits, { daily: 0, ipDaily: 0, ipMinute: 3, concurrent: 2, guestConcurrent: 1 });
+    assert.equal(settings.timeoutMs, 45000);
+    const director = createAiDroneDirector({ config: settings, fetchImpl() { throw Error('must not call'); } });
+    try {
+      assert.equal(director.status().limit, null); assert.equal(director.status().unlimited, true);
+      assert.equal(director.status().limits.daily, 0); assert.equal(director.status().limits.ipDaily, 0);
+      assert.equal(director.status().limits.timeoutMs, 45000);
+      assert.equal(director.status().limits.concurrent, 2); assert.equal(director.status().limits.guestConcurrent, 1);
+      assert.doesNotMatch(JSON.stringify(director.status()), /apiKey|baseURL|test-key/);
+    } finally { await director.close(); }
+  }
+  for (const value of [undefined, null, '', ' ', false, true, -1, -0, '-0', '0.0', '0e0', '00', .5, '0.5', '1.5', Infinity, NaN, {}, [], Symbol('invalid')]) {
+    const settings = loadAiDroneConfig({ env: { AI_DRONE_DAILY_LIMIT: value, AI_DRONE_IP_DAILY_LIMIT: value, AI_DRONE_IP_MINUTE_LIMIT: value } });
+    assert.deepEqual(settings.limits, { daily: 5, ipDaily: 30, ipMinute: 3, concurrent: 2, guestConcurrent: 1 });
+  }
+  for (const value of [1, '1', 9, '9', ' 9 ']) {
+    const settings = loadAiDroneConfig({ env: { AI_DRONE_DAILY_LIMIT: value, AI_DRONE_IP_DAILY_LIMIT: value, AI_DRONE_IP_MINUTE_LIMIT: value } });
+    assert.equal(settings.limits.daily, Number(value)); assert.equal(settings.limits.ipDaily, Number(value)); assert.equal(settings.limits.ipMinute, Number(value));
+  }
+  const capped = loadAiDroneConfig({ env: { AI_DRONE_DAILY_LIMIT: '999999', AI_DRONE_IP_DAILY_LIMIT: '999999', AI_DRONE_IP_MINUTE_LIMIT: '999999' } });
+  assert.equal(capped.limits.daily, 1000); assert.equal(capped.limits.ipDaily, 100000); assert.equal(capped.limits.ipMinute, 1000);
+  const finite = createAiDroneDirector({ config: config(), fetchImpl() { throw Error('must not call'); } });
+  try { assert.equal(finite.status().limit, 5); assert.equal(Object.hasOwn(finite.status(), 'unlimited'), false); }
+  finally { await finite.close(); }
+});
+
+test('unlimited generation passes old daily thresholds while retaining real counts and persistent one-call replay', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'ai-drone-unlimited-')), dbPath = join(dir, 'test.sqlite');
+  let time = Date.parse('2026-10-18T08:00:00Z'), calls = 0;
+  const settings = config({ dbPath, limits: { daily: 0, ipDaily: 0 } });
+  const fetchImpl = async () => { calls++; return provider(); };
+  let director = createAiDroneDirector({ config: settings, fetchImpl, now: () => time });
+  const firstInput = input();
+  let original;
+  try {
+    for (let index = 0; index < 35; index++) {
+      const result = await director.generate({ ...firstInput, requestId: index === 0 ? firstInput.requestId : randomUUID() });
+      original ||= result.show;
+      assert.deepEqual(result.usage, { unlimited: true, limit: null, remaining: null, used: index + 1, resetAt: Date.parse('2026-10-18T16:00:00Z') });
+      time += 60_001;
+    }
+    assert.equal(calls, 35);
+    await director.close(); director = createAiDroneDirector({ config: settings, fetchImpl, now: () => time });
+    const replay = await director.generate(firstInput);
+    assert.equal(replay.replayed, true); assert.deepEqual(replay.show, original); assert.equal(replay.usage.used, 35);
+    assert.equal(calls, 35);
+    await assert.rejects(director.generate({ ...firstInput, prompt: 'another topic' }), { code: 'REQUEST_ID_REUSED', charged: false });
+    assert.equal(calls, 35);
+  } finally { await director.close(); rmSync(dir, { recursive: true }); }
+});
+
+test('unlimited mode still enforces short rate and global/guest concurrency before any additional provider call', async () => {
+  let calls = 0;
+  const fast = createAiDroneDirector({ config: config({ limits: { daily: 0, ipDaily: 0 } }), fetchImpl: async () => { calls++; return provider(); } });
+  const body = input();
+  try {
+    for (let index = 0; index < 3; index++) await fast.generate({ ...body, requestId: randomUUID() });
+    await assert.rejects(fast.generate({ ...body, requestId: randomUUID() }), error => error.code === 'AI_DRONE_IP_RATE_LIMIT' && error.charged === false && error.usage.unlimited === true && error.usage.used === 3);
+    assert.equal(calls, 3);
+  } finally { await fast.close(); }
+  let pendingCalls = 0;
+  const pending = createAiDroneDirector({ config: config({ limits: { daily: 0, ipDaily: 0, concurrent: 999, guestConcurrent: 999 } }), fetchImpl: () => { pendingCalls++; return new Promise(() => {}); } });
+  const a = input({ ip: 'network-a' }), b = input({ ip: 'network-b' }), c = input({ ip: 'network-c' });
+  const taskA = pending.generate(a), stoppedA = assert.rejects(taskA, { code: 'AI_DRONE_INTERRUPTED' });
+  try {
+    await assert.rejects(pending.generate({ ...a, requestId: randomUUID() }), { code: 'AI_DRONE_IN_FLIGHT', charged: false });
+    const taskB = pending.generate(b), stoppedB = assert.rejects(taskB, { code: 'AI_DRONE_INTERRUPTED' });
+    await assert.rejects(pending.generate(c), { code: 'AI_DRONE_CAPACITY', charged: false });
+    assert.equal(pendingCalls, 2); assert.equal(pending.usage(c.guestId).usage.used, 0);
+    await pending.close(); await Promise.all([stoppedA, stoppedB]);
+  } finally { await pending.close(); }
+});
+
+test('unlimited failures use neutral messages while retaining diagnostics and idempotent audit counts', async () => {
+  for (const response of [() => new Response('private upstream', { status: 500 }), () => provider({ ...score(), scenes: [] })]) {
+    let calls = 0;
+    const director = createAiDroneDirector({ config: config({ limits: { daily: 0, ipDaily: 0 } }), fetchImpl: async () => { calls++; return response(); } });
+    const body = input();
+    try {
+      for (let index = 0; index < 2; index++) await assert.rejects(director.generate(body), error => error.charged === true && error.usage.unlimited === true && error.usage.used === 1 && !/额度|扣次|private/.test(error.message));
+      assert.equal(calls, 1);
+    } finally { await director.close(); }
+  }
+  const timeout = createAiDroneDirector({ config: config({ timeoutMs: 5, limits: { daily: 0, ipDaily: 0 } }), fetchImpl: () => new Promise(() => {}) });
+  try { await assert.rejects(timeout.generate(input()), error => error.code === 'AI_DRONE_TIMEOUT' && !/额度|扣次/.test(error.message) && error.usage.used === 1); }
+  finally { await timeout.close(); }
+  const cancelled = createAiDroneDirector({ config: config({ limits: { daily: 0, ipDaily: 0 } }), fetchImpl: () => new Promise(() => {}) });
+  const controller = new AbortController();
+  try {
+    const task = cancelled.generate(input({ signal: controller.signal }));
+    const rejection = assert.rejects(task, error => error.code === 'AI_DRONE_CANCELLED' && !/额度|扣次/.test(error.message) && error.usage.used === 1);
+    controller.abort(); await rejection;
+  } finally { await cancelled.close(); }
 });
 
 test('AI generates real structured score, uses only server settings and successful retry replays without upstream', async () => {

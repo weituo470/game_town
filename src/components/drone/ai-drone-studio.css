@@ -8,6 +8,14 @@
 .ai-drone-intro { max-width: 40em; }
 .ai-drone-scope, .ai-drone-meta { color: var(--ai-muted); font-size: var(--text-meta, .875rem); line-height: 1.7; }
 .ai-drone-scope { margin-top: 4px; }
+.ai-drone-development { padding: 16px 18px; margin-bottom: 20px; border-left: 4px solid #916a22; background: #f3e8ce; border-radius: 0 10px 10px 0; }
+.ai-drone-development strong { display: block; color: #60410e; font-size: var(--text-body, 1.125rem); line-height: 1.7; }
+.ai-drone-development p { margin: 6px 0 0; }
+.ai-drone-access-field { margin-bottom: 24px; }
+.ai-drone-access-field label { display: block; margin-bottom: 8px; font-weight: 700; }
+.ai-drone-access-field input { display: block; width: 100%; min-height: 48px; padding: 10px 15px; border: 1px solid #a99b80; border-radius: 10px; background: #fffcf5; color: var(--ai-ink); font-size: var(--text-control, 1rem); line-height: 1.5; }
+.ai-drone-access-field input::placeholder { color: #746c5c; opacity: 1; }
+.ai-drone-access-field p { margin: 8px 0 0; color: var(--ai-muted); }
 .ai-drone-feedback { margin-top: 24px; padding: 22px 24px; border-left: 4px solid #9b722b; border-radius: 0 12px 12px 0; background: #f5ecd8; scroll-margin-top: var(--ai-feedback-scroll-offset, 130px); overflow-wrap: anywhere; }
 .ai-drone-feedback:focus { outline: 2px solid #96703a; outline-offset: 4px; }
 .ai-drone-feedback-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px 24px; }

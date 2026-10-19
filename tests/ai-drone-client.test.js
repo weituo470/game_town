@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createAiDroneClient, createAiDroneRequest, readAiDroneUsage, AI_DRONE_GUEST_KEY } from '../src/lib/aiDroneClient.js';
+import { createAiDroneClient, createAiDroneRequest, readAiDroneUsage, validateAiDroneAccessPassword, AI_DRONE_GUEST_KEY, AI_DRONE_MAX_ACCESS_PASSWORD } from '../src/lib/aiDroneClient.js';
+import { randomUUID } from 'node:crypto';
 
 const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { 'Content-Type': 'application/json' } });
 const usage = { limit: 5, used: 1, remaining: 4, resetAt: 1800000000000 };
@@ -94,7 +95,7 @@ test('model format and provider failures show distinct safe messages without ret
     const client = createAiDroneClient({ storage: memoryStorage({ [AI_DRONE_GUEST_KEY]: JSON.stringify(guest) }), fetchImpl: async () => {
       calls++; return json({ error: 'sk-private-provider-error', code: serverCode, usage }, 502);
     } });
-    await assert.rejects(client.generate(createRequest()), error => error.code === expected && error.usage.remaining === 4 && error.message.includes('本次计入额度') && !error.message.includes('sk-'));
+    await assert.rejects(client.generate(createRequest()), error => error.code === expected && error.usage.remaining === 4 && error.message.includes('不会自动重试') && !/sk-|计入|扣次|额度/.test(error.message));
     assert.equal(calls, 1);
   }
 });
@@ -103,6 +104,134 @@ test('usage validates counters and Beijing-reset timestamp with no identity crea
   const client = createAiDroneClient({ storage: memoryStorage({ [AI_DRONE_GUEST_KEY]: JSON.stringify(guest) }), fetchImpl: async (url, options) => { assert.equal(url, '/api/drone-director/usage'); assert.deepEqual(JSON.parse(options.body), { token: guest.token }); return json({ usage }); } });
   assert.deepEqual(await client.usage(), usage);
   for (const invalid of [{ ...usage, remaining: 3 }, { ...usage, used: -1 }, { ...usage, resetAt: 'nope' }, { ...usage, limit: 0 }]) assert.equal(readAiDroneUsage(invalid), null);
+});
+
+test('unlimited usage requires explicit true with null bounds and retains real usage counts', () => {
+  const unlimited = { unlimited: true, limit: null, used: 182, remaining: null, resetAt: usage.resetAt };
+  assert.deepEqual(readAiDroneUsage(unlimited), unlimited);
+  assert.deepEqual(readAiDroneUsage({ ...unlimited, used: 0 }), { ...unlimited, used: 0 });
+  assert.deepEqual(readAiDroneUsage({ ...usage, used: 182, remaining: 0 }), { ...usage, used: 182, remaining: 0 });
+  for (const invalid of [
+    { ...unlimited, unlimited: false }, { ...unlimited, unlimited: 'true' },
+    { ...unlimited, unlimited: undefined }, { ...unlimited, limit: 0 },
+    { ...unlimited, remaining: 0 }, { ...unlimited, used: -1 },
+    { ...unlimited, used: Number.MAX_SAFE_INTEGER + 1 }, { ...unlimited, resetAt: null },
+    { ...usage, used: 182, remaining: -177 },
+  ]) assert.equal(readAiDroneUsage(invalid), null);
+});
+
+test('status announces unlimited before guest creation while legacy status remains limited', async () => {
+  const calls = [];
+  const unlimited = createAiDroneClient({ storage: null, fetchImpl: async url => { calls.push(url); return json({ enabled: true, unlimited: true, limit: null, limits: { daily: 0, ipDaily: 0 } }); } });
+  assert.equal((await unlimited.status()).unlimited, true);
+  assert.deepEqual(calls, ['/api/drone-director/status']);
+  const legacy = createAiDroneClient({ storage: null, fetchImpl: async () => json({ enabled: true, limit: 5 }) });
+  assert.equal((await legacy.status()).unlimited, false);
+  assert.equal((await legacy.status()).limit, 5);
+  for (const malformed of [{ enabled: true, unlimited: 'true', limit: null }, { enabled: true, unlimited: true, limit: 5 }]) {
+    const client = createAiDroneClient({ storage: null, fetchImpl: async () => json(malformed) });
+    await assert.rejects(client.status(), { code: 'INVALID_RESPONSE' });
+  }
+});
+
+test('access status exposes only public flags and accepts fail-closed development state', async () => {
+  const calls = [];
+  const client = createAiDroneClient({ storage: null, fetchImpl: async url => {
+    calls.push(url);
+    return json({ enabled: false, accessRequired: true, development: true, unlimited: true, limit: null, privateHash: 'not-returned' });
+  } });
+  const status = await client.status();
+  assert.equal(status.accessRequired, true);
+  assert.equal(status.development, true);
+  assert.equal(status.enabled, false);
+  assert.equal(status.privateHash, undefined);
+  assert.deepEqual(calls, ['/api/drone-director/status']);
+  for (const invalid of [{ enabled: true, accessRequired: 'true' }, { enabled: true, development: 'true' }]) {
+    await assert.rejects(createAiDroneClient({ storage: null, fetchImpl: async () => json(invalid) }).status(), { code: 'INVALID_RESPONSE' });
+  }
+});
+
+test('password input is exact, bounded and never added to the reusable show request', () => {
+  const password = ` ${randomUUID()} `;
+  assert.equal(validateAiDroneAccessPassword(password, true), password);
+  assert.equal(validateAiDroneAccessPassword(undefined, false), undefined);
+  assert.equal(validateAiDroneAccessPassword('', false), undefined);
+  for (const missing of [undefined, '']) assert.throws(() => validateAiDroneAccessPassword(missing, true), { code: 'ACCESS_REQUIRED' });
+  for (const invalid of [null, 42, 'x'.repeat(AI_DRONE_MAX_ACCESS_PASSWORD + 1)]) assert.throws(() => validateAiDroneAccessPassword(invalid, true), { code: 'ACCESS_DENIED' });
+  const request = createRequest({ accessPassword: password });
+  assert.deepEqual(Object.keys(request).sort(), ['mode', 'prompt', 'requestId']);
+  assert.equal(JSON.stringify(request).includes(password), false);
+});
+
+test('required password blocks locally before guest setup or generation without extra fetches', async () => {
+  const calls = [];
+  const client = createAiDroneClient({ storage: memoryStorage(), fetchImpl: async url => {
+    calls.push(url); return json({ enabled: true, accessRequired: true, development: true });
+  } });
+  await client.status();
+  await assert.rejects(client.generate(createRequest()), { code: 'ACCESS_REQUIRED' });
+  await assert.rejects(client.generate(createRequest(), { accessPassword: '' }), { code: 'ACCESS_REQUIRED' });
+  assert.deepEqual(calls, ['/api/drone-director/status']);
+});
+
+test('password is sent only as a separate generation field and never persisted or returned with the show', async () => {
+  const password = randomUUID();
+  const calls = [];
+  const storage = memoryStorage();
+  const client = createAiDroneClient({ storage, fetchImpl: async (url, options) => {
+    const body = options.body ? JSON.parse(options.body) : null;
+    calls.push({ url, body });
+    if (url.endsWith('/status')) return json({ enabled: true, accessRequired: true, development: true });
+    if (url === '/api/guest') return json(guest);
+    return json({ ...result(), show: { ...result().show, accessPassword: password } });
+  } });
+  await client.status();
+  const response = await client.generate(createRequest(), { accessPassword: password });
+  assert.equal(calls[1].url, '/api/guest');
+  assert.equal(calls[1].body.accessPassword, undefined);
+  assert.equal(calls[2].body.accessPassword, password);
+  assert.equal(calls[2].body.prompt, createRequest().prompt);
+  assert.deepEqual(Object.keys(calls[2].body).sort(), ['accessPassword', 'mode', 'prompt', 'requestId', 'token']);
+  assert.equal(JSON.stringify([...storage.values]).includes(password), false);
+  assert.equal(JSON.stringify(response).includes(password), false);
+  await assert.rejects(client.generate(createRequest()), { code: 'ACCESS_REQUIRED' });
+  assert.equal(calls.length, 3, 'password must not be retained by the client for a later request');
+});
+
+test('wrong password, attempt rate limit and verification busy are safe non-retrying errors', async () => {
+  const password = randomUUID();
+  for (const [status, serverCode, expected] of [[403, 'AI_DRONE_ACCESS_DENIED', 'ACCESS_DENIED'], [429, 'AI_DRONE_ACCESS_RATE_LIMIT', 'ACCESS_RATE_LIMIT'], [503, 'AI_DRONE_ACCESS_BUSY', 'ACCESS_BUSY']]) {
+    let calls = 0;
+    const storage = memoryStorage({ [AI_DRONE_GUEST_KEY]: JSON.stringify(guest) });
+    const client = createAiDroneClient({ storage, fetchImpl: async () => { calls++; return json({ code: serverCode, error: password }, status); } });
+    await assert.rejects(client.generate(createRequest(), { accessPassword: password }), error => {
+      assert.equal(error.code, expected);
+      assert.match(error.message, /本次未调用 AI/);
+      assert.match(error.message, /不会自动重试/);
+      assert.equal(error.message.includes(password), false);
+      return true;
+    });
+    assert.equal(calls, 1);
+    assert.equal(JSON.stringify([...storage.values]).includes(password), false);
+  }
+});
+
+test('unlimited generation and error responses preserve usage without fictional remaining counts', async () => {
+  const unlimited = { unlimited: true, limit: null, used: 37, remaining: null, resetAt: usage.resetAt };
+  const storage = memoryStorage({ [AI_DRONE_GUEST_KEY]: JSON.stringify(guest) });
+  let calls = 0;
+  const client = createAiDroneClient({ storage, fetchImpl: async () => { calls++; return json({ ...result(), usage: unlimited }); } });
+  assert.deepEqual((await client.generate(createRequest())).usage, unlimited);
+  assert.equal(calls, 1);
+  for (const [serverCode, expected] of [['AI_DRONE_IP_RATE_LIMIT', 'LIMITED'], ['AI_DRONE_IN_FLIGHT', 'IN_FLIGHT'], ['AI_DRONE_DAILY_LIMIT', 'DAILY_LIMIT']]) {
+    const failed = createAiDroneClient({ storage, fetchImpl: async () => json({ code: serverCode, usage: unlimited }, 429) });
+    await assert.rejects(failed.generate(createRequest()), error => {
+      assert.equal(error.code, expected);
+      assert.deepEqual(error.usage, unlimited);
+      if (expected === 'LIMITED') { assert.match(error.message, /请求过于频繁/); assert.doesNotMatch(error.message, /今日|每日|用完|扣次/); }
+      return true;
+    });
+  }
 });
 
 test('base-prefixed routes stay same-origin', async () => {
