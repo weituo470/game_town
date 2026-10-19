@@ -39,6 +39,52 @@ export const DRONE_FRAGMENT_SHADER = /* glsl */`
   }
 `;
 
+// AI contours use widely separated lamps, not continuous neon tubing. Keep
+// their small halo inside one compact sprite; normal alpha blending avoids
+// additive energy stacking at contour intersections and during morphs.
+export const AI_DRONE_LIGHT_PROFILE = Object.freeze({ spriteScale: 2.4, minPixels: 5.0, maxPixels: 14, coreInner: .26, coreOuter: .50, haloGain: .10, peak: 1.60 });
+
+export const AI_DRONE_VERTEX_SHADER = /* glsl */`
+  attribute float aSize;
+  attribute vec3 color;
+  uniform float uViewportHeight;
+  uniform float uMaxPointSize;
+  varying vec3 vColor;
+  varying float vVisible;
+  void main() {
+    vec4 viewPosition = modelViewMatrix * vec4(position, 1.0);
+    gl_Position = projectionMatrix * viewPosition;
+    float perspective = step(0.5, abs(projectionMatrix[2][3]));
+    float attenuation = mix(1.0, 1.0 / max(1.0, -viewPosition.z), perspective);
+    float pixels = aSize * uViewportHeight * projectionMatrix[1][1] * 0.5 * attenuation;
+    gl_PointSize = clamp(pixels * ${AI_DRONE_LIGHT_PROFILE.spriteScale.toFixed(1)}, ${AI_DRONE_LIGHT_PROFILE.minPixels.toFixed(1)}, uMaxPointSize);
+    vColor = color;
+    vVisible = smoothstep(0.001, 0.12, aSize);
+  }
+`;
+
+export const AI_DRONE_FRAGMENT_SHADER = /* glsl */`
+  varying vec3 vColor;
+  varying float vVisible;
+  void main() {
+    vec2 p = gl_PointCoord * 2.0 - 1.0;
+    float radius2 = dot(p, p);
+    if (radius2 > 0.64 || vVisible < 0.001) discard;
+    float radius = sqrt(radius2);
+    float core = 1.0 - smoothstep(${AI_DRONE_LIGHT_PROFILE.coreInner.toFixed(2)}, ${AI_DRONE_LIGHT_PROFILE.coreOuter.toFixed(2)}, radius);
+    float halo = exp(-radius2 * 12.0) * (1.0 - smoothstep(0.25, 0.64, radius2));
+    float alpha = clamp(core * 0.98 + halo * ${AI_DRONE_LIGHT_PROFILE.haloGain.toFixed(2)}, 0.0, 1.0) * vVisible;
+    if (alpha < 0.008) discard;
+    // The town retains its HDR bloom. Only the compact core may cross its
+    // threshold: no broad overbright aureole is fed into that existing pass.
+    vec3 light = min(vColor, vec3(${AI_DRONE_LIGHT_PROFILE.peak.toFixed(2)}));
+    float brightness = max(vColor.r, max(vColor.g, vColor.b));
+    light = mix(light, max(light, vec3(1.10, 1.06, 1.0)), core * 0.12 * min(1.0, brightness));
+    gl_FragColor = vec4(light, alpha);
+    #include <colorspace_fragment>
+  }
+`;
+
 export const PAD_VERTEX_SHADER = /* glsl */`
   varying vec2 vUv;
   void main() {

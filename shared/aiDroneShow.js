@@ -8,6 +8,10 @@ const CENTER_Y = 72;
 const CENTER_Z = -8;
 const programs = new WeakMap();
 const caches = new WeakMap();
+const canonicalFrames = new WeakMap();
+const CANONICAL_COUNT = 4096;
+const LIGHT_SPACING = .9;
+const LIGHT_SIZE = .22;
 const clamp = n => Math.max(0, Math.min(1, n));
 const smooth = n => { const t = clamp(n); return t * t * (3 - 2 * t); };
 const mix = (a, b, t) => a + (b - a) * t;
@@ -109,13 +113,44 @@ function segments(paths) {
 }
 function rgb(value) { return [1, 3, 5].map(start => (parseInt(value.slice(start, start + 2), 16) / 255) ** 2.2 * 1.7); }
 
-function compile(score, fleet) {
+// Deterministic progressive order: the first 512 identities give coarse uniform
+// coverage; 1024/2048/full then fill only genuinely empty gaps. This avoids
+// random holes and makes every quality a strict subset of the
+// same physical fleet. Grid work happens once per immutable score, never/frame.
+function spacedLights(points, planar) {
+  const lights = new Float32Array(CANONICAL_COUNT), cells = new Map();
+  const spacing2 = LIGHT_SPACING * LIGHT_SPACING;
+  for (let rank = 0; rank < CANONICAL_COUNT; rank++) {
+    let id = 0, bits = rank;
+    for (let bit = 0; bit < 12; bit++) { id = (id << 1) | (bits & 1); bits >>>= 1; }
+    const k = id * 3, x = points[k], y = points[k + 1], z = planar ? 0 : points[k + 2];
+    const cx = Math.floor(x / LIGHT_SPACING), cy = Math.floor(y / LIGHT_SPACING), cz = Math.floor(z / LIGHT_SPACING);
+    let crowded = false;
+    for (let dx = -1; dx <= 1 && !crowded; dx++) for (let dy = -1; dy <= 1 && !crowded; dy++) for (let dz = planar ? 0 : -1; dz <= (planar ? 0 : 1) && !crowded; dz++) {
+      const cell = cells.get(`${cx + dx},${cy + dy},${cz + dz}`);
+      if (!cell) continue;
+      for (const other of cell) {
+        const j = other * 3, ox = x - points[j], oy = y - points[j + 1], oz = planar ? 0 : z - points[j + 2];
+        if (ox * ox + oy * oy + oz * oz < spacing2) { crowded = true; break; }
+      }
+    }
+    if (crowded) continue;
+    lights[id] = 1;
+    const key = `${cx},${cy},${cz}`, cell = cells.get(key);
+    if (cell) cell.push(id); else cells.set(key, [id]);
+  }
+  return lights;
+}
+
+function compileCanonical(score) {
+  const existing = canonicalFrames.get(score);
+  if (existing) return existing;
   const frames = score.scenes.map((scene, sceneIndex) => {
-    const points = new Float32Array(fleet.count * 3), colors = new Float32Array(fleet.count * 3);
+    const points = new Float32Array(CANONICAL_COUNT * 3), colors = new Float32Array(CANONICAL_COUNT * 3);
     const paths = pathsForShape(scene), outlines = paths ? segments(paths) : null;
     const base = rgb(scene.color), accent = rgb(scene.accent);
-    for (let i = 0; i < fleet.count; i++) {
-      const id = fleet.identities[i], q = (id + .5) / 4096, a = q * TAU;
+    for (let id = 0; id < CANONICAL_COUNT; id++) {
+      const q = (id + .5) / 4096, a = q * TAU;
       let x = 0, y = 0, z = 0, highlight = false;
       if (outlines) {
         // A fixed identity permutation spreads contiguous launch racks over
@@ -134,20 +169,40 @@ function compile(score, fleet) {
         x = Math.cos(a * 3) * radius; y = Math.sin(a * 3) * radius;
         z = Math.sin(a * 3 + band) * .3 + (band - 1) * .25; highlight = band === 1;
       } else if (scene.shape === 'helix') {
-        const side = id % 2, t = ((id >>> 1) + .5) / 2048, angle = t * TAU * 2.5 + side * Math.PI;
+        // Side must not live in bit zero: the 2048 tier uses only even IDs.
+        // Removing bit three from the height index preserves the full helix
+        // point set while retaining both strands in every normal quality tier.
+        const side = (id >>> 3) & 1, heightIndex = (id & 7) | ((id >>> 4) << 3);
+        const t = (heightIndex + .5) / 2048, angle = t * TAU * 2.5 + side * Math.PI;
         x = Math.cos(angle) * .5; y = t * 1.85 - .925; z = Math.sin(angle) * .8; highlight = side === 1;
         if (id % 13 === 0) { x *= hash(id, score.seed); z *= hash(id, score.seed); }
       } else {
         const arm = id % 5, radius = Math.sqrt(q), angle = arm * TAU / 5 + radius * 5 + (hash(id, score.seed, 2) - .5) * .18;
         x = Math.cos(angle) * radius * 1.12; y = Math.sin(angle) * radius * .62; z = Math.sin(angle) * radius * .8; highlight = radius < .27 || arm === 0;
       }
-      const k = i * 3;
+      const k = id * 3;
       points[k] = x * 48; points[k + 1] = CENTER_Y + y * 34; points[k + 2] = CENTER_Z + z * 24;
       const chosen = highlight ? accent : base;
       const luminosity = .84 + hash(id, score.seed, sceneIndex + 3) * .16;
       for (let axis = 0; axis < 3; axis++) colors[k + axis] = chosen[axis] * luminosity;
     }
-    return { points, colors };
+    // Front-facing outlines need a visible gap even where separate paths have
+    // small decorative Z offsets. Volumetric formations keep 3D separation.
+    return { points, colors, lights: spacedLights(points, Boolean(outlines)) };
+  });
+  canonicalFrames.set(score, frames);
+  return frames;
+}
+
+function compile(score, fleet) {
+  const frames = compileCanonical(score).map(canonical => {
+    const points = new Float32Array(fleet.count * 3), colors = new Float32Array(fleet.count * 3), lights = new Float32Array(fleet.count);
+    for (let i = 0; i < fleet.count; i++) {
+      const id = fleet.identities[i], k = i * 3, source = id * 3;
+      for (let axis = 0; axis < 3; axis++) { points[k + axis] = canonical.points[source + axis]; colors[k + axis] = canonical.colors[source + axis]; }
+      lights[i] = canonical.lights[id];
+    }
+    return { points, colors, lights };
   });
   return { score, frames };
 }
@@ -183,21 +238,22 @@ export function updateAiDroneFleet(fleet, timeMs, { score: input, reducedMotion 
   const sceneIndex = state.sceneIndex, frame = cache.frames[sceneIndex], scene = score.scenes[sceneIndex];
   const chapter = program.chapters[sceneIndex + 2], localMs = Math.max(0, time - chapter.start);
   const scratch = cache.scratch ||= new Float64Array(3);
+  const sizeEnvelope = time < 2000 ? smooth(time / 2000) : time >= program.duration - AI_DRONE_BLACKOUT_MS ? 1 - smooth((time - program.duration + AI_DRONE_BLACKOUT_MS) / AI_DRONE_BLACKOUT_MS) : 1;
   const transitionMs = Math.min(3200, scene.duration * 1000 * .3);
   const transition = sceneIndex > 0 && time >= AI_DRONE_LAUNCH_MS && time < program.returnStart && localMs < transitionMs;
   for (let i = 0; i < fleet.count; i++) {
     const k = i * 3, id = fleet.identities[i], phase = hash(id, score.seed, 51);
     const ground = fleet.bases[k + 1];
-    let x, y, z, emitter = .38, colorMix = 1, fromColors = frame.colors, toColors = frame.colors;
+    let x, y, z, emitter = LIGHT_SIZE, visibility = frame.lights[i], colorMix = 1, fromColors = frame.colors, toColors = frame.colors;
     if (time < AI_DRONE_LAUNCH_MS) {
       const p = smooth((time - 2000 - phase * 1500) / (10000 - phase * 1500));
       x = mix(fleet.bases[k], cache.frames[0].points[k], p); y = mix(ground, cache.frames[0].points[k + 1], p); z = mix(fleet.bases[k + 2], cache.frames[0].points[k + 2], p);
-      emitter = mix(.08, .38, p);
+      emitter = mix(.08, LIGHT_SIZE, p); visibility = mix(1, cache.frames[0].lights[i], p);
     } else if (time >= program.returnStart) {
       const p = smooth((time - program.returnStart - phase * 1700) / (AI_DRONE_RETURN_MS - phase * 1700));
       const last = cache.frames.at(-1);
       x = mix(last.points[k], fleet.bases[k], p); y = mix(last.points[k + 1], ground, p); z = mix(last.points[k + 2], fleet.bases[k + 2], p);
-      fromColors = toColors = last.colors; emitter = mix(.38, .08, p);
+      fromColors = toColors = last.colors; emitter = mix(LIGHT_SIZE, .08, p); visibility = mix(last.lights[i], 1, p);
     } else {
       pointAt(frame, scene, i, localMs, reducedMotion, scratch);
       x = scratch[0]; y = scratch[1]; z = scratch[2];
@@ -212,11 +268,12 @@ export function updateAiDroneFleet(fleet, timeMs, { score: input, reducedMotion 
           x += Math.cos(phase * TAU) * 8 * arc; y += (2 + phase * 8) * arc; z += Math.sin(phase * TAU) * 8 * arc;
         }
         fromColors = prior.colors;
+        visibility = mix(prior.lights[i], frame.lights[i], colorMix);
       }
     }
     fleet.positions[k] = x; fleet.positions[k + 1] = Math.max(ground, y); fleet.positions[k + 2] = z;
-    fleet.sizes[i] = state.energy <= 0 ? 0 : emitter;
-    for (let axis = 0; axis < 3; axis++) fleet.colors[k + axis] = mix(fromColors[k + axis], toColors[k + axis], colorMix) * state.energy;
+    fleet.sizes[i] = emitter * visibility * sizeEnvelope;
+    for (let axis = 0; axis < 3; axis++) fleet.colors[k + axis] = mix(fromColors[k + axis], toColors[k + axis], colorMix) * state.energy * visibility;
   }
   fleet.state = state;
   return state;

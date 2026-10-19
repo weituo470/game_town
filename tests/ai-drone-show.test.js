@@ -46,8 +46,9 @@ test('all shapes produce distinct finite sky point clouds and full fixed-identit
       for (let axis = 0; axis < 3; axis++) assert.ok(Number.isFinite(fleet.positions[k + axis]));
       minX = Math.min(minX, fleet.positions[k]); maxX = Math.max(maxX, fleet.positions[k]); minY = Math.min(minY, fleet.positions[k + 1]); maxY = Math.max(maxY, fleet.positions[k + 1]);
       assert.ok(Math.abs(fleet.positions[k]) < 70); assert.ok(fleet.positions[k + 1] > 20 && fleet.positions[k + 1] < 125); assert.ok(Math.abs(fleet.positions[k + 2]) < 45);
-      assert.ok(fleet.sizes[i] > 0 && fleet.sizes[i] < .5);
+      assert.ok(fleet.sizes[i] >= 0 && fleet.sizes[i] < .5);
     }
+    assert.ok(fleet.sizes.filter(size => size > 0).length >= 100, `${shape} needs enough discrete lights to describe its contour`);
     assert.ok(maxX - minX > 30, `${shape} needs legible width`); assert.ok(maxY - minY > 25, `${shape} needs legible height`);
     signatures.add(Array.from(fleet.positions.slice(0, 15)).join(','));
     updateAiDroneFleet(fleet, createAiDroneProgram(score).duration, { score });

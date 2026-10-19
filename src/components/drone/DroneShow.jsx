@@ -3,7 +3,7 @@ import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { DRONE_COUNT, createDroneFleet } from '../../../shared/droneShow.js';
 import { getDroneProgram, sampleDroneProgram, updateDroneProgram } from '../../../shared/dronePrograms.js';
-import { DRONE_VERTEX_SHADER, DRONE_FRAGMENT_SHADER, PAD_VERTEX_SHADER, PAD_FRAGMENT_SHADER } from './droneShaders.js';
+import { DRONE_VERTEX_SHADER, DRONE_FRAGMENT_SHADER, AI_DRONE_VERTEX_SHADER, AI_DRONE_FRAGMENT_SHADER, AI_DRONE_LIGHT_PROFILE, PAD_VERTEX_SHADER, PAD_FRAGMENT_SHADER } from './droneShaders.js';
 import { sampleDroneCamera } from './droneCamera.js';
 import { sampleDropletCamera } from './dropletCamera.js';
 import { sampleCarrierBattleCamera } from './carrierBattleCamera.js';
@@ -38,6 +38,7 @@ function createPadGeometry() {
 // Assets are allocated after commit, not during a potentially discarded React
 // render. Each StrictMode setup owns and disposes its own independent buffers.
 function createDroneVisual(count, gl, program = 'avatar', aiRuntime) {
+  const aiParticles = program === 'ai';
   const group = new THREE.Group();
   group.name = program === 'blackhole' ? 'BlackHoleSkyApparition' : program === 'droplet' ? 'DoomsdayDroneFleet' : 'LawOfHeavenDroneFleet';
   const fleet = createDroneFleet(count);
@@ -53,11 +54,12 @@ function createDroneVisual(count, gl, program = 'avatar', aiRuntime) {
   const pointRange = gl.getContext().getParameter(gl.getContext().ALIASED_POINT_SIZE_RANGE);
   const uniforms = {
     uViewportHeight: { value: 720 },
-    uMaxPointSize: { value: Math.min(80, pointRange?.[1] || 64) },
+    uMaxPointSize: { value: Math.min(aiParticles ? AI_DRONE_LIGHT_PROFILE.maxPixels : 80, pointRange?.[1] || 64) },
   };
   const material = new THREE.ShaderMaterial({
-    vertexShader: DRONE_VERTEX_SHADER, fragmentShader: DRONE_FRAGMENT_SHADER,
-    uniforms, transparent: true, blending: THREE.AdditiveBlending,
+    vertexShader: aiParticles ? AI_DRONE_VERTEX_SHADER : DRONE_VERTEX_SHADER,
+    fragmentShader: aiParticles ? AI_DRONE_FRAGMENT_SHADER : DRONE_FRAGMENT_SHADER,
+    uniforms, transparent: true, blending: aiParticles ? THREE.NormalBlending : THREE.AdditiveBlending,
     depthTest: true, depthWrite: false, toneMapped: false, fog: false,
   });
   const points = new THREE.Points(geometry, material);
@@ -66,7 +68,9 @@ function createDroneVisual(count, gl, program = 'avatar', aiRuntime) {
   points.renderOrder = 4;
   group.add(points);
 
-  const trailCount = Math.ceil(count / TRAIL_STRIDE);
+  // A contour remains a constellation even while it moves. AI gets no line
+  // buffers, per-frame trail loop, or trail draw call; legacy shows are unchanged.
+  const trailCount = aiParticles ? 0 : Math.ceil(count / TRAIL_STRIDE);
   const trailPositions = new Float32Array(trailCount * 6);
   const trailColors = new Float32Array(trailCount * 6);
   const previous = new Float32Array(trailCount * 3);
@@ -81,7 +85,8 @@ function createDroneVisual(count, gl, program = 'avatar', aiRuntime) {
   trails.name = 'SubtleFlightTrails';
   trails.frustumCulled = false;
   trails.renderOrder = 3;
-  group.add(trails);
+  trails.visible = !aiParticles;
+  if (!aiParticles) group.add(trails);
 
   const baseGeometry = new THREE.BoxGeometry(7.8, 0.35, 7.8);
   const baseMaterial = new THREE.MeshStandardMaterial({
@@ -149,7 +154,7 @@ function createDroneVisual(count, gl, program = 'avatar', aiRuntime) {
 
       const elapsed = safeTime - previousTime;
       const hasContinuousFrame = elapsed > 0 && elapsed < 220 && !reducedMotion;
-      trails.visible = hasContinuousFrame && state.active;
+      trails.visible = !aiParticles && hasContinuousFrame && state.active;
       const trailLength = hasContinuousFrame ? Math.min(7, 160 / elapsed) : 0;
       for (let i = 0; i < trailCount; i++) {
         const source = Math.min(count - 1, i * TRAIL_STRIDE) * 3;
@@ -192,6 +197,8 @@ export default function DroneShow({ timeRef = ZERO_TIME, reducedMotion = false, 
   const visual = useRef();
   const telemetryFrame = useRef(0);
   const gl = useThree(state => state.gl);
+  // Keep permanent identities and the legacy quality tiers. The AI compiler's
+  // spacing mask, not a second count reduction, determines which lamps are lit.
   const count = quality === 'low' ? Math.min(2048, DRONE_COUNT) : DRONE_COUNT;
   useLayoutEffect(() => {
     const parent = host.current;
