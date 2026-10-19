@@ -7,6 +7,7 @@ import { transformWithEsbuild } from 'vite';
 import * as React from 'react';
 import * as THREE from 'three';
 import { createAiDroneRuntime } from '../shared/aiDroneShow.js';
+import { buildAiDroneV2Example } from '../server/aiDroneDirector.js';
 import { DRONE_VERTEX_SHADER, DRONE_FRAGMENT_SHADER, AI_DRONE_VERTEX_SHADER, AI_DRONE_FRAGMENT_SHADER, AI_DRONE_LIGHT_PROFILE } from '../src/components/drone/droneShaders.js';
 
 // Exercise the committed React effect, actual Three buffers/materials, update
@@ -17,7 +18,7 @@ const { code } = await transformWithEsbuild(source, 'DroneShow.jsx', { loader: '
 const localRequire = createRequire(sourceUrl);
 const score = { version: 1, seed: 2457, title: '粒子星芒', synopsis: '分离的星点描绘轮廓。', scenes: ['star', 'heart', 'whale', 'flower'].map(shape => ({ name: shape, description: '清晰的独立灯点。', shape, color: '#FFD399', accent: '#8DDCFF', duration: 10, motion: 'still', transition: 'morph' })) };
 
-function mount(program = 'ai', quality = 'high') {
+function mount(program = 'ai', quality = 'high', selectedScore = score) {
   const effects = [], frames = [], cleanups = [];
   const gl = { getContext: () => ({ ALIASED_POINT_SIZE_RANGE: 1, getParameter: () => [1, 64] }), getPixelRatio: () => 1, domElement: { dataset: {} } };
   const state = { gl, size: { width: 1200, height: 720 } };
@@ -30,7 +31,7 @@ function mount(program = 'ai', quality = 'high') {
     return localRequire(id);
   } });
   const parent = new THREE.Group(), fleetRef = { current: null }, timeRef = { current: 17000 };
-  const element = module.exports.default({ program, quality, fleetRef, timeRef, aiRuntime: program === 'ai' ? createAiDroneRuntime(score) : undefined });
+  const element = module.exports.default({ program, quality, fleetRef, timeRef, aiRuntime: program === 'ai' ? createAiDroneRuntime(selectedScore) : undefined });
   element.props.ref.current = parent;
   for (const setup of effects) cleanups.push(setup());
   return { parent, fleetRef, timeRef, frame() { for (const callback of frames) callback(state); }, dispose() { for (const cleanup of cleanups) cleanup?.(); } };
@@ -47,6 +48,7 @@ test('AI owns compact normally blended sprites without changing permanent identi
       assert.equal(lights.material.fragmentShader, AI_DRONE_FRAGMENT_SHADER);
       assert.equal(lights.material.blending, THREE.NormalBlending);
       assert.equal(lights.material.uniforms.uMaxPointSize.value, AI_DRONE_LIGHT_PROFILE.maxPixels);
+      assert.equal(lights.material.uniforms.uMinPointSize.value, AI_DRONE_LIGHT_PROFILE.minPixels);
       assert.equal(lights.material.depthWrite, false);
       assert.equal(lights.material.depthTest, true);
       assert.equal(scene.parent.getObjectByName('SubtleFlightTrails'), undefined);
@@ -58,6 +60,17 @@ test('AI owns compact normally blended sprites without changing permanent identi
     assert.equal(scene.parent.children.length, 0);
     assert.equal(scene.fleetRef.current, null);
   }
+});
+
+test('dense V2 sculptures keep smaller independent light cores without changing V1 or hand-authored samples', () => {
+  const scene = mount('ai', 'high', buildAiDroneV2Example(73));
+  try {
+    const lights = scene.parent.getObjectByName('4096IndependentLights');
+    assert.equal(lights.material.uniforms.uMinPointSize.value, 3.6);
+    assert.equal(lights.material.blending, THREE.NormalBlending);
+    assert.match(lights.material.vertexShader, /uniform float uMinPointSize/);
+    assert.equal(scene.fleetRef.current.count, 4096);
+  } finally { scene.dispose(); }
 });
 
 test('legacy avatar rendering retains its shaders, additive material and moving trails', () => {

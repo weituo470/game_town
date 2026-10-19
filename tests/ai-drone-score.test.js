@@ -45,7 +45,7 @@ test('unknown, missing, dangerous, accessor and prototype fields are rejected wi
 });
 
 test('root version, integer seed and scene count boundaries are strict', () => {
-  for (const version of [0, 2, '1', NaN]) rejected(score({ version }), 'AI_SCORE_VERSION');
+  for (const version of [0, 3, '1', NaN]) rejected(score({ version }), 'AI_SCORE_VERSION');
   for (const seed of [0, -1, 1.5, 2147483648, Infinity, NaN, '42']) rejected(score({ seed }), 'AI_SCORE_SEED');
   for (const seed of [1, 2147483647]) assert.equal(validateAiDroneScore(score({ seed })).seed, seed);
   for (const count of [0, 3, 8]) rejected(score({ scenes: Array.from({ length: count }, () => scene()) }), 'AI_SCORE_SCENES');

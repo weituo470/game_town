@@ -1,4 +1,5 @@
 import { validateAiDroneScore } from './aiDroneScore.js';
+import { createAiDroneStageRuntime } from './aiDroneStage.js';
 
 export const AI_DRONE_LAUNCH_MS = 12000;
 export const AI_DRONE_RETURN_MS = 12000;
@@ -28,6 +29,7 @@ const ellipse = (cx, cy, rx, ry, depth = 0) => curve(t => [cx + Math.cos(t * TAU
 
 export function createAiDroneProgram(input) {
   const score = resolveScore(input);
+  if (score.version === 2) return createAiDroneStageRuntime(score).program;
   if (programs.has(score)) return programs.get(score);
   const chapters = [
     { id: 'lighting', label: '星灯初醒', start: 0, end: 2000, description: '起降阵列依次点亮，等待这一场独一无二的演出。' },
@@ -48,7 +50,9 @@ export function createAiDroneProgram(input) {
 }
 
 export function sampleAiDroneShow(timeMs, input) {
-  const score = resolveScore(input), program = createAiDroneProgram(score);
+  const score = resolveScore(input);
+  if (score.version === 2) return createAiDroneStageRuntime(score).sample(timeMs);
+  const program = createAiDroneProgram(score);
   const elapsed = safeTime(timeMs, program.duration);
   const chapter = program.chapters.find(item => elapsed < item.end) || program.chapters.at(-1);
   const progress = clamp((elapsed - chapter.start) / (chapter.end - chapter.start));
@@ -238,7 +242,9 @@ function pointAt(frame, scene, index, localMs, reduced, output) {
 
 /** Pure absolute-time sampling, in-place typed buffers, no per-light allocations. */
 export function updateAiDroneFleet(fleet, timeMs, { score: input, reducedMotion = false } = {}) {
-  const score = resolveScore(input), program = createAiDroneProgram(score), cache = cacheFor(fleet, score);
+  const score = resolveScore(input);
+  if (score.version === 2) return createAiDroneStageRuntime(score).update(fleet, timeMs, { reducedMotion });
+  const program = createAiDroneProgram(score), cache = cacheFor(fleet, score);
   const state = sampleAiDroneShow(timeMs, score), time = state.elapsed;
   const sceneIndex = state.sceneIndex, frame = cache.frames[sceneIndex], scene = score.scenes[sceneIndex];
   const chapter = program.chapters[sceneIndex + 2], localMs = Math.max(0, time - chapter.start);
@@ -299,7 +305,9 @@ function cameraFor(timeMs, aspect, reducedMotion, score, program) {
 
 /** Runtime object stays outside persisted JSON; no global mutable programme registry. */
 export function createAiDroneRuntime(input) {
-  const score = resolveScore(input), program = createAiDroneProgram(score);
+  const score = resolveScore(input);
+  if (score.version === 2) return createAiDroneStageRuntime(score);
+  const program = createAiDroneProgram(score);
   return Object.freeze({ score, program, sample: ms => sampleAiDroneShow(ms, score), update: (fleet, ms, options = {}) => updateAiDroneFleet(fleet, ms, { score, reducedMotion: Boolean(options.reducedMotion) }), camera: (ms, aspect, reducedMotion = false) => cameraFor(ms, aspect, reducedMotion, score, program) });
 }
 

@@ -1,3 +1,5 @@
+import { validateAiDroneScoreV2 } from './aiDroneScoreV2.js';
+
 /** Versioned data only: model output never becomes JavaScript or a remote URL. */
 export const AI_DRONE_SHAPES = Object.freeze(['ring', 'sphere', 'heart', 'star', 'galaxy', 'helix', 'flower', 'bird', 'whale', 'mountain', 'city', 'outline']);
 export const AI_DRONE_MOTIONS = Object.freeze(['still', 'turn', 'breathe', 'wave']);
@@ -71,6 +73,10 @@ export function validateAiDroneScore(raw) {
     if (encoder.encode(value).byteLength > AI_DRONE_LIMITS.bytes) fail('AI_SCORE_TOO_LARGE', '演出数据超过 32 KiB，请精简内容。');
     try { value = JSON.parse(value); } catch { fail('AI_SCORE_JSON', '演出不是有效 JSON，请重新生成。'); }
   }
+  // Inspect the data descriptor without executing an untrusted version getter.
+  const versionField = value && typeof value === 'object' ? Object.getOwnPropertyDescriptor(value, 'version') : null;
+  if (versionField && !Object.hasOwn(versionField, 'value')) fail('AI_SCORE_FORMAT', '演出数据必须是纯 JSON。');
+  if (versionField?.value === 2) return validateAiDroneScoreV2(value);
   object(value, ROOT_KEYS, ROOT_KEYS);
   if (value.version !== 1) fail('AI_SCORE_VERSION', '暂不支持这个演出版本。');
   if (!Number.isInteger(value.seed) || value.seed < 1 || value.seed > AI_DRONE_LIMITS.maxSeed) fail('AI_SCORE_SEED', '演出随机种子无效。');

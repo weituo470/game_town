@@ -49,6 +49,7 @@ export const AI_DRONE_VERTEX_SHADER = /* glsl */`
   attribute vec3 color;
   uniform float uViewportHeight;
   uniform float uMaxPointSize;
+  uniform float uMinPointSize;
   varying vec3 vColor;
   varying float vVisible;
   void main() {
@@ -57,7 +58,7 @@ export const AI_DRONE_VERTEX_SHADER = /* glsl */`
     float perspective = step(0.5, abs(projectionMatrix[2][3]));
     float attenuation = mix(1.0, 1.0 / max(1.0, -viewPosition.z), perspective);
     float pixels = aSize * uViewportHeight * projectionMatrix[1][1] * 0.5 * attenuation;
-    gl_PointSize = clamp(pixels * ${AI_DRONE_LIGHT_PROFILE.spriteScale.toFixed(1)}, ${AI_DRONE_LIGHT_PROFILE.minPixels.toFixed(1)}, uMaxPointSize);
+    gl_PointSize = clamp(pixels * ${AI_DRONE_LIGHT_PROFILE.spriteScale.toFixed(1)}, uMinPointSize, uMaxPointSize);
     vColor = color;
     vVisible = smoothstep(0.001, 0.12, aSize);
   }

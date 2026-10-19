@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { createDroneFireworkBuffers, DRONE_FIREWORKS_BUDGET } from '../../../shared/droneFireworks.js';
+import { createDroneFireworkBuffers, createDroneFireworkBuffersFromCues, DRONE_FIREWORKS_BUDGET } from '../../../shared/droneFireworks.js';
 
 // Firework beads need to survive a wide establishing shot without relying on
 // bloom. Their luminous discs stay compact; only the small core exceeds SDR.
@@ -72,9 +72,17 @@ export const FIREWORK_FRAGMENT_SHADER = /* glsl */`
   }
 `;
 
-/** Loaded exclusively by the curated sample chunk, never by the startup graph. */
+/** Loaded by lazy sample / AI studio chunks, never by the startup graph. */
 export function createDroneSpectacleVisual(sampleId, count = 4096) {
-  const data = createDroneFireworkBuffers(sampleId, count), group = new THREE.Group();
+  return createVisual(createDroneFireworkBuffers(sampleId, count), sampleId);
+}
+
+export function createAiDroneStageVisual(program, count = 4096) {
+  return createVisual(createDroneFireworkBuffersFromCues(program, count), 'ai-stage');
+}
+
+function createVisual(data, sampleId) {
+  const group = new THREE.Group();
   group.name = `DroneSpectacleFireworks:${sampleId}`;
   const uniforms = { uTime: { value: 0 }, uEnd: { value: data.end }, uViewportHeight: { value: 720 } };
   const geometry = new THREE.BufferGeometry();

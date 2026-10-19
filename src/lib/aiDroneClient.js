@@ -16,6 +16,7 @@ const MESSAGES = {
   INVALID_RESPONSE: '暂未取得可用的节目，已保留上一份作品；不会自动重试。',
   SERVICE_ERROR: '本次编导未完成；如有上一份作品仍可回放，不会自动重试。',
   INVALID_SCORE: 'AI 返回的节目格式不合规，已安全拦截，未启动演出；不会自动重试。',
+  QUALITY_FAILED: '本次编排的场景层次或故事连续性不足，尚未达到舞台质量门槛。已保留上一份节目，不会自动重试。',
   UPSTREAM: 'AI 服务本次未完成响应，不会自动重试；如有已保存节目仍可回放。',
   STORAGE_UNAVAILABLE: '浏览器无法保存游客身份，请允许本机存储后再生成。',
   IN_FLIGHT: '已有一份节目正在生成，请等待完成或先取消。',
@@ -135,7 +136,8 @@ export function createAiDroneClient({ fetchImpl = (...args) => fetch(...args), s
             : response.status === 429 && ['AI_DRONE_DAILY_LIMIT', 'AI_DRONE_IP_DAILY_LIMIT'].includes(data?.code) ? 'DAILY_LIMIT'
               : response.status === 429 ? 'LIMITED'
           : data?.code === 'AI_DRONE_DISABLED' ? 'DISABLED'
-            : data?.code === 'AI_DRONE_INVALID_SCORE' ? 'INVALID_SCORE' : data?.code === 'AI_DRONE_UPSTREAM' ? 'UPSTREAM' : response.status === 504 ? 'TIMEOUT'
+            : data?.code === 'AI_DRONE_QUALITY_FAILED' ? 'QUALITY_FAILED'
+              : data?.code === 'AI_DRONE_INVALID_SCORE' ? 'INVALID_SCORE' : data?.code === 'AI_DRONE_UPSTREAM' ? 'UPSTREAM' : response.status === 504 ? 'TIMEOUT'
             : response.status === 400 ? 'INVALID_INPUT' : 'SERVICE_ERROR';
         throw new AiDroneClientError(code, { status: response.status, usage: readAiDroneUsage(data?.usage) });
       }

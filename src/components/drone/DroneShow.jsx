@@ -54,6 +54,9 @@ function createDroneVisual(count, gl, program = 'avatar', aiRuntime) {
   const pointRange = gl.getContext().getParameter(gl.getContext().ALIASED_POINT_SIZE_RANGE);
   const uniforms = {
     uViewportHeight: { value: 720 },
+    // V2 uses thousands of surface lights, not sparse V1 contours. A smaller
+    // minimum sprite keeps gaps between beads without changing old programmes.
+    uMinPointSize: { value: aiRuntime?.score?.version === 2 ? 3.6 : AI_DRONE_LIGHT_PROFILE.minPixels },
     uMaxPointSize: { value: Math.min(aiParticles ? AI_DRONE_LIGHT_PROFILE.maxPixels : 80, pointRange?.[1] || 64) },
   };
   const material = new THREE.ShaderMaterial({

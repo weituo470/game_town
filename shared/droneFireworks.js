@@ -58,7 +58,22 @@ export function getDroneFireworkCues(sampleId) {
 
 /** Three separated points per spark, not a line/ribbon/tube or feedback buffer. */
 export function createDroneFireworkBuffers(sampleId, fleetCount = 4096) {
-  const program = getDroneFireworkCues(sampleId), density = fleetCount < 4096 ? .64 : 1;
+  return createDroneFireworkBuffersFromCues(getDroneFireworkCues(sampleId), fleetCount, sampleId);
+}
+
+/** Cues come from the trusted stage compiler, never raw model coordinates. */
+export function createDroneFireworkBuffersFromCues(program, fleetCount = 4096, sampleId = 'ai-stage') {
+  if (!program || !Number.isFinite(program.end) || program.end <= 0 || program.end > 600
+    || !Array.isArray(program.cues) || program.cues.length < 1 || program.cues.length > 12) throw new RangeError('Invalid firework programme');
+  for (const item of program.cues) {
+    if (!item || !['peony', 'chrysanthemum', 'willow', 'crown', 'reverse'].includes(item.style)
+      || !['at', 'count', 'life', 'radius', 'launch'].every(key => Number.isFinite(item[key]))
+      || item.at < 0 || item.at >= program.end || !Number.isInteger(item.count) || item.count < 48 || item.count > 320
+      || item.life < .2 || item.life > 7 || item.radius <= 0 || item.radius > 30 || item.launch <= 0 || item.launch > 3
+      || !Array.isArray(item.origin) || item.origin.length !== 3 || !item.origin.every(value => Number.isFinite(value) && Math.abs(value) <= 220)
+      || item.origin[1] < 35 || !Array.isArray(item.color) || item.color.length !== 3 || !item.color.every(value => Number.isFinite(value) && value >= 0 && value <= 1)) throw new RangeError('Invalid firework cue');
+  }
+  const density = fleetCount < 4096 ? .64 : 1;
   const counts = program.cues.map(item => Math.max(48, Math.floor(item.count * density)));
   const count = counts.reduce((sum, value) => sum + value * 3, 0);
   if (count > DRONE_FIREWORKS_BUDGET.sparks) throw new RangeError('Firework particle budget exceeded');

@@ -7,13 +7,17 @@ import './ai-drone-studio.css';
 import DroneSampleLibrary from './DroneSampleLibrary.jsx';
 
 const EXAMPLES = [
-  { label: '鲸落星海', prompt: '一只蓝色鲸鱼穿过星海，化为盛放的花，再汇成温暖的心。先安静，后惊喜，最后留一点余韵。' },
-  { label: '未来小镇', prompt: '以未来小镇为题，从城市轮廓到飞鸟，再旋入星系，最后让所有灯光汇聚成一颗金色星星。' },
-  { label: '山海相逢', prompt: '山峦被日光唤醒，飞鸟越过海面，鲸鱼跃入夜空，最后以一圈暖金色光环收束。' },
+  { label: '鲸群远航', prompt: '母鲸带着小鲸穿过星海，从互相呼唤到并肩游动，遇到漩涡后重聚，最终一起跃向星球。让角色持续存在，高潮后留下安静的余韵。' },
+  { label: '未来小镇', prompt: '一座立体未来城市苏醒，星门在远方打开，彗星穿行其间。建筑、星门与彗星同台呼应，从试探到相聚，用一场克制的烟花迎接新生。' },
+  { label: '万家灯火', prompt: '春节的金龙与红灯笼相逢，盘旋、追逐、升空，最终围绕盛放的莲花团圆。暖红金配色，高潮燃放烟花，不要简单图形轮播。' },
 ];
 const SHAPES = { ring: '光环', sphere: '球体', heart: '心形', star: '星芒', galaxy: '星系', helix: '螺旋', flower: '花朵', bird: '飞鸟', whale: '鲸鱼', mountain: '山峦', city: '城市', outline: '原创轮廓' };
 const MOTIONS = { still: '静置', turn: '旋转', breathe: '呼吸', wave: '波动' };
 const TRANSITIONS = { morph: '渐变成形', sweep: '扫光转场', burst: '散开重聚' };
+const ACTORS = { whale: '鲸', phoenix: '凤凰', dragon: '游龙', lantern: '灯笼', lotus: '莲花', butterfly: '蝴蝶', city: '立体城市', planet: '星球', portal: '星门', comet: '彗星', tree: '光树' };
+const LAYOUTS = { hero: '主角独舞', duet: '双主体呼应', trio: '三角舞台', procession: '群像巡游', orbit: '环绕共舞' };
+const CAMERAS = { wide: '全景', push: '缓缓推进', orbit: '环绕镜头', rise: '升起俯瞰' };
+const EFFECTS = { none: '留白', peony: '牡丹烟花', willow: '垂柳烟花', crown: '冠状烟花' };
 const durationLabel = milliseconds => `${Math.floor(milliseconds / 60000)} 分 ${Math.round(milliseconds / 1000) % 60} 秒`;
 
 async function prepareShow(show, options) {
@@ -22,7 +26,14 @@ async function prepareShow(show, options) {
     // The compiler and geometry stay outside the town's eager entry bundle.
     const { createAiDroneRuntime } = await import('../../../shared/aiDroneShow.js');
     if (signal.aborted) throw Object.assign(new Error('已取消节目预览准备。'), { name: 'AbortError' });
-    return { show: { ...show, score }, runtime: createAiDroneRuntime(score) };
+    const prepared = { show: { ...show, score }, runtime: createAiDroneRuntime(score) };
+    if (score.version === 2) {
+      const { createAiDroneStageVisual } = await import('./droneSpectacleVisual.js');
+      if (signal.aborted) throw Object.assign(new Error('已取消节目预览准备。'), { name: 'AbortError' });
+      const { runtime } = prepared;
+      prepared.runtime = Object.freeze({ ...runtime, visualFactory: count => createAiDroneStageVisual(runtime.fireworkProgram, count) });
+    }
+    return prepared;
   }, options);
 }
 
@@ -204,7 +215,7 @@ export default function AiDroneStudio({ onPlay, onClose }) {
   return <div className="ai-drone-studio">
     <DroneSampleLibrary onPlay={onPlay} disabled={busy}/>
     {development && <aside className="ai-drone-development" aria-label="AI 演出测试状态"><strong>开发中 · 仅供测试</strong><p>AI 即兴与命题编排仍在完善，效果与稳定性尚未定型。{accessRequired ? '输入测试密码后才能生成；本机已保存的节目仍可直接回放。' : '请将生成结果作为测试预览。'}</p></aside>}
-    <p className="ai-drone-intro">写下主题，让 AI 为小镇编排一场灯光演出。</p>
+    <p className="ai-drone-intro">写下故事，让 AI 编排立体角色、群体动作、镜头与烟花。新节目控制在两分钟内，包含完整起飞与归航。</p>
     <div className="ai-drone-scope">仅个人观演 · 不同步全房间 · 非真实无人机飞控</div>
     {showFeedback && <section ref={feedbackRef} className={`ai-drone-feedback${error ? ' ai-drone-feedback-error' : ''}`} tabIndex={-1} aria-labelledby="ai-drone-feedback-title">
       <div className="ai-drone-feedback-heading">
@@ -230,7 +241,7 @@ export default function AiDroneStudio({ onPlay, onClose }) {
         <label><input type="radio" name="ai-drone-mode" value="improv" checked={mode === 'improv'} onChange={() => setMode('improv')}/><span>即兴创作</span></label>
       </fieldset>
       <div className="ai-drone-field-heading"><label htmlFor="ai-drone-prompt">{mode === 'prompt' ? '演出主题' : '灵感方向（可留空）'}</label><span className="ai-drone-meta">{prompt.length} / {AI_DRONE_MAX_PROMPT}</span></div>
-      <textarea id="ai-drone-prompt" rows={4} maxLength={AI_DRONE_MAX_PROMPT} value={prompt} onChange={event => setPrompt(event.target.value)} disabled={busy} required={mode === 'prompt'} aria-describedby="ai-drone-privacy" placeholder={mode === 'prompt' ? '例如：一只鲸鱼穿过星海，最后化成一朵花…' : '留空交给 AI 即兴，也可以写下颜色、情绪或故事方向。'}/>
+      <textarea id="ai-drone-prompt" rows={4} maxLength={AI_DRONE_MAX_PROMPT} value={prompt} onChange={event => setPrompt(event.target.value)} disabled={busy} required={mode === 'prompt'} aria-describedby="ai-drone-privacy" placeholder={mode === 'prompt' ? '例如：母鲸与小鲸失散后重聚，一起跃向星海…' : '留空交给 AI 即兴，也可以写下颜色、情绪或故事方向。'}/>
       <div className="ai-drone-examples" aria-label="填写示例主题"><span className="ai-drone-meta">试一个主题</span>{EXAMPLES.map(example => <button type="button" key={example.label} disabled={busy} onClick={() => { setMode('prompt'); setPrompt(example.prompt); }}>{example.label}</button>)}</div>
       <p id="ai-drone-privacy" className="ai-drone-policy">主题会发送至 DeepSeek，请勿填写隐私。{unlimited ? '不限制生成次数；仍有短时间请求频率与同时生成数量限制，请勿连续快速点击。' : service?.limit ? `当前服务每日生成上限为 ${service.limit} 次，另有短时间请求频率与同时生成数量限制。` : '生成规则以服务当前状态为准，请勿连续快速点击。'}</p>
       <div className="ai-drone-request-bar">
@@ -247,11 +258,12 @@ export default function AiDroneStudio({ onPlay, onClose }) {
     {current && <section className="ai-drone-preview" aria-labelledby="ai-drone-show-title">
       <div className="ai-drone-section-heading"><h3 id="ai-drone-show-title">{current.show.score.title}</h3><span className="ai-drone-meta">全程 {durationLabel(current.runtime.program.duration)}</span></div>
       <p>{current.show.score.synopsis}</p>
+      {current.show.score.version === 2 ? <p>立体演员：{current.show.score.cast.map(actor => ACTORS[actor.kind]).join('、')}。同一角色跨章节延续，动作与镜头由 AI 编排。</p> : <p>这是旧版线描节目；重新生成可使用新版立体编舞。</p>}
       <div className="ai-drone-meta ai-drone-flight-note">包含自动起飞、章节转场、归航与熄灯</div>
       <ol className="ai-drone-chapters">{current.show.score.scenes.map((scene, index) => <li key={`${index}-${scene.name}`}>
         <span className="ai-drone-chapter-number" aria-hidden="true">{String(index + 1).padStart(2, '0')}</span>
         <div className="ai-drone-chapter-copy"><div className="ai-drone-chapter-heading"><h4>{scene.name}</h4><span className="ai-drone-meta">{scene.duration} 秒</span></div><p>{scene.description}</p>
-          <div className="ai-drone-scene-meta"><span>{SHAPES[scene.shape]} · {MOTIONS[scene.motion]} · {TRANSITIONS[scene.transition]}</span><span className="ai-drone-colors"><i style={{ backgroundColor: scene.color }} aria-hidden="true"/><i style={{ backgroundColor: scene.accent }} aria-hidden="true"/><span>{scene.color} / {scene.accent}</span></span></div>
+          {current.show.score.version === 2 ? <div className="ai-drone-scene-meta"><span>{scene.actors.length} 位演员 · {LAYOUTS[scene.layout]} · {CAMERAS[scene.camera]} · {EFFECTS[scene.effect]}</span></div> : <div className="ai-drone-scene-meta"><span>{SHAPES[scene.shape]} · {MOTIONS[scene.motion]} · {TRANSITIONS[scene.transition]}</span><span className="ai-drone-colors"><i style={{ backgroundColor: scene.color }} aria-hidden="true"/><i style={{ backgroundColor: scene.accent }} aria-hidden="true"/><span>{scene.color} / {scene.accent}</span></span></div>}
         </div>
       </li>)}</ol>
     </section>}

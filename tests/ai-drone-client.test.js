@@ -283,3 +283,16 @@ test('client guards duplicate concurrent generation', async () => {
   controller.abort();
   await assert.rejects(first, { name: 'AbortError' });
 });
+
+test('quality gate failures are honest and bounded without leaking provider text or retrying', async () => {
+  let calls = 0;
+  const client = createAiDroneClient({ storage: memoryStorage({ [AI_DRONE_GUEST_KEY]: JSON.stringify(guest) }), fetchImpl: async () => { calls++; return json({ code: 'AI_DRONE_QUALITY_FAILED', error: 'private-provider-detail' }, 422); } });
+  await assert.rejects(client.generate(createRequest()), error => {
+    assert.equal(error.code, 'QUALITY_FAILED');
+    assert.match(error.message, /场景层次|故事连续性/);
+    assert.match(error.message, /不会自动重试/);
+    assert.doesNotMatch(error.message, /private-provider-detail/);
+    return true;
+  });
+  assert.equal(calls, 1);
+});

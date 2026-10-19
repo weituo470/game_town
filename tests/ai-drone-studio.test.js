@@ -146,3 +146,11 @@ test('studio typography covers JSX classes, semantic tokens and mobile overrides
   assert.match(css, /font-size: var\(--text-control, 1rem\)/);
   assert.match(css, /font-size: var\(--text-meta, \.875rem\)/);
 });
+
+test('studio explains v2 actors and shots while preserving honest v1 replay labels', () => {
+  for (const label of ['立体角色', '立体演员', '旧版线描节目', 'LAYOUTS[scene.layout]', 'CAMERAS[scene.camera]', 'EFFECTS[scene.effect]']) assert.ok(studio.includes(label), label);
+  assert.match(studio, /score.version === 2/);
+  assert.match(studio, /await import\('\.\/droneSpectacleVisual\.js'\)/);
+  assert.match(studio, /visualFactory: count => createAiDroneStageVisual\(runtime.fireworkProgram, count\)/);
+  assert.equal((studio.match(/client\.generate\(/g) || []).length, 1);
+});

@@ -5,12 +5,12 @@ import { DatabaseSync } from 'node:sqlite';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { createAiDroneDirector, loadAiDroneConfig, buildAiDroneMessages } from '../server/aiDroneDirector.js';
+import { createAiDroneDirector, loadAiDroneConfig, buildAiDroneMessages, buildAiDroneV2Example } from '../server/aiDroneDirector.js';
 import { createAiDroneStore } from '../server/aiDroneStore.js';
 import { validateAiDroneScore, AI_DRONE_SHAPES, AI_DRONE_MOTIONS, AI_DRONE_TRANSITIONS } from '../shared/aiDroneScore.js';
+import { AI_DRONE_V2_KINDS, AI_DRONE_V2_MOTIONS, AI_DRONE_V2_LAYOUTS, AI_DRONE_V2_CAMERAS, AI_DRONE_V2_EFFECTS } from '../shared/aiDroneScoreV2.js';
 
-const score = () => ({ version: 1, title: '鲸向星河', synopsis: '星海里的鲸与你相遇', seed: 123,
-  scenes: ['ring', 'whale', 'galaxy', 'heart'].map((shape, index) => ({ name: `场景${index}`, description: '蓝鲸从星环中游向星河', shape, color: '#40AAFF', accent: '#FFDD99', duration: 10, motion: 'turn', transition: 'morph' })) });
+const score = () => ({ ...buildAiDroneV2Example(123), title: '鲸向星河', synopsis: '星海里的鲸与你相遇' });
 const provider = (value = score()) => new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(value) } }] }), { headers: { 'content-type': 'application/json' } });
 const config = (overrides = {}) => ({ enabled: true, apiKey: 'test-key-never-log', baseURL: 'https://api.deepseek.com/v1', model: 'deepseek-flash', dbPath: ':memory:', timeoutMs: 1000, ...overrides });
 const input = (overrides = {}) => ({ guestId: randomUUID(), requestId: randomUUID(), mode: 'prompt', prompt: '鲸鱼遨游星河', ip: '127.0.0.1', ...overrides });
@@ -334,23 +334,17 @@ test('AI stream response is byte-bounded before parsing and cancellation cannot 
   } finally { await stopped.close(); }
 });
 
-test('the model prompt includes a genuinely schema-valid four-scene example and explicit outline/text constraints', () => {
+test('the model prompt includes a schema-valid V2 story with all strict cast and quality constraints', () => {
   for (const seed of [1, 12345678, 2147483647]) {
     const content = buildAiDroneMessages({ mode: 'prompt', prompt: '原创海洋故事', seed })[0].content;
     const jsonLine = content.split(/\r?\n/).find(line => line.startsWith('{"version":'));
     const example = validateAiDroneScore(jsonLine);
-    assert.equal(example.seed, seed); assert.equal(example.scenes.length, 4);
-    assert.ok(new Set(example.scenes.map(scene => scene.shape)).size >= 3);
-    assert.ok(new Set(example.scenes.map(scene => scene.motion)).size >= 2);
-    assert.match(content, /禁止照抄/); assert.match(content, /非空单行/);
-    assert.match(content, /非 outline 不得提供 paths/); assert.match(content, /不能退化成单个点/);
-    assert.match(content, /seed 必须精确使用/);
-    for (const [field, values] of [['shape', AI_DRONE_SHAPES], ['motion', AI_DRONE_MOTIONS], ['transition', AI_DRONE_TRANSITIONS]]) assert.ok(content.includes(`${field} = ${JSON.stringify(values)}`));
-    assert.match(content, /严禁发明、翻译、组合或混用/);
-    assert.match(content, /必须使用outline并提供paths/);
+    assert.equal(example.version, 2); assert.equal(example.seed, seed); assert.equal(example.scenes.length, 4);
+    assert.match(content, /禁止照抄/); assert.match(content, /非空单行/); assert.match(content, /服务器统一写入/);
+    for (const [field, values] of [['kind', AI_DRONE_V2_KINDS], ['motion', AI_DRONE_V2_MOTIONS], ['layout', AI_DRONE_V2_LAYOUTS], ['camera', AI_DRONE_V2_CAMERAS], ['effect', AI_DRONE_V2_EFFECTS]]) assert.ok(content.includes(`${field} = ${JSON.stringify(values)}`));
+    assert.match(content, /严禁发明、翻译、组合或混用/); assert.match(content, /总和<=92/); assert.match(content, /至少2幕含多个演员/); assert.match(content, /不能两色都暗/);
   }
 });
-
 test('paid failure diagnostics classify exact safe stages and survive replay without leaking provider content', async () => {
   const content = (value, finishReason = 'stop', extra = {}) => new Response(JSON.stringify({ choices: [{ finish_reason: finishReason, message: { content: value, ...extra } }] }));
   const cases = [
@@ -410,14 +404,16 @@ test('network, body timeout, cancellation and service interruption retain bounde
   await closed.close(); await interrupted;
 });
 
-test('schema failures preserve every validator error code without relaxing output validation', async () => {
+test('V2 schema failures retain safe typed diagnostics without relaxing new-output validation', async () => {
   const mutations = [
-    ['AI_SCORE_FORMAT', () => []], ['AI_SCORE_VERSION', value => ({ ...value, version: 2 })],
-    ['AI_SCORE_SEED', value => ({ ...value, seed: 0 })],
+    ['AI_SCORE_FORMAT', () => []], ['AI_SCORE_VERSION', value => ({ ...value, version: 1 })],
     ['AI_SCORE_DURATION', value => ({ ...value, scenes: value.scenes.map(scene => ({ ...scene, duration: 20 })) })],
-    ['AI_SCORE_CHOICE', value => ({ ...value, scenes: value.scenes.map(scene => ({ ...scene, shape: 'ring|sphere' })) })],
-    ['AI_SCORE_COLOR', value => ({ ...value, scenes: value.scenes.map(scene => ({ ...scene, color: '#FFF' })) })],
-    ['AI_SCORE_OUTLINE', value => ({ ...value, scenes: value.scenes.map(scene => ({ ...scene, shape: 'outline', paths: [[[0, 0], [0, 0]]] })) })],
+    ['AI_SCORE_CHOICE', value => ({ ...value, scenes: value.scenes.map(scene => ({ ...scene, camera: 'orbit|rise' })) })],
+    ['AI_SCORE_COLOR', value => ({ ...value, cast: value.cast.map(actor => ({ ...actor, color: '#FFF' })) })],
+    ['AI_SCORE_CAST', value => ({ ...value, cast: [] })],
+    ['AI_SCORE_LAYOUT', value => ({ ...value, scenes: value.scenes.map(scene => ({ ...scene, layout: 'hero' })) })],
+    ['AI_SCORE_SCALE', value => ({ ...value, scenes: value.scenes.map(scene => ({ ...scene, actors: scene.actors.map(actor => ({ ...actor, scale: 999 })) })) })],
+    ['AI_SCORE_ACTORS', value => ({ ...value, scenes: value.scenes.map(scene => ({ ...scene, actors: scene.actors.map(actor => ({ ...actor, id: 'spark' })) })) })],
   ];
   for (const [reason, mutate] of mutations) {
     const director = createAiDroneDirector({ config: config(), fetchImpl: async () => provider(mutate(score())) });
@@ -426,72 +422,65 @@ test('schema failures preserve every validator error code without relaxing outpu
   }
 });
 
-test('provider choices only canonicalize case, whitespace and a finite same-meaning alias list before strict validation', async () => {
-  const cases = [
-    ['shape', 'circle', 'ring'], ['motion', 'rotate', 'turn'], ['motion', 'rotation', 'turn'],
-    ['motion', 'static', 'still'], ['motion', 'breathing', 'breathe'], ['motion', 'pulse', 'breathe'], ['transition', 'fade', 'morph'],
-    ...AI_DRONE_SHAPES.filter(value => value !== 'outline').map(value => ['shape', ` ${value.toUpperCase()} `, value]),
-    ...AI_DRONE_MOTIONS.map(value => ['motion', ` ${value.toUpperCase()} `, value]),
-    ...AI_DRONE_TRANSITIONS.map(value => ['transition', ` ${value.toUpperCase()} `, value]),
-  ];
-  for (const [field, original, expected] of cases) {
-    let calls = 0;
-    const value = score(); value.scenes[2][field] = original;
-    const director = createAiDroneDirector({ config: config(), fetchImpl: async () => { calls++; return provider(value); } }), body = input();
-    try {
-      const first = await director.generate(body);
-      assert.equal(first.show.score.scenes[2][field], expected);
-      assert.equal(validateAiDroneScore(first.show.score), first.show.score);
-      assert.equal(value.scenes[2][field], original);
-      assert.deepEqual((await director.generate(body)).show, first.show);
-      assert.equal(calls, 1); assert.equal(director.usage(body.guestId).usage.used, 1);
-    } finally { await director.close(); }
-  }
-});
-
-test('unknown or cross-field choices stay rejected with safe location diagnostics and cannot execute or trigger a paid retry', async () => {
-  const cases = [
-    ['shape', 'dragon'], ['shape', 'spiral'], ['shape', 'rotate'], ['shape', '__proto__'], ['shape', 'constructor'],
-    ['motion', 'fly'], ['motion', 'circle'], ['motion', 'morph'], ['transition', 'turn'], ['transition', 'explode'],
-    ['shape', 'globalThis.AI_DRONE_EXECUTED = true'], ['shape', { code: 'PRIVATE CODE' }], ['motion', null], ['transition', ['morph']],
-  ];
+test('V2 choices are exact: unknown, aliases and executable strings are rejected without another paid call', async () => {
+  const cases = [['camera', 'PRIVATE CAMERA'], ['camera', 'ORBIT'], ['effect', 'explode'], ['transition', 'fade'], ['transition', 'globalThis.AI_DRONE_EXECUTED = true'], ['layout', 'circle'], ['layout', '__proto__']];
   globalThis.AI_DRONE_EXECUTED = false;
   try {
     for (const [field, original] of cases) {
-      let calls = 0;
-      const value = score(); value.scenes[3][field] = original;
+      let calls = 0; const value = score(); value.scenes[3][field] = original;
       const store = createAiDroneStore({ dbPath: ':memory:' });
       const director = createAiDroneDirector({ config: config(), store, fetchImpl: async () => { calls++; return provider(value); } }), body = input();
       try {
         await assert.rejects(director.generate(body), { code: 'AI_DRONE_INVALID_SCORE', reason: 'AI_SCORE_CHOICE', field, sceneIndex: 3, charged: true });
         const failure = store.request(body.guestId, body.requestId).error;
-        assert.equal(failure.field, field); assert.equal(failure.sceneIndex, 3);
-        assert.deepEqual(Object.keys(failure).sort(), ['status', 'code', 'message', 'charged', 'phase', 'reason', 'field', 'sceneIndex', 'finishedAt', 'durationMs'].sort());
-        assert.doesNotMatch(JSON.stringify(failure), /PRIVATE|AI_DRONE_EXECUTED|__proto__|constructor/);
-        await assert.rejects(director.generate(body), { code: 'AI_DRONE_INVALID_SCORE', reason: 'AI_SCORE_CHOICE', field, sceneIndex: 3, replayed: true, charged: true });
-        assert.equal(calls, 1); assert.equal(director.usage(body.guestId).usage.used, 1);
+        assert.equal(failure.field, field); assert.equal(failure.sceneIndex, 3); assert.doesNotMatch(JSON.stringify(failure), /PRIVATE|AI_DRONE_EXECUTED|__proto__/);
+        await assert.rejects(director.generate(body), { code: 'AI_DRONE_INVALID_SCORE', reason: 'AI_SCORE_CHOICE', replayed: true, charged: true });
+        assert.equal(calls, 1);
       } finally { await director.close(); }
     }
     assert.equal(globalThis.AI_DRONE_EXECUTED, false);
   } finally { delete globalThis.AI_DRONE_EXECUTED; }
 });
 
-test('choice normalization cannot drop unsupported fields, invent paths or repair unsafe numeric and geometry data', async () => {
-  const base = () => ({ ...score(), scenes: score().scenes.map(scene => ({ ...scene, shape: 'circle', motion: 'rotate', transition: 'fade' })) });
+test('server owns the seed but does not drop unknown fields, replace shapes, or coerce other invalid numbers', async () => {
+  for (const providerSeed of [0, 'PRIVATE SEED', null, undefined]) {
+    let sent; const value = score(); if (providerSeed === undefined) delete value.seed; else value.seed = providerSeed;
+    const director = createAiDroneDirector({ config: config(), fetchImpl: async (_url, request) => { sent = JSON.parse(request.body); return provider(value); } });
+    try {
+      const result = await director.generate(input());
+      const example = JSON.parse(sent.messages[0].content.split(/\r?\n/).find(line => line.startsWith('{"version":')));
+      assert.equal(result.show.score.seed, example.seed); assert.ok(Number.isInteger(result.show.score.seed)); assert.equal(result.show.score.version, 2);
+    } finally { await director.close(); }
+  }
   const cases = [
-    ['AI_SCORE_FIELDS', () => ({ ...base(), script: 'PRIVATE SCRIPT' })],
-    ['AI_SCORE_FIELDS', () => JSON.parse(JSON.stringify(base()).replace('"version":1', '"version":1,"__proto__":{"polluted":true}'))],
-    ['AI_SCORE_FIELDS', () => ({ ...base(), scenes: base().scenes.map(scene => ({ ...scene, camera: 'PRIVATE CAMERA' })) })],
-    ['AI_SCORE_DURATION', () => ({ ...base(), scenes: base().scenes.map(scene => ({ ...scene, duration: '12' })) })],
-    ['AI_SCORE_COLOR', () => ({ ...base(), scenes: base().scenes.map(scene => ({ ...scene, color: '#fff' })) })],
-    ['AI_SCORE_OUTLINE', () => ({ ...base(), scenes: base().scenes.map(scene => ({ ...scene, shape: ' OUTLINE ' })) })],
-    ['AI_SCORE_OUTLINE', () => ({ ...base(), scenes: base().scenes.map(scene => ({ ...scene, shape: 'outline', paths: [[[0, 0], [2, 1]]] })) })],
-    ['AI_SCORE_OUTLINE', () => ({ ...base(), scenes: base().scenes.map(scene => ({ ...scene, paths: [[[-1, 0], [1, 0]]] })) })],
+    ['AI_SCORE_FIELDS', () => ({ ...score(), script: 'PRIVATE SCRIPT' })],
+    ['AI_SCORE_FIELDS', () => JSON.parse(JSON.stringify(score()).replace('"version":2', '"version":2,"__proto__":{"polluted":true}'))],
+    ['AI_SCORE_FIELDS', () => ({ ...score(), scenes: score().scenes.map(scene => ({ ...scene, paths: [[0, 1]] })) })],
+    ['AI_SCORE_DURATION', () => ({ ...score(), scenes: score().scenes.map(scene => ({ ...scene, duration: '12' })) })],
+    ['AI_SCORE_CHOICE', () => ({ ...score(), cast: score().cast.map(actor => ({ ...actor, kind: 'unknown-monster' })) })],
   ];
   for (const [reason, create] of cases) {
-    let calls = 0;
-    const director = createAiDroneDirector({ config: config(), fetchImpl: async () => { calls++; return provider(create()); } });
+    let calls = 0; const director = createAiDroneDirector({ config: config(), fetchImpl: async () => { calls++; return provider(create()); } });
     try { await assert.rejects(director.generate(input()), { code: 'AI_DRONE_INVALID_SCORE', reason, charged: true }); assert.equal(calls, 1); }
     finally { await director.close(); }
   }
+});
+
+test('poor V2 choreography is a clear quality failure, safely persisted and replayed without retry or fallback', async () => {
+  let calls = 0; const value = score(); value.scenes.forEach(scene => { scene.camera = 'wide'; });
+  const store = createAiDroneStore({ dbPath: ':memory:', limits: { daily: 0, ipDaily: 0, ipMinute: 3, concurrent: 2, guestConcurrent: 1 } });
+  const director = createAiDroneDirector({ store, config: config({ limits: { daily: 0, ipDaily: 0 } }), fetchImpl: async () => { calls++; return provider(value); } }), body = input();
+  try {
+    for (const replayed of [false, true]) await assert.rejects(director.generate(body), error => error.code === 'AI_DRONE_QUALITY_FAILED' && error.reason === 'AI_SCORE_QUALITY' && error.replayed === replayed && /舞台质量门槛/.test(error.message));
+    assert.equal(calls, 1); const failure = store.request(body.guestId, body.requestId); assert.equal(failure.result, null); assert.equal(failure.error.code, 'AI_DRONE_QUALITY_FAILED');
+  } finally { await director.close(); }
+});
+
+test('historical idempotency cache can replay a V1 score without generating or migrating it', async () => {
+  const body = input();
+  const legacy = { id: 'old-show', score: { version: 1, title: '旧节目', seed: 123, scenes: [] } };
+  const store = { reserve: values => ({ prior: { fingerprint: values.fingerprint, state: 'done', result: legacy } }), usage: () => ({ used: 1 }), close() {} };
+  const director = createAiDroneDirector({ store, config: config(), fetchImpl() { assert.fail('no provider for cache'); } });
+  try { const result = await director.generate(body); assert.equal(result.replayed, true); assert.equal(result.show, legacy); assert.equal(result.show.score.version, 1); }
+  finally { await director.close(); }
 });

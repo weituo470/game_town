@@ -4,12 +4,13 @@ import { randomUUID } from 'node:crypto';
 import { createTownServer } from '../server/index.js';
 import { readAiDroneUsage } from '../src/lib/aiDroneClient.js';
 import { createAiDroneAccessHash } from '../server/aiDroneAccess.js';
+import { buildAiDroneV2Example } from '../server/aiDroneDirector.js';
 
 test('AI HTTP development gate requires password before invalid prompt or replay and never leaks secret fields', async () => {
   const password = 'http-local-test-only-code';
   const passwordHash = await createAiDroneAccessHash(password);
   let calls = 0, time = 100_000, sent;
-  const score = { version: 1, title: '开发测试', synopsis: '本地模拟提供方，不产生收费调用。', seed: 123, scenes: ['ring', 'whale', 'galaxy', 'heart'].map(shape => ({ name: '星幕', description: '本地模拟。', shape, color: '#40AAFF', accent: '#FFDD99', duration: 10, motion: 'turn', transition: 'morph' })) };
+  const score = { ...buildAiDroneV2Example(123), title: '开发测试' };
   const server = await createTownServer({ port: 0, secret: 'http-access-local-guest-secret-test-only', aiDroneNow: () => time,
     aiDroneConfig: { enabled: true, apiKey: 'mock-provider-only', baseURL: 'https://api.deepseek.com/v1', model: 'deepseek-flash', dbPath: ':memory:', limits: { daily: 0, ipDaily: 0 }, accessRequired: true, accessPasswordHash: passwordHash },
     aiDroneFetch: async (_url, options) => { calls++; sent = options.body; return new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(score) } }] })); } });
@@ -52,7 +53,7 @@ test('AI HTTP development gate requires password before invalid prompt or replay
 
 test('AI director HTTP uses signed guest/origin gates and does not expose credentials or accept browser quota overrides', async () => {
   let calls = 0;
-  const score = { version: 1, title: '星海', synopsis: '星光中的鲸', seed: 123, scenes: ['ring', 'whale', 'galaxy', 'heart'].map(shape => ({ name: '星幕', description: '星海里的鲸', shape, color: '#40AAFF', accent: '#FFDD99', duration: 10, motion: 'turn', transition: 'morph' })) };
+  const score = { ...buildAiDroneV2Example(123), title: '星海' };
   const server = await createTownServer({ port: 0, secret: 'test-ai-director-persistent-guest-secret-only', aiDroneConfig: { enabled: true, apiKey: 'private-test-key', baseURL: 'https://api.deepseek.com/v1', model: 'deepseek-flash', dbPath: ':memory:', limits: { daily: 1 } }, aiDroneFetch: async () => { calls++; return new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(score) } }] })); } });
   const post = async (path, body, origin) => { const response = await fetch(server.url + path, { method: 'POST', headers: { 'content-type': 'application/json', ...(origin ? { origin } : {}) }, body: JSON.stringify(body) }); return { status: response.status, body: await response.json() }; };
   try {
@@ -77,8 +78,7 @@ test('AI director HTTP uses signed guest/origin gates and does not expose creden
 
 test('AI director unlimited HTTP crosses old guest and IP day caps while keeping signed identity and replay', async () => {
   let calls = 0;
-  const score = { version: 1, title: '不限次模拟验收', synopsis: '仅本地模拟，不调用真实模型。', seed: 123,
-    scenes: ['ring', 'whale', 'galaxy', 'heart'].map(shape => ({ name: '星幕', description: '本地模拟数据。', shape, color: '#40AAFF', accent: '#FFDD99', duration: 10, motion: 'turn', transition: 'morph' })) };
+  const score = { ...buildAiDroneV2Example(123), title: '不限次模拟验收' };
   const server = await createTownServer({ port: 0, secret: 'test-unlimited-persistent-guest-secret-only',
     aiDroneConfig: { enabled: true, apiKey: 'mock-only-key', baseURL: 'https://api.deepseek.com/v1', model: 'deepseek-flash', dbPath: ':memory:', limits: { daily: 0, ipDaily: 0, ipMinute: 100 } },
     aiDroneFetch: async () => { calls++; return new Response(JSON.stringify({ choices: [{ finish_reason: 'stop', message: { content: JSON.stringify(score) } }] })); } });

@@ -3,6 +3,7 @@ import { mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { createHmac, randomBytes } from 'node:crypto';
 import { AI_DRONE_CHOICE_FIELDS, AI_DRONE_LIMITS as SCORE_LIMITS } from '../shared/aiDroneScore.js';
+import { AI_DRONE_V2_CHOICE_FIELDS } from '../shared/aiDroneScoreV2.js';
 
 export const AI_DRONE_DEFAULT_LIMITS = Object.freeze({ daily: 5, ipMinute: 3, ipDaily: 30, concurrent: 2, guestConcurrent: 1 });
 export const AI_DRONE_FAILURE_PHASES = Object.freeze(['provider_request', 'provider_body', 'provider_output', 'score_json', 'score_schema', 'storage', 'lifecycle', 'unknown']);
@@ -12,12 +13,13 @@ export const AI_DRONE_FAILURE_REASONS = Object.freeze([
   'invalid_json', 'schema_invalid', 'timeout', 'cancelled', 'interrupted', 'lease_expired', 'storage_failure', 'unknown',
   'AI_SCORE_FORMAT', 'AI_SCORE_FIELDS', 'AI_SCORE_TEXT', 'AI_SCORE_CHOICE', 'AI_SCORE_COLOR', 'AI_SCORE_OUTLINE',
   'AI_SCORE_TOO_LARGE', 'AI_SCORE_JSON', 'AI_SCORE_VERSION', 'AI_SCORE_SEED', 'AI_SCORE_SCENES', 'AI_SCORE_DURATION',
+  'AI_SCORE_CAST', 'AI_SCORE_ACTORS', 'AI_SCORE_LAYOUT', 'AI_SCORE_SCALE', 'AI_SCORE_QUALITY',
 ]);
 /** Fixed enums and numbers only: never echo a provider string into diagnostics. */
 export function sanitizeAiDroneFailureMetadata(value) {
   return { phase: AI_DRONE_FAILURE_PHASES.includes(value?.phase) ? value.phase : 'unknown',
     reason: AI_DRONE_FAILURE_REASONS.includes(value?.reason) ? value.reason : 'unknown',
-    ...(value?.reason === 'AI_SCORE_CHOICE' && AI_DRONE_CHOICE_FIELDS.includes(value?.field) && Number.isSafeInteger(value?.sceneIndex) && value.sceneIndex >= 0 && value.sceneIndex < SCORE_LIMITS.maxScenes
+    ...(value?.reason === 'AI_SCORE_CHOICE' && [...AI_DRONE_CHOICE_FIELDS, ...AI_DRONE_V2_CHOICE_FIELDS].includes(value?.field) && Number.isSafeInteger(value?.sceneIndex) && value.sceneIndex >= 0 && value.sceneIndex < SCORE_LIMITS.maxScenes
       ? { field: value.field, sceneIndex: value.sceneIndex } : {}),
     ...(Number.isSafeInteger(value?.finishedAt) && value.finishedAt >= 0 ? { finishedAt: value.finishedAt } : {}),
     ...(Number.isSafeInteger(value?.durationMs) && value.durationMs >= 0 ? { durationMs: value.durationMs } : {}) };
@@ -25,6 +27,7 @@ export function sanitizeAiDroneFailureMetadata(value) {
 const FAILURE_MESSAGES = Object.freeze({
   AI_DRONE_UPSTREAM: { status: 502, message: 'AI 编导暂时未完成，请稍后再试；不会自动重试本次请求。' },
   AI_DRONE_INVALID_SCORE: { status: 502, message: 'AI 返回的编排未通过安全校验，未启动演出；不会自动重试。' },
+  AI_DRONE_QUALITY_FAILED: { status: 502, message: '本次编排缺少足够的场景层次或故事连续性，尚未达到舞台质量门槛；未启动演出，不会自动重试。' },
   AI_DRONE_TIMEOUT: { status: 504, message: 'AI 编导超过45秒未完成；不会自动重试，请稍后再试。' },
   AI_DRONE_CANCELLED: { status: 499, message: '此次编排已取消；不会自动重试已开始的请求。' },
   AI_DRONE_INTERRUPTED: { status: 503, message: '编导服务正在重启；同一请求不会重复调用模型。' },

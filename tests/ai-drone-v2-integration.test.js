@@ -1,0 +1,36 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { buildAiDroneV2Example } from '../server/aiDroneDirector.js';
+import { createAiDroneLibrary } from '../src/lib/aiDroneLibrary.js';
+import { createAiDroneRuntime } from '../shared/aiDroneShow.js';
+import { createDroneFleet } from '../shared/droneShow.js';
+import { createDroneShowClock } from '../src/lib/droneShowClock.js';
+import { createAiDroneStageVisual } from '../src/components/drone/droneSpectacleVisual.js';
+const old = { version: 1, title: '旧版节目', synopsis: '保留原节目。', seed: 7, scenes: ['ring','whale','star','sphere'].map(shape => ({ name: '旧幕', description: '旧版画面。', shape, color: '#40AAFF', accent: '#FFDD99', duration: 10, motion: 'wave', transition: 'morph' })) };
+test('v1 and v2 can coexist in the unchanged local library without prompt, token or asset persistence', () => {
+  const map = new Map(), storage = { getItem: key => map.get(key), setItem: (key, value) => map.set(key, value) };
+  const library = createAiDroneLibrary({ storage, now: () => 20 });
+  for (const [id, score] of [['legacy', old], ['stage', buildAiDroneV2Example(123)]]) assert.equal(library.save({ id, mode: 'prompt', createdAt: 10, score, token: 'DO-NOT-SAVE', prompt: 'private prompt' }).ok, true);
+  assert.equal(library.read().entries.length, 2); assert.equal(library.read().corrupt, false);
+  assert.deepEqual(new Set(library.read().entries.map(entry => entry.score.version)), new Set([1,2]));
+  assert.doesNotMatch([...map.values()].join(''), /DO-NOT-SAVE|private prompt/);
+});
+test('v2 runtime uses the same show clock and visual factory with bounded fireworks and complete shutdown', () => {
+  const base = createAiDroneRuntime(buildAiDroneV2Example(123));
+  const runtime = { ...base, visualFactory: count => createAiDroneStageVisual(base.fireworkProgram, count) };
+  assert.equal(runtime.program.id, 'ai'); assert.equal(runtime.program.sampleVisual, 'spectacle-v2');
+  assert.ok(runtime.program.duration <= 118000);
+  const clock = createDroneShowClock({ now: () => 0 });
+  clock.start({ program: 'ai', aiRuntime: runtime }); clock.seek(42000);
+  assert.equal(clock.snapshot().elapsedMs, 42000);
+  const fleet = createDroneFleet(4096); runtime.update(fleet, 42000);
+  assert.ok(fleet.positions.every(Number.isFinite));
+  const visual = runtime.visualFactory(4096);
+  assert.ok(visual.stats.sparkPoints <= 8000); assert.equal(visual.stats.drawCalls, 2);
+  const cue = runtime.fireworkProgram.cues[0];
+  visual.update(cue.at * 1000 + 1000); assert.equal(visual.group.visible, true);
+  visual.update(runtime.program.duration); assert.equal(visual.group.visible, false);
+  runtime.update(fleet, runtime.program.duration);
+  assert.equal([...fleet.sizes].filter(value => value > .001).length, 0);
+  visual.dispose(); clock.close(); assert.equal(clock.snapshot().active, false);
+});
