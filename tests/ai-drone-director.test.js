@@ -18,6 +18,23 @@ const accessTestPassword = 'director-test-only-code';
 const accessSalt = 'abcdef0123456789abcdef0123456789';
 const accessTestHash = `scrypt1$${accessSalt}$${scryptSync(accessTestPassword, accessSalt, 32, { N: 16384, r: 8, p: 1 }).toString('hex')}`;
 
+test('public open generation retains development notice without requiring a password or daily count cap', async () => {
+  const settings = loadAiDroneConfig({ env: { AI_DRONE_ENABLED: 'true', AI_DRONE_ACCESS_REQUIRED: 'false', AI_DRONE_ACCESS_PASSWORD_HASH: 'unused-invalid-hash', AI_DRONE_DAILY_LIMIT: '0', AI_DRONE_IP_DAILY_LIMIT: '0' }, npcConfig: config() });
+  assert.equal(settings.enabled, true); assert.equal(settings.accessRequired, false);
+  let calls = 0, time = 100_000;
+  const director = createAiDroneDirector({ config: settings, now: () => time, fetchImpl: async () => { calls++; return provider(); } });
+  try {
+    const status = director.status();
+    assert.equal(status.development, true); assert.notEqual(status.accessRequired, true);
+    assert.equal(status.unlimited, true); assert.equal(status.limit, null);
+    assert.equal(status.limits.daily, 0); assert.equal(status.limits.ipDaily, 0);
+    const body = input();
+    for (let i = 0; i < 8; i++) { await director.generate({ ...body, requestId: randomUUID() }); time += 60_001; }
+    assert.equal(calls, 8); assert.equal(director.usage(body.guestId).usage.used, 8);
+    assert.doesNotMatch(JSON.stringify(status), /unused-invalid-hash|apiKey|accessPasswordHash/);
+  } finally { await director.close(); }
+});
+
 test('access config is opt-in and missing or malformed server hash disables AI without exposing its value', async () => {
   assert.equal(loadAiDroneConfig({ env: {}, npcConfig: config() }).accessRequired, false);
   for (const value of [undefined, '', 'not-a-hash', {}, accessTestHash + '\n']) {

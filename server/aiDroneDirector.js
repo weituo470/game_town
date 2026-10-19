@@ -134,7 +134,7 @@ export function createAiDroneDirector({ config = loadAiDroneConfig(), fetchImpl 
   let closed = false;
   const getStore = () => store ||= createAiDroneStore({ dbPath: config.dbPath, now, limits });
   const safeUsage = guestId => { try { return getStore().usage(guestId); } catch { return undefined; } };
-  function status() { return { enabled: enabled && !closed, provider: 'DeepSeek', model: 'deepseek-flash', limit: limits.daily === 0 ? null : limits.daily, ...(limits.daily === 0 ? { unlimited: true } : {}), ...(access.required ? { accessRequired: true, development: true } : {}), limits: { ...AI_DRONE_LIMITS, ...limits, timeoutMs }, ...(!enabled ? { reason: !access.configured ? 'access-not-configured' : config.reason || 'not-configured' } : {}) }; }
+  function status() { return { enabled: enabled && !closed, provider: 'DeepSeek', model: 'deepseek-flash', limit: limits.daily === 0 ? null : limits.daily, ...(limits.daily === 0 ? { unlimited: true } : {}), development: true, ...(access.required ? { accessRequired: true } : {}), limits: { ...AI_DRONE_LIMITS, ...limits, timeoutMs }, ...(!enabled ? { reason: !access.configured ? 'access-not-configured' : config.reason || 'not-configured' } : {}) }; }
   function usage(guestId) {
     if (typeof guestId !== 'string' || !UUID.test(guestId)) throw problem(401, 'INVALID_GUEST', '游客身份已过期，请重新连接。');
     if (!enabled || closed) throw problem(503, 'AI_DRONE_DISABLED', 'AI 编导暂未开启，请先欣赏精选演出。');
