@@ -227,3 +227,24 @@ test('source remains local, no device/screen capture, uploads, filename disguise
   assert.match(fs.readFileSync(new URL('../public/licenses/mediabunny-NOTICE.txt', import.meta.url), 'utf8'), /1\.61\.6/);
   assert.match(fs.readFileSync(new URL('../public/licenses/mediabunny-MPL-2.0.txt', import.meta.url), 'utf8'), /Mozilla Public License Version 2\.0/);
 });
+
+test('optional soundtrack processing runs after video validation and marks the result with an audio track', async () => {
+  const r = rig(); let received;
+  await r.start({ processVideo: async (blob, options) => { received = options; return { blob, videoOnly: false, audioCodec: 'aac', audioDurationMs: 34 }; } });
+  r.frame(); const result = await r.recorder.stop();
+  assert.equal(result.videoOnly, false); assert.equal(result.audioCodec, 'aac'); assert.equal(result.audioDurationMs, 34);
+  assert.equal(received.format, 'mp4'); assert.equal(received.signal.aborted, false); await r.recorder.dispose();
+});
+
+test('cancel during soundtrack processing aborts mux and cannot create a downloadable stale result', async () => {
+  const r = rig(); let resume, signal;
+  await r.start({ processVideo: (blob, options) => { signal = options.signal; return new Promise(resolve => { resume = () => resolve({ blob, videoOnly: false, audioCodec: 'aac' }); }); } });
+  r.frame(); const finish = r.recorder.stop(); await flush(); assert.equal(r.recorder.getState().phase, 'processing');
+  await r.recorder.cancel(); assert.equal(signal.aborted, true); resume(); assert.equal(await finish, null); assert.equal(r.recorder.getState().phase, 'idle');
+  assert.equal(r.recorder.getState().result, null); await r.recorder.dispose();
+});
+
+test('soundtrack failure can be retained only as an explicitly labelled silent result', async () => {
+  const r = rig(); await r.start({ processVideo: async blob => ({ blob, videoOnly: true, audioWarning: 'AAC unavailable' }) });
+  r.frame(); const result = await r.recorder.stop(); assert.equal(result.videoOnly, true); assert.equal(result.audioWarning, 'AAC unavailable'); await r.recorder.dispose();
+});

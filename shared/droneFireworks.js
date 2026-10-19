@@ -21,18 +21,20 @@ const PROGRAMS = Object.freeze({
     cue(87.0, [47, 120, -29], 'chrysanthemum', EMBER, 180, 4.4, 22),
     cue(90.0, [0, 124, -35], 'peony', GOLD, 280, 3.6, 20),
   ]) }),
-  'tidal-whale': Object.freeze({ end: 98, cues: Object.freeze([
-    cue(51.5, [-65, 74, -27], 'crown', BLUE, 180, 4.3, 20),
-    cue(52.2, [65, 74, -27], 'crown', BLUE, 180, 4.3, 20),
-    cue(54.0, [-42, 91, -30], 'crown', ICE, 230, 4.8, 25),
-    cue(54.5, [42, 91, -30], 'crown', ICE, 230, 4.8, 25),
-    cue(59.0, [-62, 105, -35], 'peony', BLUE, 220, 5, 18),
-    cue(59.5, [62, 105, -35], 'peony', ICE, 220, 5, 18),
-    cue(64.0, [0, 125, -40], 'willow', ICE, 270, 6, 22),
-    cue(82.0, [-65, 118, -27], 'willow', GOLD, 230, 6.3, 22),
-    cue(82.8, [65, 118, -27], 'willow', GOLD, 230, 6.3, 22),
-    cue(91.0, [-35, 127, -35], 'willow', ICE, 230, 6.3, 20),
-    cue(91.6, [35, 127, -35], 'willow', GOLD, 230, 6, 20),
+  'tidal-whale': Object.freeze({ end: 108, cues: Object.freeze([
+    // No early spectacle distracts from the call and answer. The reunion's
+    // distant blooms stay behind and outside the five persistent silhouettes.
+    cue(78.4, [-125, 118, -95], 'peony', BLUE, 160, 4, 14),
+    cue(79.0, [125, 118, -95], 'peony', BLUE, 160, 4, 14),
+    cue(85.0, [-126, 93, -100], 'crown', ICE, 220, 5, 25),
+    cue(85.4, [126, 93, -100], 'crown', ICE, 220, 5, 25),
+    cue(88.0, [-118, 145, -118], 'willow', GOLD, 240, 6, 18),
+    cue(88.6, [118, 145, -118], 'willow', GOLD, 240, 6, 18),
+    cue(91.5, [0, 169, -125], 'peony', ICE, 280, 5.3, 15),
+    cue(96.0, [-128, 127, -110], 'crown', BLUE, 200, 5, 18),
+    cue(96.5, [128, 127, -110], 'crown', BLUE, 200, 5, 18),
+    cue(100.0, [-53, 158, -125], 'willow', ICE, 200, 6, 14),
+    cue(100.3, [53, 158, -125], 'willow', GOLD, 200, 6, 14),
   ]) }),
   'gravity-gate': Object.freeze({ end: 86, cues: Object.freeze([
     cue(60.0, [-64, 36, -24], 'reverse', VIOLET, 180, 5.6, 22),

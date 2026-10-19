@@ -57,7 +57,8 @@ export async function inspectDroneVideoContainer(blob) {
 }
 
 /**
- * Real-time, video-only local canvas recording. UI starts the score AFTER start()
+ * Real-time local canvas recording, optionally followed by a local audio mux.
+ * UI starts the score AFTER start()
  * resolves. The host must call notifyDroneVideoFrame(canvas) after its final
  * compositor render. stop() is idempotent; cancel()/dispose() keep no partial file.
  */
@@ -114,6 +115,7 @@ export function createDroneVideoRecorder(options = {}) {
   const fail = (run, error) => {
     if (!alive(run) || run.error) return;
     run.error = error instanceof Error ? error : videoError('ENCODER_ERROR', '视频编码失败，请降低分辨率后重试。');
+    run.abort.abort();
     abortBackend(run); release(run); run.parts = [];
     announce(run, 'error', { error: run.error, message: run.error.message, result: null });
     run.settleNative?.();
@@ -188,7 +190,7 @@ export function createDroneVideoRecorder(options = {}) {
     revokeResult();
     const { width, height } = droneVideoDimensions(input.width, input.height);
     const run = { ...input, width, height, generation: ++generation, format: input.format || 'mp4', bitrate: width > 1280 ? 6000000 : 4000000,
-      frames: 0, bytes: 0, parts: [], listeners: [], lastFrameAt: -Infinity, encoding: null, startedAt: null, cancelled: false, error: null, result: null };
+      frames: 0, bytes: 0, parts: [], listeners: [], lastFrameAt: -Infinity, encoding: null, startedAt: null, cancelled: false, error: null, result: null, abort: new AbortController() };
     current = run; announce(run, 'preparing', { result: null });
     run.startPromise = (async () => {
       try {
@@ -253,13 +255,24 @@ export function createDroneVideoRecorder(options = {}) {
         if (run.error) throw run.error;
         if (!alive(run)) return null;
         if (!run.frames || !run.bytes) throw videoError('EMPTY_RECORDING', '尚未录到演出画面，请播放节目后再停止。');
-        const blob = new Blob(run.parts, { type: run.mimeType });
+        let blob = new Blob(run.parts, { type: run.mimeType });
         run.parts = [];
-        const container = await inspectDroneVideoContainer(blob);
+        let container = await inspectDroneVideoContainer(blob);
         if (!alive(run)) return null;
         if (container !== run.format) throw videoError('FORMAT_MISMATCH', '浏览器输出格式不符合所选类型；没有伪装成 MP4 下载。');
+        let audio = { videoOnly: true };
+        if (run.processVideo) {
+          audio = await deadline(run.processVideo(blob, { format: run.format, signal: run.abort.signal }), 90000, 'AUDIO_MUX_TIMEOUT');
+          if (!alive(run)) return null;
+          blob = audio.blob;
+          if (!blob || blob.size > maxBytes) throw videoError('SIZE_LIMIT', '配乐视频超出本机内存保护上限，请缩短片段。');
+          container = await inspectDroneVideoContainer(blob);
+          if (!alive(run)) return null;
+          if (container !== run.format) throw videoError('FORMAT_MISMATCH', '配乐封装格式与所选格式不符，已停止导出。');
+        }
         const result = { blob, url: URLApi.createObjectURL(blob), mimeType: run.mimeType, extension: container, durationMs: run.durationMs,
-          bytes: blob.size, width: run.width, height: run.height, frameRate: 30, frames: run.frames, backend: run.backend, reason, videoOnly: true };
+          bytes: blob.size, width: run.width, height: run.height, frameRate: 30, frames: run.frames, backend: run.backend, reason,
+          videoOnly: audio.videoOnly !== false, audioCodec: audio.audioCodec, audioDurationMs: audio.audioDurationMs, audioWarning: audio.audioWarning };
         run.result = result; release(run); announce(run, 'ready', { result, reason, durationMs: run.durationMs });
         return result;
       } catch (error) { fail(run, error); throw error; }
@@ -272,7 +285,7 @@ export function createDroneVideoRecorder(options = {}) {
     const run = current;
     revokeResult();
     if (!run) { state = { phase: disposed ? 'disposed' : 'idle', result: null }; return null; }
-    run.cancelled = true; generation++;
+    run.cancelled = true; generation++; run.abort.abort();
     abortBackend(run); release(run); run.parts = []; run.result = null; run.settleNative?.();
     announce(run, disposed ? 'disposed' : 'idle', { result: null, reason: 'cancelled' });
     // Do not retain a resolved finishPromise (and its potentially large Blob)

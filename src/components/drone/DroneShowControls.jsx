@@ -6,6 +6,7 @@ import { createDroneShowClock } from '../../lib/droneShowClock.js';
 import { createDroneShowAudio } from '../../lib/droneShowAudio.js';
 import { createDroneAudioScheduler } from '../../lib/droneAudioScheduler.js';
 import './drone-show.css';
+const DroneSoundtrackControl = lazy(() => import('./DroneSoundtrackControl.jsx'));
 const DroneVideoExport = lazy(() => import('./DroneVideoExport.jsx'));
 
 const ACTIONS = ['start', 'close', 'togglePause', 'seek', 'setSpeed', 'setView', 'setReducedMotion', 'setProgram'];
@@ -287,7 +288,7 @@ export default function DroneShowControls({
           {isDroplet && <><button type="button" className="drone-action drone-highlight" onClick={() => controller.seek(32000)}>立方集结</button><button type="button" className="drone-action drone-highlight" onClick={() => controller.seek(43000)}>舰队幻化</button><button type="button" className="drone-action drone-highlight" onClick={() => controller.seek(DROPLET_SCORE.collapseStart)}>延迟连爆</button></>}
           <button type="button" className="drone-action drone-highlight" onClick={() => controller.seek(program.recoveryTime)}>{program.recoveryLabel}</button>
           <div className="drone-speed" role="group" aria-label="演出速度">{[1, 2].map(speed => <button type="button" key={speed} className="drone-action" aria-pressed={state.speed === speed} onClick={() => controller.setSpeed(speed)}>{speed}×</button>)}</div>
-          {program.supportsAudio !== false && <button type="button" className="drone-action drone-audio" aria-pressed={audioStatus === 'on'} disabled={audioStatus === 'starting'} onClick={toggleAudio}>{audioStatus === 'on' ? <Volume2 size={18}/> : <VolumeX size={18}/>}<span>{audioStatus === 'on' ? '关闭演出音效' : audioStatus === 'starting' ? '正在开启音效' : '开启演出音效'}</span></button>}
+          {program.supportsAudio !== false && !program.soundtrackUrl && <button type="button" className="drone-action drone-audio" aria-pressed={audioStatus === 'on'} disabled={audioStatus === 'starting'} onClick={toggleAudio}>{audioStatus === 'on' ? <Volume2 size={18}/> : <VolumeX size={18}/>}<span>{audioStatus === 'on' ? '关闭演出音效' : audioStatus === 'starting' ? '正在开启音效' : '开启演出音效'}</span></button>}
           <label className="drone-motion"><input type="checkbox" checked={motionEnabled} onChange={event => { controller.setReducedMotion(event.target.checked); onReducedMotion?.(event.target.checked); }}/><span>减少动态</span></label>
         </div>
         {chapter?.description && <p className="drone-description">{chapter.description}</p>}
@@ -295,6 +296,7 @@ export default function DroneShowControls({
         <p className="drone-story-note">{program.note}</p>
       </div>
       </fieldset>
+      {program.soundtrackUrl && <Suspense fallback={<span className="drone-note">正在载入配乐…</span>}><DroneSoundtrackControl key={program.soundtrackUrl} controller={controller} program={program}/></Suspense>}
       {isAi && <Suspense fallback={<span className="drone-note">正在载入影片导出…</span>}><DroneVideoExport key={state.aiRuntime?.program?.sampleId || state.aiRuntime?.score?.title} controller={controller} program={program} onBusyChange={setRecording}/></Suspense>}
     </div>
   </section>;

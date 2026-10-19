@@ -87,7 +87,7 @@ async function exportHarness(settings = {}) {
 test('sample library renders three under-two-minute shows and discards late playback after close', async () => {
   const Static = await component('DroneSampleLibrary');
   const html = renderToStaticMarkup(React.createElement(Static, { onPlay() {} }));
-  for (const value of ['1:48', '1:52', '1:40', '当前会话编排', '无配乐', '回放零模型调用']) assert.ok(html.includes(value));
+  for (const value of ['1:48', '1:58', '1:40', '当前会话编排', '无配乐', '原创配乐', '回放零模型调用']) assert.ok(html.includes(value));
   assert.equal((html.match(/aria-label="观看样板：/g) || []).length, 3);
   const stateHooks = hooks(), gate = deferred(), played = [];
   const Component = await component('DroneSampleLibrary', { react: stateHooks.react }, { __loadSamples: () => gate.promise });

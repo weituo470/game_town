@@ -1,0 +1,5 @@
+.drone-soundtrack { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin-top: 8px; }
+.drone-soundtrack .drone-action { min-height: 44px; font-size: var(--text-control, 1rem); }
+.drone-soundtrack-title { font-size: var(--text-meta, .875rem); line-height: 1.7; color: #d8e5e9; }
+.drone-soundtrack p { width: 100%; margin: 0; font-size: var(--text-body, 1.125rem); line-height: 1.7; color: #ffe4ac; }
+@media (max-width: 600px) { .drone-soundtrack { gap: 4px 10px; } }

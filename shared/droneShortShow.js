@@ -7,7 +7,7 @@ const color = value => [1, 3, 5].map(index => (parseInt(value.slice(index, index
 const FIRE = color('#FF7A35'), GOLD = color('#FFC96A'), WHITE = color('#FFF2CC');
 const BLUE = color('#287CD8'), CYAN = color('#86F5FF'), VIOLET = color('#9B8CFF');
 const geometries = new Map();
-function cloud() { return { points: new Float32Array(COUNT * 3), colors: new Float32Array(COUNT * 3), parts: new Uint8Array(COUNT), weights: new Float32Array(COUNT) }; }
+function cloud(count = COUNT) { return { points: new Float32Array(count * 3), colors: new Float32Array(count * 3), parts: new Uint8Array(count), weights: new Float32Array(count) }; }
 function put(target, id, x, y, z, first, second, blend, part = 0, weight = 0) {
   const k = id * 3, power = .88 + hash(id, 5) * .12;
   target.points[k] = x; target.points[k + 1] = y; target.points[k + 2] = z;
@@ -191,6 +191,131 @@ function geometry(kind) {
   } else result = buildOther(kind);
   geometries.set(kind, result); return result;
 }
+// The same 4,096 identities tell one family story. A whale never dissolves or
+// donates lights to another animal after it surfaces. Lower quality is still an
+// exact identity subset, including each whale's fins, flukes and small eye.
+export const WHALE_STORY_MEMBERS = Object.freeze([
+  { id: 'mother', role: '母鲸', count: 2048, appear: [20, 30], warmth: 0, power: 1 },
+  { id: 'calf', role: '幼鲸', count: 640, appear: [36, 45], warmth: .58, power: .96 },
+  { id: 'companion', role: '成年同伴', count: 640, appear: [52, 61], warmth: .13, power: .9 },
+  { id: 'elder', role: '远景长鲸', count: 384, appear: [58, 66], warmth: .05, power: .76 },
+  { id: 'sibling', role: '远景同伴', count: 384, appear: [62, 70], warmth: .26, power: .78 },
+].map(member => Object.freeze({ ...member, appear: Object.freeze(member.appear) })));
+const whaleKey = (time, x, y, z, scale, pitch = 0, yaw = 0) => Object.freeze([time, x, y, z, scale, pitch, yaw]);
+const WHALE_PATHS = Object.freeze([
+  [whaleKey(20,5,88,0,.94,-.1), whaleKey(30,2,92,0,.94,-.08), whaleKey(36,8,90,0,.88,.08),
+    whaleKey(46,18,90,-4,.82,.14), whaleKey(52,17,92,-5,.82,.1), whaleKey(70,-14,93,6,.78,.02),
+    whaleKey(78,-23,92,10,.78,-.04), whaleKey(84,-14,94,6,.78,-.04), whaleKey(90,-13,113,2,.78,-.4),
+    whaleKey(96,-10,111,-4,.78,-.1), whaleKey(100,-18,103,-7,.78,.05), whaleKey(108,-21,78,-28,.64,.12)],
+  [whaleKey(36,68,50,15,.38,-.16), whaleKey(46,-28,61,22,.38,-.2), whaleKey(52,-26,64,22,.38,-.12),
+    whaleKey(70,-49,63,26,.38,-.08), whaleKey(78,-50,66,24,.38,-.03), whaleKey(84,-42,65,24,.38,-.04),
+    whaleKey(90,-38,85,24,.38,-.48), whaleKey(96,-38,83,17,.38,-.1), whaleKey(100,-43,77,18,.38,.05), whaleKey(108,-39,56,-2,.33,.14)],
+  [whaleKey(52,88,112,-42,.62,-.06), whaleKey(60,71,124,-33,.62,-.03), whaleKey(70,65,134,-22,.62,.02),
+    whaleKey(78,73,130,-18,.62,.03), whaleKey(84,66,131,-21,.62,-.02), whaleKey(90,60,147,-29,.62,-.4),
+    whaleKey(96,55,141,-34,.62,-.1), whaleKey(100,52,135,-38,.62,.05), whaleKey(108,31,99,-60,.52,.1)],
+  [whaleKey(58,-100,142,-80,.52,-.06), whaleKey(70,-68,141,-70,.52,.01), whaleKey(78,-63,145,-69,.52,.03),
+    whaleKey(84,-69,138,-68,.52,-.02), whaleKey(90,-65,154,-75,.52,-.38), whaleKey(96,-67,144,-83,.52,-.08),
+    whaleKey(100,-71,134,-88,.52,.04), whaleKey(108,-75,99,-110,.42,.1)],
+  [whaleKey(62,90,63,-80,.5,-.05), whaleKey(70,63,61,-67,.5,.02), whaleKey(78,70,64,-60,.5,.03),
+    whaleKey(84,72,62,-64,.5,-.01), whaleKey(90,66,82,-65,.5,-.4), whaleKey(96,69,81,-73,.5,-.09),
+    whaleKey(100,64,74,-82,.5,.04), whaleKey(108,43,51,-100,.4,.1)],
+].map(Object.freeze));
+let whaleFamily;
+// Build each animal at its own density. Striding through the 4,096-point golden
+// spiral produces a strong 6.4/10.67-step resonance on small whales: visible
+// ribs/barcodes instead of a skin. Anatomical quotas + a fresh local golden
+// angle retain even two-dimensional surface coverage at every family size.
+function buildWhaleMember(count) {
+  const result = cloud(count), body = Math.round(count * .61), fins = Math.round(count * .127 / 2) * 2;
+  const tail = Math.round(count * .1465 / 2) * 2, dorsal = Math.max(7, Math.round(count * .0225));
+  const eye = count >= 1024 ? 8 : 4, brow = Math.max(6, Math.round(count * .0132)), mouth = Math.max(6, Math.round(count * .01465));
+  const starts = [0, body, body + fins, body + fins + tail, body + fins + tail + dorsal];
+  starts.push(starts[4] + eye, starts[4] + eye + brow, starts[4] + eye + brow + mouth, count);
+  for (let id = 0; id < count; id++) {
+    const rank = (id * 1597) % count;
+    let x, y, z, part = 0, weight = 0, pale = 0;
+    if (rank < starts[1]) {
+      const t = (rank + .5) / body, a = rank * GOLDEN, r = 18 * Math.sin(t * Math.PI) ** .42 * (1 - .63 * t * t);
+      x = -58 + t * 111; y = Math.cos(a) * r; z = Math.sin(a) * r * .83;
+      pale = .05 + .87 * smooth((-y + 1) / 14); weight = clamp((x + 10) / 64); part = 3;
+    } else if (rank < starts[2]) {
+      const n = rank - starts[1], perSide = fins / 2, side = n < perSide ? -1 : 1, local = n % perSide;
+      const t = (local + .5) / perSide, a = local * GOLDEN, w = 9 * Math.sin(t * Math.PI) ** .6;
+      x = -20 + t * 31 + Math.cos(a) * w; y = -7 - t * 25 + Math.sin(a) * 1.7 * Math.sin(t * Math.PI);
+      z = side * (10 + t * 17 + Math.sin(a) * w * .34); pale = .3 + t * .7; part = 4; weight = t;
+    } else if (rank < starts[3]) {
+      const n = rank - starts[2], perSide = tail / 2, side = n < perSide ? -1 : 1, local = n % perSide;
+      const t = (local + .5) / perSide, a = local * GOLDEN, w = 8.5 * Math.sin(t * Math.PI) ** .65;
+      x = 49 + t * 17 + Math.cos(a) * w; y = Math.sin(t * Math.PI) * 3 + Math.sin(a) * w * .22;
+      z = side * (t * 27 + Math.sin(a) * w * .7); pale = .24 + t * .7; part = 3; weight = 1;
+    } else if (rank < starts[4]) {
+      const n = rank - starts[3], t = (n + .5) / dorsal, a = n * GOLDEN;
+      x = 8 + t * 8 + Math.cos(a) * 4 * (1 - t); y = 11 + t * 15; z = Math.sin(a) * 1.5 * (1 - t); pale = .42 + .5 * t;
+    } else if (rank < starts[5]) {
+      const a = (rank - starts[4]) / eye * TAU;
+      put(result, id, -43 + Math.cos(a) * .8, 3.7 + Math.sin(a) * .42, 12.9, WHITE, CYAN, .22, 5); continue;
+    } else if (rank < starts[6]) {
+      const t = (rank - starts[5] + .5) / brow;
+      x = -53 + t * 24; y = 7 + Math.sin(t * Math.PI) * 4; z = 5 + Math.sin(t * Math.PI / 2) * 5; pale = .16;
+    } else if (rank < starts[7]) {
+      const t = (rank - starts[6] + .5) / mouth;
+      x = -54 + t * 19; y = -3.6 - t * .8; z = 3.5 + Math.sin(t * Math.PI / 2) * 9; pale = .62;
+    } else {
+      const n = rank - starts[7], rows = count >= 1024 ? 5 : 3, row = n % rows, t = (Math.floor(n / rows) + .5) / Math.ceil((count - starts[7]) / rows);
+      x = -43 + t * 45; y = -10 - Math.sin(t * Math.PI) * 5.5 + row * 1.1; z = 6 + row * 1.8; pale = .78;
+    }
+    const oldY = y; y = y * .921 - z * .389; z = oldY * .389 + z * .921;
+    put(result, id, x, y, z, BLUE, CYAN, pale, part, weight);
+  }
+  return result;
+}
+function buildWhaleFamily() {
+  if (whaleFamily) return whaleFamily;
+  const originals = WHALE_STORY_MEMBERS.map(member => buildWhaleMember(member.count)), result = cloud(), members = new Uint8Array(COUNT);
+  for (let id = 0; id < COUNT; id++) {
+    const rank = (id * 1597) % COUNT; let member = 0, start = 0;
+    while (rank >= start + WHALE_STORY_MEMBERS[member].count) { start += WHALE_STORY_MEMBERS[member].count; member++; }
+    const definition = WHALE_STORY_MEMBERS[member], local = rank - start;
+    const original = originals[member], source = local, k = id * 3, s = source * 3;
+    const bellyY = original.points[s + 1] * .921 + original.points[s + 2] * .389;
+    const warmth = definition.warmth * smooth((2 - bellyY) / 15);
+    for (let axis = 0; axis < 3; axis++) {
+      result.points[k + axis] = original.points[s + axis];
+      result.colors[k + axis] = mix(original.colors[s + axis], WHITE[axis], warmth) * definition.power;
+    }
+    result.parts[id] = original.parts[source]; result.weights[id] = original.weights[source]; members[id] = member;
+  }
+  whaleFamily = { ...result, members }; return whaleFamily;
+}
+/** Pure absolute-time identity metadata, also used by cinematic diagnostics. */
+export function sampleWhaleStoryMembers(timeMs = 0, reducedMotion = false) {
+  const seconds = reducedMotion ? 78 : Math.max(8, Math.min(108, Number.isFinite(timeMs) ? timeMs / 1000 : 8));
+  return WHALE_STORY_MEMBERS.map((member, index) => {
+    const path = WHALE_PATHS[index]; let a = path[0], b = path[0];
+    for (let i = 1; i < path.length; i++) { a = path[i - 1]; b = path[i]; if (seconds <= b[0]) break; }
+    const p = smooth((seconds - a[0]) / (b[0] - a[0]));
+    const values = a.slice(1).map((value, axis) => mix(value, b[axis + 1], p));
+    return { id: member.id, role: member.role, count: member.count, position: values.slice(0, 3), scale: values[3], pitch: values[4], yaw: values[5],
+      formed: smooth((seconds - member.appear[0]) / (member.appear[1] - member.appear[0])), phase: index * 1.37, seconds };
+  });
+}
+function writeWhaleStory(id, actors, output) {
+  const family = buildWhaleFamily(), k = id * 3, member = family.members[id], actor = actors[member], wave = geometry('waves');
+  let x = family.points[k], y = family.points[k + 1], z = family.points[k + 2];
+  const part = family.parts[id], weight = family.weights[id], seconds = actor.seconds;
+  if (part === 3) { y += Math.sin(seconds * .77 + actor.phase + weight * 2.4) * weight * weight * 4.2; z += Math.cos(seconds * .58 + actor.phase + weight) * weight * 2.1; }
+  else if (part === 4) y += Math.sin(seconds * .77 + actor.phase) * weight * 2.8;
+  const c = Math.cos(actor.pitch), s = Math.sin(actor.pitch), oldX = x;
+  x = (x * c - y * s) * actor.scale; y = (oldX * s + y * c) * actor.scale; z *= actor.scale;
+  const yawC = Math.cos(actor.yaw), yawS = Math.sin(actor.yaw), rotatedX = x;
+  x = x * yawC - z * yawS; z = rotatedX * yawS + z * yawC;
+  const waterY = wave.points[k + 1] * .64 + 48 + Math.sin(wave.points[k] * .065 + seconds * .55 + wave.weights[id]) * 2.5;
+  output[0] = mix(wave.points[k] * .9, x + actor.position[0], actor.formed);
+  output[1] = mix(waterY, y + actor.position[1], actor.formed);
+  output[2] = mix(wave.points[k + 2] - 24, z + actor.position[2], actor.formed);
+  const waterLight = mix(1, .045, smooth((seconds - 20) / 10));
+  for (let axis = 0; axis < 3; axis++) output[axis + 3] = mix(wave.colors[k + axis] * waterLight, family.colors[k + axis], actor.formed);
+}
 const pose = (time, kind, x = 0, y = 80, z = -10, scale = 1, rotation = 0, fold = 0, golden = 0, ease = 'smooth') => Object.freeze({ time, kind, x, y, z, scale, rotation, fold, golden, ease });
 const RAILS = Object.freeze({
   'phoenix-rebirth': Object.freeze([
@@ -199,9 +324,7 @@ const RAILS = Object.freeze({
     pose(74000, 'phoenix', 0, 80, -10, 1, 0, 0, .74), pose(94000, 'phoenix', 0, 80, -10, 1, 0, 0, .74),
   ]),
   'tidal-whale': Object.freeze([
-    pose(8000, 'waves'), pose(22000, 'waves'), pose(38000, 'whale'), pose(50000, 'whale'),
-    pose(59000, 'whale', 0, 92, -10, 1, -.72), pose(62000, 'whale', 0, 92, -10, 1, -.72),
-    pose(70000, 'rain', 0, 93), pose(76000, 'rain', 0, 52), pose(84000, 'school'), pose(98000, 'school'),
+    pose(8000, 'waves'), pose(30000, 'whale'), pose(108000, 'whale'),
   ]),
   'gravity-gate': Object.freeze([
     pose(8000, 'gate'), pose(24000, 'gate'), pose(40000, 'gate'), pose(50000, 'gate', 0, 108, -10, .48),
@@ -228,7 +351,7 @@ function writePose(frame, id, seconds, reduced, output) {
   for (let axis = 0; axis < 3; axis++) output[axis + 3] = mix(source.colors[k + axis], GOLD[axis] * (.9 + hash(id, 5) * .1), frame.golden);
 }
 function makeProgram(definition) {
-  const returnStart = definition.duration - 14000;
+  const returnStart = definition.duration - (definition.returnDuration || 14000);
   const chapters = [
     { id: 'lighting', label: '星灯点火', description: '起降阵列依次亮起，所有机位等待出发。', start: 0, end: 1000 },
     { id: 'ascent', label: '机群升空', description: '完整机群离开起降坪，向演出空域展开。', start: 1000, end: 8000 },
@@ -239,8 +362,9 @@ function makeProgram(definition) {
   return Object.freeze({ id: 'ai', sampleId: definition.id, sampleVisual: 'spectacle-v2', title: definition.title,
     shortTitle: definition.title, subtitle: definition.subtitle, description: definition.description, duration: definition.duration, returnStart,
     chapters: Object.freeze(chapters.map(Object.freeze)), heroTime: definition.heroTime, highlightTime: definition.highlightTime, recoveryTime: returnStart,
-    heroLabel: definition.heroLabel, highlightLabel: definition.highlightLabel, recoveryLabel: '完整归航', cinematic: true, supportsFpv: false, supportsAudio: false,
-    note: '本会话直接编排的原创立体短秀，无模型调用；纯视觉、无配乐。烟花为虚拟特效，不是实体无人机飞行指令。减少动态时保持静态主形并关闭焰火。' });
+    heroLabel: definition.heroLabel, highlightLabel: definition.highlightLabel, recoveryLabel: '完整归航', cinematic: true, supportsFpv: false, supportsAudio: definition.supportsAudio === true,
+    ...(definition.supportsAudio ? { soundtrackUrl: definition.soundtrackUrl, soundtrackTitle: definition.soundtrackTitle, soundtrackDurationMs: definition.soundtrackDurationMs } : {}),
+    note: `本会话直接编排的原创立体短秀，无模型调用；${definition.supportsAudio ? '原创配乐随故事播放' : '纯视觉、无配乐'}。烟花为虚拟特效，不是实体无人机飞行指令。减少动态时保持静态主形并关闭焰火。` });
 }
 /** Bundled definitions only; network-generated JSON never enters this factory. */
 export function createDroneShortRuntime(definition) {
@@ -263,6 +387,7 @@ export function createDroneShortRuntime(definition) {
   };
   const update = (fleet, timeMs, { reducedMotion = false } = {}) => {
     const state = sample(timeMs), time = state.elapsed, seconds = time / 1000;
+    const whaleActors = definition.id === 'tidal-whale' ? sampleWhaleStoryMembers(time, reducedMotion) : null;
     let from = rail[0], to = rail[0], blend = 0;
     for (let index = 1; index < rail.length; index++) { from = rail[index - 1]; to = rail[index]; if (time <= to.time) break; }
     const raw = clamp((time - from.time) / Math.max(1, to.time - from.time));
@@ -274,14 +399,19 @@ export function createDroneShortRuntime(definition) {
       const id = fleet.identities[index], k = index * 3;
       let groundMix = 0;
       if (launch) {
-        writePose(reducedMotion ? staticHero : rail[0], id, 8, reducedMotion, scratchA);
+        if (whaleActors) writeWhaleStory(id, whaleActors, scratchA);
+        else writePose(reducedMotion ? staticHero : rail[0], id, 8, reducedMotion, scratchA);
         const stagger = hash(id, 12) * 800; groundMix = 1 - smooth((time - 1000 - stagger) / (7000 - stagger));
       } else if (returning) {
-        writePose(reducedMotion ? staticHero : rail.at(-1), id, program.returnStart / 1000, reducedMotion, scratchA);
-        const stagger = hash(id, 13) * 900; groundMix = smooth((time - program.returnStart - stagger) / (12000 - stagger));
+        if (whaleActors) writeWhaleStory(id, whaleActors, scratchA);
+        else writePose(reducedMotion ? staticHero : rail.at(-1), id, program.returnStart / 1000, reducedMotion, scratchA);
+        const stagger = hash(id, 13) * 900; groundMix = smooth((time - program.returnStart - stagger) / (program.duration - program.returnStart - 2000 - stagger));
       } else {
-        writePose(from, id, seconds, reducedMotion, scratchA); writePose(to, id, seconds, reducedMotion, scratchB);
-        for (let axis = 0; axis < 6; axis++) scratchA[axis] = mix(scratchA[axis], scratchB[axis], blend);
+        if (whaleActors) writeWhaleStory(id, whaleActors, scratchA);
+        else {
+          writePose(from, id, seconds, reducedMotion, scratchA); writePose(to, id, seconds, reducedMotion, scratchB);
+          for (let axis = 0; axis < 6; axis++) scratchA[axis] = mix(scratchA[axis], scratchB[axis], blend);
+        }
       }
       fleet.positions[k] = groundMix === 1 ? fleet.bases[k] : mix(scratchA[0], fleet.bases[k], groundMix);
       fleet.positions[k + 1] = groundMix === 1 ? fleet.bases[k + 1] : Math.max(fleet.bases[k + 1], mix(scratchA[1], fleet.bases[k + 1], groundMix));

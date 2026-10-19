@@ -88,9 +88,10 @@ test('all visible sparks remain in the camera-approved background envelope rathe
       for (let age = .1; age < life; age += .2) {
         sampleFireworkParticle(data, index, (start + age) * 1000, point);
         if (point[3] < .07) continue;
-        assert.ok(Math.abs(point[0]) <= 92, `${id} horizontal framing`);
-        assert.ok(point[1] >= 35 && point[1] <= 150, `${id} sky-only spark framing`);
-        assert.ok(point[2] >= -65 && point[2] <= 1, `${id} background depth framing`);
+        const whale = id === 'tidal-whale';
+        assert.ok(Math.abs(point[0]) <= (whale ? 150 : 92), `${id} horizontal framing`);
+        assert.ok(point[1] >= 35 && point[1] <= (whale ? 192 : 150), `${id} sky-only spark framing`);
+        assert.ok(point[2] >= (whale ? -150 : -65) && point[2] <= (whale ? -65 : 1), `${id} background depth framing`);
       }
     }
   }

@@ -62,13 +62,23 @@ export default function DroneVideoExport({ controller, program, onBusyChange }) 
       engine.current = recorder;
       // Hold the first frame while the encoder initializes, then play at 1x.
       const source = current.current;
+      let processVideo;
+      if (source.program.soundtrackUrl) {
+        const { addDroneSoundtrackOrSilent } = await import('../../lib/droneSoundtrackMux.js');
+        if (!active()) return;
+        processVideo = (blob, options) => addDroneSoundtrackOrSilent(blob, { ...options, url: source.program.soundtrackUrl });
+      }
       source.controller.start({ program: 'ai', aiRuntime: source.controller.state.aiRuntime, elapsedMs: 0, speed: 1, view: 'cinematic' });
       source.controller.togglePause();
-      await recorder.start({ canvas, width: 1280, height: 720, format,
+      await recorder.start({ canvas, width: 1280, height: 720, format, processVideo,
         onProgress: value => { if (active() && engine.current === recorder) setProgress(value); },
         onState: value => {
           if (!active() || engine.current !== recorder) return;
           setPhase(value.phase);
+          if (value.phase === 'processing') {
+            const control = current.current.controller;
+            if (!control.state.paused && !control.state.ended) control.togglePause();
+          }
           if (value.phase === 'ready') {
             setResult(value.result);
             const control = current.current.controller;
@@ -97,9 +107,10 @@ export default function DroneVideoExport({ controller, program, onBusyChange }) 
   return <div className="drone-video-export">
     <button type="button" className="drone-action drone-export-toggle" aria-expanded={open} aria-controls="drone-video-panel" onClick={() => setOpen(value => !value)}>{busy ? '查看录制进度' : '导出 MP4'}</button>
     {open && <section id="drone-video-panel" className="drone-video-panel" aria-label="影片导出">
-      <div className="drone-video-heading"><h2>将这片天空带走</h2><span className="drone-video-meta">720p · 目标 30 fps · 纯画面无声</span></div>
+      <div className="drone-video-heading"><h2>将这片天空带走</h2><span className="drone-video-meta">720p · 目标 30 fps · {program.soundtrackUrl ? '包含原创配乐' : '纯画面无声'}</span></div>
       {!busy && !result && <>
         <p>从头录下当前演出与运镜，约需 {stamp(program.duration)}。请保持页面前台。只录小镇画布，不含操作面板、桌面或麦克风，文件不上传。</p>
+        {program.soundtrackUrl && <p>配乐会在录制结束后本机封装进影片；观演静音不影响影片配乐。若浏览器不支持音频编码，会明确提示并提供无声视频。</p>}
         <div className="drone-video-actions"><label>文件格式 <select aria-label="导出文件格式" value={format} onChange={event => setFormat(event.target.value)}><option value="mp4">MP4</option><option value="webm">WebM（备选）</option></select></label><button className="drone-action drone-action-primary" type="button" onClick={() => void start()} disabled={!capability?.[format]?.supported}>{capability ? `从头录制 ${format.toUpperCase()}` : '正在检查编码能力…'}</button></div>
         {capability && !capability[format]?.supported && <p role="status">{format === 'mp4' ? '当前浏览器没有可用的 MP4 编码器。请用支持 H.264 的新版 Chrome / Edge，或手动选择 WebM；不会伪装文件格式。' : '当前浏览器不支持 WebM 录制，请改选 MP4 或使用其他浏览器。'}</p>}
       </>}
@@ -107,6 +118,7 @@ export default function DroneVideoExport({ controller, program, onBusyChange }) 
       {busy && <span className="drone-video-meta">已采样 {progress.frames || 0} 帧 · 实际帧率取决于设备和前台渲染，文件大小在封装后确认。</span>}
       {phase === 'recording' && progress.durationMs > 10000 && (progress.frames || 0) / (progress.durationMs / 1000) < 12 && <p className="drone-video-error" role="status">当前实际采样约 {((progress.frames || 0) / (progress.durationMs / 1000)).toFixed(1)} 帧/秒，视频可能不流畅。请把小镇浏览器窗口置于前台，关闭其他 3D 页面；也可停止后重录。</p>}
       {result && <div className="drone-video-result"><p role="status">{result.reason === 'complete' ? '全片已完成。' : stoppedReason(result.reason)} {encodedDuration == null ? '录制用时 ' + stamp(result.durationMs) : '视频时长 ' + stamp(encodedDuration)} · {(result.bytes / 1048576).toFixed(1)} MiB · {result.extension.toUpperCase()}。点击下载后保存到你的设备。</p><video controls playsInline preload="metadata" src={result.url} onLoadedMetadata={event => { const seconds = event.currentTarget.duration; if (Number.isFinite(seconds)) setEncodedDuration(seconds * 1000); }} aria-label="已导出的无人机影片预览"/><div className="drone-video-actions"><a className="drone-action drone-action-primary" href={result.url} download={`${filename(program.title)}.${result.extension}`}>下载 {result.extension.toUpperCase()}</a><button className="drone-action" type="button" onClick={() => { engine.current?.dispose(); engine.current = null; setResult(null); setPhase('idle'); }}>重新录制</button></div></div>}
+      {result && program.soundtrackUrl && <p role="status" className={result.videoOnly ? 'drone-video-error' : ''}>{result.videoOnly ? `无声视频：${result.audioWarning || '配乐未能封装。'}` : `已包含原创配乐 · ${result.audioCodec?.toUpperCase()} 音轨`}</p>}
       {error && <p className="drone-video-error" role="alert">{error}</p>}
     </section>}
   </div>;

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { DRONE_SAMPLE_PROGRAMS, createDroneSampleRuntime } from '../shared/droneSamplePrograms.js';
 import { createDroneShortCamera } from '../shared/droneSampleCamera.js';
 import { createDroneFleet } from '../shared/droneShow.js';
+import { createDroneFireworkBuffers, sampleFireworkParticle } from '../shared/droneFireworks.js';
 
 const distance = (a, b) => Math.hypot(...a.map((v, i) => v - b[i]));
 const normalized = a => { const n = Math.hypot(...a); return a.map(v => v / n); };
@@ -67,4 +68,40 @@ test('gravity stunt uses one locked shot and unknown programme identifiers are r
   for(const t of [50000,55000,60000]) assert.deepEqual(gate.camera(t),gate.camera(50000));
   assert.throws(()=>createDroneShortCamera(null),TypeError);
   assert.throws(()=>createDroneShortCamera({sampleId:'network-script',duration:100000}),TypeError);
+});
+
+test('the whale-family camera keeps every story beat and the outer fireworks in frame on desktop and 390px portrait', () => {
+  const runtime = createDroneSampleRuntime('tidal-whale'), fleet = createDroneFleet(2048), fireworks = createDroneFireworkBuffers('tidal-whale', 2048);
+  for (const aspect of [16/9, 2560/1215, 390/844]) {
+    for (let time = 8000; time <= 108000; time += 1000) {
+      runtime.update(fleet, time); const pose = runtime.camera(time, aspect);
+      let inside = 0;
+      for (let index = 0; index < fleet.count; index++) {
+        const point = Array.from(fleet.positions.subarray(index * 3, index * 3 + 3)), [x, y, depth] = projection(point, pose, aspect);
+        if (Math.abs(x) < .98 && Math.abs(y) < .98 && depth > 80 && depth < pose.far) inside++;
+      }
+      assert.ok(inside / fleet.count > .995, `whale family crop/flythrough at ${time}/${aspect}: ${inside / fleet.count}`);
+      for (let index = 0; index < fireworks.count; index += 9) {
+        const point = sampleFireworkParticle(fireworks, index, time);
+        if (point[3] < .07) continue;
+        const [x, y, depth] = projection(Array.from(point.slice(0, 3)), pose, aspect);
+        assert.ok(Math.abs(x) < .98 && Math.abs(y) < .98 && depth > 80, `firework framing ${time}/${aspect}`);
+      }
+    }
+  }
+});
+
+test('parent/calf and family hero shots reserve the lower 270px for the real 720px playback HUD', () => {
+  const runtime = createDroneSampleRuntime('tidal-whale'), fleet = createDroneFleet(4096), aspect = 16 / 9;
+  for (const time of [46000, 78000, 90000]) {
+    runtime.update(fleet, time); const pose = runtime.camera(time, aspect);
+    for (let index = 0; index < fleet.count; index++) {
+      // During the parent/calf scene, the remaining identities are deliberately
+      // dim water, not a character. The two formed whales must clear the HUD.
+      if (time === 46000 && (fleet.identities[index] * 1597) % 4096 >= 2688) continue;
+      const [, y] = projection(Array.from(fleet.positions.subarray(index * 3, index * 3 + 3)), pose, aspect);
+      const pixelY = (1 - y) * 360;
+      assert.ok(pixelY < 450, `whale behind real playback HUD at ${time}: y=${pixelY}`);
+    }
+  }
 });

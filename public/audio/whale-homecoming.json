@@ -1,0 +1,57 @@
+{
+  "title": "鲸群归航",
+  "durationSeconds": 118,
+  "channels": 2,
+  "sampleRate": 44100,
+  "source": "Original session-authored composition and additive instruments; no third-party samples or melodies.",
+  "license": "MIT (project-original composition, synthesis source and rendered audio)",
+  "sourceScript": "scripts/render-whale-score.py",
+  "sampleFile": "whale-homecoming.mp3",
+  "sha256": "1d8c388e198ed504399a2ea6ad55b662106fd3c623c0d77e92eb71c7518388d8",
+  "bytes": 2833871,
+  "providerCalls": 0,
+  "motif": "B-D-F#-A-F#; calf answers in the upper register; finale resolves to D major.",
+  "cues": [
+    {
+      "seconds": 0,
+      "name": "起飞与深海"
+    },
+    {
+      "seconds": 8,
+      "name": "孤鲸序曲"
+    },
+    {
+      "seconds": 20,
+      "name": "母鲸呼唤"
+    },
+    {
+      "seconds": 36,
+      "name": "幼鲸回应"
+    },
+    {
+      "seconds": 52,
+      "name": "鲸群远来"
+    },
+    {
+      "seconds": 70,
+      "name": "环游团聚"
+    },
+    {
+      "seconds": 84,
+      "name": "共同跃空"
+    },
+    {
+      "seconds": 100,
+      "name": "护送归航"
+    },
+    {
+      "seconds": 108,
+      "name": "尾声与回收"
+    },
+    {
+      "seconds": 118,
+      "name": "结束"
+    }
+  ],
+  "noteEvents": 329
+}

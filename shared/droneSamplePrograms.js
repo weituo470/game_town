@@ -17,16 +17,18 @@ const DEFINITIONS = [
       ['rebirth', '逆火重生', 64000, 74000, '金焰向上反卷，凤凰重新展开双翼与五束尾羽。'],
       ['coronation', '焰羽加冕', 74000, 94000, '凤凰悬停振翅，三重焰火从两翼外侧向上绽放。'],
     ] },
-  { id: 'tidal-whale', title: '鲸落 · 潮生', subtitle: '立体海潮 · 巨鲸跃空 · 星雨鲸群', duration: 112000,
-    description: '三层潮汐托起一头有胸鳍、背鳍、尾鳍与腹部纹理的巨鲸。它抬头跃空、化为星雨，再与两头小鲸一起游向海天深处。',
-    palette: '#64DFFF', heroTime: 45000, highlightTime: 57000, heroLabel: '巨鲸巡游', highlightLabel: '跃空高光',
+  { id: 'tidal-whale', title: '鲸落 · 潮生', subtitle: '归航 · 一个鲸群的故事', duration: 118000, returnDuration: 10000,
+    description: '母鲸在潮汐中呼唤，暖白腹部的幼鲸循声而来。三位同伴从远处加入，五头鲸环游相认、一起跃出海天，最后由母鲸护着幼鲸归航。',
+    palette: '#64DFFF', heroTime: 46000, highlightTime: 90000, heroLabel: '亲子相认', highlightLabel: '鲸群跃空',
+    supportsAudio: true, soundtrackUrl: '/audio/whale-homecoming.mp3', soundtrackTitle: '鲸群归航', soundtrackDurationMs: 118000,
     scenes: [
-      ['tide', '海在呼吸', 8000, 22000, '三层弧形海潮起伏，蓝色水光打开演出的纵深。'],
-      ['surfacing', '深蓝来客', 22000, 38000, '潮水汇成立体巨鲸，圆钝的头、胸鳍与分叉尾鳍逐渐清晰。'],
-      ['whalesong', '鲸歌掠过', 38000, 50000, '巨鲸摆尾巡游，腹部亮纹与鳍尖形成层次。'],
-      ['breach', '跃出海天', 50000, 62000, '鲸首抬起，身体越过海平线；冷白水花向两侧扬起。'],
-      ['starrain', '鲸落成星', 62000, 76000, '巨鲸解体为满天星雨，光点沿着下落轨迹回到潮汐。'],
-      ['pod', '潮生鲸群', 76000, 98000, '三头鲸在不同深度错落游动，水色尾波与暖白焰火送行。'],
+      ['tide', '潮汐孤寂', 8000, 20000, '空旷的潮汐里只有蓝色水光，远方还没有回应。'],
+      ['mother-call', '母鲸呼唤', 20000, 36000, '母鲸从潮水中现身，抬头呼唤；胸鳍、尾鳍与腹部纹理保留熟悉的巨鲸轮廓。'],
+      ['calf-answer', '幼鲸回应', 36000, 52000, '暖白腹部的小鲸循声而来，在母鲸身侧抬头相认；母鲸放慢游速，俯身陪伴。'],
+      ['family-arrives', '鲸群远来', 52000, 70000, '一头成年鲸和两头远景同伴依次加入；每头鲸保留自己的大小、位置和摆尾节奏。'],
+      ['reunion', '环游团聚', 70000, 84000, '五头鲸在不同纵深错落环游，母鲸始终陪在幼鲸身边，没有突然解体或换形。'],
+      ['family-breach', '一起跃空', 84000, 100000, '母鲸带着幼鲸抬头跃空，三位同伴依次跟随；两侧冷白水花与金色星雨为团聚喝彩。'],
+      ['homecoming', '护幼归航', 100000, 108000, '母鲸护着幼鲸缓缓回游，同伴们游向海天深处；整个鲸群一起归航。'],
     ] },
   { id: 'gravity-gate', title: '天门 · 逆重力', subtitle: '三轴星门 · 全机失重 · 反重力重启', duration: 100000,
     description: '三轴星门围绕一颗能量核心运行。收束、熄暗、全机群自由下坠，在贴近海面的一刻反升；破空焰火见证星门重启。',
@@ -45,8 +47,8 @@ for (const definition of DEFINITIONS) {
 }
 Object.freeze(DEFINITIONS);
 export const DRONE_SAMPLE_PROGRAMS = Object.freeze(DEFINITIONS.map(({ scenes, ...definition }) => Object.freeze({
-  ...definition, sceneCount: scenes.length, authoredBy: '本会话 AI 直接编排', cinematic: true, supportsAudio: false,
-  note: '两分钟内原创短秀 · 立体编舞与烟花 · 无需生成额度 · 可运镜回放与导出',
+  ...definition, sceneCount: scenes.length, authoredBy: '本会话 AI 直接编排', cinematic: true, supportsAudio: definition.supportsAudio === true,
+  note: `两分钟内原创短秀 · ${definition.supportsAudio ? '鲸群故事与原创配乐' : '立体编舞与烟花'} · 无需生成额度 · 可运镜回放与导出`,
 })));
 const runtimes = new Map();
 export function createDroneSampleRuntime(id) {
