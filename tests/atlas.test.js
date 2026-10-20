@@ -10,6 +10,7 @@ import * as wonders from '../shared/wonders.js';
 import * as park from '../shared/deepseek-park.js';
 import * as gpt from '../shared/gpt-park.js';
 import * as sphere from '../shared/sphere-landmark.js';
+import * as offshore from '../shared/offshore-island.js';
 import * as world from '../shared/world.js';
 import * as catalog from '../src/lib/catalog.js';
 import { auditSources } from '../scripts/check-readability.mjs';
@@ -28,6 +29,7 @@ vm.runInNewContext(transformed.code, {
     if (id === '../../shared/deepseek-park.js') return park;
     if (id === '../../shared/gpt-park.js') return gpt;
     if (id === '../../shared/sphere-landmark.js') return sphere;
+    if (id === '../../shared/offshore-island.js') return offshore;
     if (id === '../../shared/world.js') return world;
     if (id === '../lib/catalog.js') return catalog;
     if (id === './atlas.css') return {};
@@ -61,7 +63,7 @@ test('atlas: renders shared streets, reserved plots and all existing buildings',
 test('atlas: every navigation button calls exactly one server-approved destination', () => {
   const calls = [];
   const buttons = elements(TownAtlas({ onTravel: id => calls.push(id) })).filter(node => node.type === 'button');
-  const destinations = [sphere.SPHERE_LANDMARK.id, park.DEEPSEEK_PARK.id, gpt.GPT_PARK.id, ...wonders.WONDERS.map(w => w.id), 'center', ...world.DISTRICTS.map(item => item.id), ...catalog.GAMES.map(item => item.id)];
+  const destinations = [offshore.OFFSHORE_ISLAND.id, sphere.SPHERE_LANDMARK.id, park.DEEPSEEK_PARK.id, gpt.GPT_PARK.id, ...wonders.WONDERS.map(w => w.id), 'center', ...world.DISTRICTS.map(item => item.id), ...catalog.GAMES.map(item => item.id)];
   assert.equal(buttons.length, destinations.length);
   for (const button of buttons) {
     assert.equal(button.props.type, 'button');
@@ -81,7 +83,7 @@ test('atlas: labels stay outside scalable SVG and all map markers stay within th
   assert.ok(drawing.props['aria-label']);
   assert.equal(elements(drawing).filter(node => node.type === 'text').length, 0);
   const markers = nodes.filter(node => node.props.className === 'atlas-number' || node.props.className === 'atlas-direction');
-  assert.equal(markers.length, world.DISTRICTS.length + catalog.GAMES.length + 3);
+  assert.equal(markers.length, world.DISTRICTS.length + catalog.GAMES.length + 4);
   for (const marker of markers) {
     for (const axis of ['left', 'top']) {
       const coordinate = Number.parseFloat(marker.props.style[axis]);
@@ -116,6 +118,28 @@ test('atlas: sphere observation is separate from arrival and its marker uses sha
   assert.equal(marker.props.style.left, `${(landmark.x - map.centerX + map.width / 2) / map.width * 100}%`);
   assert.equal(marker.props.style.top, `${(landmark.z - map.centerZ + map.depth / 2) / map.depth * 100}%`);
   assert.match(nodes.find(node => node.props.className === 'atlas-svg').props['aria-label'], /球幕剧场/);
+});
+
+test('atlas: offshore dock, bridge and ship share world coordinates and separate arrival from observation', () => {
+  const calls = []; let tours = 0;
+  const nodes = elements(TownAtlas({ onTravel: id => calls.push(id), onOffshoreTour: () => { tours++; } }));
+  for (const [id, shared] of [['dock', offshore.OFFSHORE_DOCK], ['bridge', offshore.OFFSHORE_BRIDGE]]) {
+    const node = nodes.find(n => n.props['data-offshore-ground'] === id);
+    assert.equal(node.props.x, shared.x - shared.width / 2);
+    assert.equal(node.props.y, shared.z - shared.depth / 2);
+    assert.equal(node.props.width, shared.width); assert.equal(node.props.height, shared.depth);
+  }
+  const ship = nodes.find(n => Object.hasOwn(n.props, 'data-offshore-vessel'));
+  assert.equal(ship.props.width, offshore.OFFSHORE_ISLAND.width);
+  assert.equal(ship.props.height, offshore.OFFSHORE_ISLAND.length);
+  const section = nodes.find(n => n.props['aria-label'] === '远海浮动岛导航');
+  const buttons = elements(section).filter(n => n.type === 'button');
+  assert.equal(buttons.length, 2);
+  buttons[1].props.onClick(); assert.equal(tours, 1); assert.deepEqual(calls, []);
+  buttons[0].props.onClick(); assert.deepEqual(calls, ['offshore']);
+  const html = renderToStaticMarkup(section);
+  assert.match(html, /普通字体/); assert.match(html, /非官方科普场景/);
+  assert.match(html, /上海交通大学/);
 });
 
 test('atlas: GPT island and bridge share geometry and offer optional immersive entry', () => {

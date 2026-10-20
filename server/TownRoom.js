@@ -4,20 +4,26 @@ import { cleanName } from './identity.js';
 import { createReconnectDiagnostics } from './reconnectDiagnostics.js';
 import { SPAWN, movePlayer, getDestination } from '../shared/world.js';
 import { startAvatarJump, stepAvatar, stoppedVertical, safeLanding } from '../shared/jetpack.js';
+import { OFFSHORE_ACTIONS, OFFSHORE_ARRIVAL, OFFSHORE_SEATS, offshorePlan, sampleOffshoreVoyage, sampleOffshorePassenger, canBoardOffshore } from '../shared/offshore-island.js';
 import { PROTOCOL_VERSION, MAX_PLAYERS, SERVER_TICK_MS, STATE_PATCH_MS, RECONNECT_SECONDS, INPUT_TIMEOUT_MS, MESSAGE, PLAYER_COLORS } from '../shared/protocol.js';
 
 export const PlayerState = schema({
   id: t.string(), guestId: t.string(), name: t.string(),
   x: t.number(), y: t.number(), z: t.number(), vy: t.number(), yaw: t.number(), moving: t.boolean(), jetpack: t.boolean(), thrusting: t.boolean(), hovering: t.boolean(),
-  color: t.string(), connected: t.boolean(), seq: t.number(),
+  color: t.string(), connected: t.boolean(), seq: t.number(), aboard: t.boolean(), offshoreSeat: t.number(), offshoreSeq: t.number(),
 }, 'PlayerState');
 
 export const TownState = schema({
   code: t.string(), protocolVersion: t.number(), tick: t.number(), serverTime: t.number(),
+  offshoreStartAt: t.number(), offshoreReturnAt: t.number(),
   players: t.map(PlayerState),
 }, 'TownState');
 
 const isRecord = value => value !== null && typeof value === 'object' && !Array.isArray(value);
+export function validOffshore(value, previousSeq = -1) {
+  return isRecord(value) && Object.keys(value).every(key => ['action', 'seq'].includes(key))
+    && OFFSHORE_ACTIONS.includes(value.action) && Number.isSafeInteger(value.seq) && value.seq >= 0 && value.seq > previousSeq;
+}
 export function validInput(value, previousSeq = -1) {
   return isRecord(value) && Object.keys(value).every(key => ['x', 'z', 'seq', 'jump', 'stop', 'thrust', 'hover'].includes(key))
     && Number.isFinite(value.x) && Number.isFinite(value.z)
@@ -64,10 +70,13 @@ export function makeTownRoom({ identity, roomCodes, reconnectSeconds = RECONNECT
       this.state.protocolVersion = PROTOCOL_VERSION;
       this.state.tick = 0;
       this.state.serverTime = now();
+      this.state.offshoreStartAt = 0;
+      this.state.offshoreReturnAt = 0;
       this.seatReservationTimeout = 10;
       roomCodes.set(options.code, this.roomId);
       this.onMessage(MESSAGE.INPUT, (client, input) => this.receiveInput(client, input));
       this.onMessage(MESSAGE.TRAVEL, (client, payload) => this.receiveTravel(client, payload));
+      this.onMessage(MESSAGE.OFFSHORE, (client, payload) => this.receiveOffshore(client, payload));
       this.onMessage('*', client => this.rejectMessage(client, 'UNKNOWN_MESSAGE', '不支持的操作。'));
       this.setSimulationInterval(delta => this.step(Math.min(delta, 100)), SERVER_TICK_MS);
     }
@@ -81,9 +90,9 @@ export function makeTownRoom({ identity, roomCodes, reconnectSeconds = RECONNECT
       const offset = this.state.players.size * 0.75 - 2.625;
       this.state.players.set(client.sessionId, new PlayerState({
         id: client.sessionId, guestId: auth.guestId, name: auth.name,
-        ...SPAWN, x: offset, y: 0, vy: 0, moving: false, jetpack: false, thrusting: false, hovering: false, color, connected: true, seq: -1,
+        ...SPAWN, x: offset, y: 0, vy: 0, moving: false, jetpack: false, thrusting: false, hovering: false, color, connected: true, seq: -1, aboard: false, offshoreSeat: -1, offshoreSeq: -1,
       }));
-      this.controls.set(client.sessionId, { seq: -1, travelAt: -Infinity, noticesAt: -Infinity, invalid: 0 });
+      this.controls.set(client.sessionId, { seq: -1, travelAt: -Infinity, noticesAt: -Infinity, invalid: 0, offshoreSeq: -1, offshoreAt: -Infinity });
       this.trace('onJoin', client);
     }
 
@@ -107,6 +116,7 @@ export function makeTownRoom({ identity, roomCodes, reconnectSeconds = RECONNECT
       controls.seq = input.seq;
       const player = this.state.players.get(client.sessionId);
       player.seq = input.seq;
+      if (player.aboard) { this.inputs.delete(client.sessionId); return; }
       if (input.stop) Object.assign(player, stoppedVertical(player));
       else if (input.jump) {
         const jump = startAvatarJump(player);
@@ -128,8 +138,41 @@ export function makeTownRoom({ identity, roomCodes, reconnectSeconds = RECONNECT
       if (now() - controls.travelAt < 500) { this.rejectMessage(client, 'TRAVEL_COOLDOWN', '请稍后再前往。'); return; }
       controls.travelAt = now();
       const player = this.state.players.get(client.sessionId);
+      if (player.aboard) { this.rejectMessage(client, 'OFFSHORE_ABOARD', '请先靠港离船，再前往其他地点。'); return; }
       if (hasSequence) { controls.seq = payload.seq; player.seq = payload.seq; }
       Object.assign(player, destination, { y: 0, vy: 0, moving: false, jetpack: false, thrusting: false, hovering: false });
+      this.inputs.delete(client.sessionId);
+    }
+
+    receiveOffshore(client, payload) {
+      const controls = this.controls.get(client.sessionId), player = this.state.players.get(client.sessionId);
+      if (!controls || !player || !validOffshore(payload, controls.offshoreSeq)) {
+        this.rejectMessage(client, 'OFFSHORE_INVALID', '航行操作无效或已经处理，请重试。'); return;
+      }
+      controls.offshoreSeq = payload.seq; player.offshoreSeq = payload.seq;
+      const time = now(), plan = offshorePlan(this.state), ship = sampleOffshoreVoyage(plan, time);
+      if (!player.connected) return;
+      if (time - controls.offshoreAt < 300) { this.rejectMessage(client, 'OFFSHORE_COOLDOWN', '请稍候再操作船只。'); return; }
+      controls.offshoreAt = time;
+      if (payload.action === 'board') {
+        if (player.aboard) return;
+        if (!canBoardOffshore(player, plan, time)) { this.rejectMessage(client, 'OFFSHORE_BOARD', ship.docked ? '请先来到南岸码头的登船点。' : '船只正在海上，请等待靠港后登船。'); return; }
+        const occupied = new Set([...this.state.players.values()].filter(p => p.aboard).map(p => p.offshoreSeat));
+        const seat = Array.from({ length: OFFSHORE_SEATS }, (_, i) => i).find(i => !occupied.has(i));
+        if (seat === undefined) { this.rejectMessage(client, 'OFFSHORE_FULL', '本船 8 个观景位已满。'); return; }
+        Object.assign(player, sampleOffshorePassenger(plan, time, seat));
+      } else {
+        if (!player.aboard) { this.rejectMessage(client, 'OFFSHORE_NOT_ABOARD', '请先登船，再操作航行。'); return; }
+        if (payload.action === 'depart') {
+          if (!ship.docked) { this.rejectMessage(client, 'OFFSHORE_SAILING', '船只已在航行，请稍候。'); return; }
+          this.state.offshoreStartAt = Math.max(1, time); this.state.offshoreReturnAt = 0;
+        } else if (payload.action === 'return') {
+          if (!ship.docked && !plan.returnAt) this.state.offshoreReturnAt = time;
+        } else if (payload.action === 'disembark') {
+          if (!ship.docked) { this.rejectMessage(client, 'OFFSHORE_AT_SEA', '航行中不能离船，请先返航靠港。'); return; }
+          Object.assign(player, OFFSHORE_ARRIVAL, { y: 0, vy: 0, moving: false, jetpack: false, thrusting: false, hovering: false, aboard: false, offshoreSeat: -1 });
+        }
+      }
       this.inputs.delete(client.sessionId);
     }
 
@@ -138,6 +181,7 @@ export function makeTownRoom({ identity, roomCodes, reconnectSeconds = RECONNECT
       const time = now();
       this.state.serverTime = time;
       for (const [sessionId, player] of this.state.players) {
+        if (player.aboard) { Object.assign(player, sampleOffshorePassenger(offshorePlan(this.state), time, player.offshoreSeat)); continue; }
         const input = this.inputs.get(sessionId);
         const direction = player.connected && input && time - input.at <= INPUT_TIMEOUT_MS ? input : { x: 0, z: 0 };
         const { rescued, ...next } = stepAvatar(player, direction, deltaMs / 1000);
@@ -148,7 +192,8 @@ export function makeTownRoom({ identity, roomCodes, reconnectSeconds = RECONNECT
     onDrop(client, code) {
       this.trace('onDrop', client, { closeCode: code });
       const player = this.state.players.get(client.sessionId);
-      if (player) { Object.assign(player, safeLanding(player.x, player.z), { connected: false, moving: false, y: 0, vy: 0, jetpack: false, thrusting: false, hovering: false }); }
+      if (player?.aboard) { player.connected = false; }
+      else if (player) { Object.assign(player, safeLanding(player.x, player.z), { connected: false, moving: false, y: 0, vy: 0, jetpack: false, thrusting: false, hovering: false }); }
       this.inputs.delete(client.sessionId);
       // Oversized payloads and policy violations do not reserve a reusable seat.
       if (player && ![1008, 1009].includes(code)) {
@@ -164,7 +209,8 @@ export function makeTownRoom({ identity, roomCodes, reconnectSeconds = RECONNECT
     onReconnect(client) {
       this.trace('onReconnect', client);
       const player = this.state.players.get(client.sessionId);
-      if (player) { Object.assign(player, safeLanding(player.x, player.z), { connected: true, moving: false, y: 0, vy: 0, jetpack: false, thrusting: false, hovering: false }); }
+      if (player?.aboard) { Object.assign(player, sampleOffshorePassenger(offshorePlan(this.state), now(), player.offshoreSeat), { connected: true }); }
+      else if (player) { Object.assign(player, safeLanding(player.x, player.z), { connected: true, moving: false, y: 0, vy: 0, jetpack: false, thrusting: false, hovering: false }); }
       this.inputs.delete(client.sessionId);
     }
 

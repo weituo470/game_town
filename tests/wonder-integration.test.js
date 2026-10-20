@@ -120,8 +120,22 @@ test('integrated observation: portrait contains every deck and lagoon promenade 
 function appHarness(search = '') {
   const h = hooks(), sceneType = 'TownScene', scheduleType = 'WonderSchedule', hudType = 'WonderHud';
   const drone = { state: { active: false }, timeRef: { current: 0 }, start() { this.state.active = true; }, close() { this.state.active = false; } };
-  const overrides = { react: h.react,
+  const offshore = {
+    runtimeRef: { current: { now: 0, plan: { startAt: 0, returnAt: 0 }, aboard: false, seat: -1,
+      sample: { x: 16, y: 0, z: 85, yaw: 0, pitch: 0, roll: 0, phase: 'docked', label: '靠港待命', progress: 0, moving: false, docked: true, remainingMs: 0 } } },
+    state: { phase: 'docked', label: '靠港待命', aboard: false, seat: -1, error: '', pending: '', online: false },
+    board() { assert.fail('Wonder navigation must not board a ship'); }, depart() { assert.fail('Wonder navigation must not start a voyage'); },
+    returnToPort() { assert.fail('Wonder navigation must not return a ship'); }, disembark() { assert.fail('Wonder navigation must not disembark'); },
+  };
+  const overrides = { react: { ...h.react, lazy(loader) {
+    const source = String(loader);
+    // Only the existing catalogue/HUD moved to lazy loading. All independent
+    // scene loaders retain react.lazy identity so assertTownOnly stays strict.
+    if (/import\(["']\.\/components\/WonderSchedule\.jsx["']\)/.test(source)) return /\.WonderHud\b/.test(source) ? hudType : scheduleType;
+    return h.react.lazy(loader);
+  } },
     './lib/useMultiplayer.js': { __esModule: true, default: () => ({}) },
+    './lib/useOffshoreCruise.js': { __esModule: true, default: () => offshore },
     './lib/useWorldClock.js': { __esModule: true, default: () => ({ timeRef: { current: 145000 }, label: '白天' }) },
     './lib/profile.js': { loadProfile: () => ({ visits: [], dismissed: [] }), getCompletion: () => 0 },
     './lib/gameCharacterClient.js': { gameCharacterClient: {} },

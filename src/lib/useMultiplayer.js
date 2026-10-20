@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Client } from '@colyseus/sdk';
 import { PROTOCOL_VERSION, RECONNECT_SECONDS, MESSAGE } from '../../shared/protocol.js';
+import { OFFSHORE_ACTIONS } from '../../shared/offshore-island.js';
 
 const GUEST_KEY = 'game-town.guest.v1';
 const ROOM_KEY = 'game-town.room.v1';
-const EMPTY_SNAPSHOT = { players: [], selfId: '', tick: 0, serverTime: 0, receivedAtPerf: 0 };
+const EMPTY_SNAPSHOT = { players: [], selfId: '', tick: 0, serverTime: 0, receivedAtPerf: 0, offshoreStartAt: 0, offshoreReturnAt: 0 };
 const navigationSuspendedRooms = new WeakSet();
 
 export function multiplayerEndpoint(configured, origin) {
@@ -84,16 +85,20 @@ export function snapshotFromState(state, selfId) {
       jetpack: player.jetpack === true, thrusting: player.thrusting === true, hovering: player.hovering === true,
       moving: player.moving === true, color: player.color,
       connected: player.connected !== false, seq: Number.isFinite(player.seq) ? player.seq : 0,
+      aboard: player.aboard === true, offshoreSeat: Number.isInteger(player.offshoreSeat) ? player.offshoreSeat : -1,
+      offshoreSeq: Number.isSafeInteger(player.offshoreSeq) ? player.offshoreSeq : -1,
       serverTick: Number.isFinite(state.tick) ? state.tick : 0,
     });
   });
   return { players, selfId, tick: Number.isFinite(state?.tick) ? state.tick : 0,
+    offshoreStartAt: Number.isFinite(state?.offshoreStartAt) ? state.offshoreStartAt : 0,
+    offshoreReturnAt: Number.isFinite(state?.offshoreReturnAt) ? state.offshoreReturnAt : 0,
     serverTime: Number.isFinite(state?.serverTime) ? state.serverTime : 0,
     receivedAtPerf: performance.now() };
 }
 
 export function rosterSignature(players) {
-  return JSON.stringify(players.map(({ id, name, color, connected }) => [id, name, color, connected]));
+  return JSON.stringify(players.map(({ id, name, color, connected, aboard, offshoreSeat }) => [id, name, color, connected, aboard === true, offshoreSeat ?? -1]));
 }
 
 export function multiplayerError(error) {
@@ -191,6 +196,8 @@ export default function useMultiplayer() {
   const [inviteCode] = useState(() => invitationCode(window.location.search));
   const roomRef = useRef(null);
   const snapshotRef = useRef({ ...EMPTY_SNAPSHOT });
+  const offshoreSequence = useRef(-1);
+  const offshoreNoticeRef = useRef(null);
   const statusRef = useRef('offline');
   const generationRef = useRef(0);
   const rosterRef = useRef('');
@@ -348,7 +355,12 @@ export default function useMultiplayer() {
         }
       }
       room.onStateChange(publish);
-      room.onMessage(MESSAGE.NOTICE, notice => { if (current() && roomRef.current === room && typeof notice?.message === 'string') setError(notice.message.slice(0, 250)); });
+      room.onMessage(MESSAGE.NOTICE, notice => {
+        if (current() && roomRef.current === room && typeof notice?.message === 'string') {
+          setError(notice.message.slice(0, 250));
+          if (typeof notice.code === 'string' && notice.code.startsWith('OFFSHORE_')) offshoreNoticeRef.current = { code: notice.code, message: notice.message.slice(0, 250), receivedAtPerf: performance.now() };
+        }
+      });
       room.onError((errorCode, message) => { if (current() && roomRef.current === room) setError(multiplayerError({ code: errorCode, message })); });
       room.onDrop(() => {
         if (!current() || roomRef.current !== room) { retireRoom(room); return; }
@@ -438,6 +450,15 @@ export default function useMultiplayer() {
     return true;
   }, []);
 
+  const sendOffshore = useCallback(action => {
+    if (statusRef.current !== 'connected' || !roomRef.current?.connection?.isOpen || !OFFSHORE_ACTIONS.includes(action)) return false;
+    const self = snapshotRef.current.players.find(p => p.id === roomRef.current.sessionId);
+    const seq = Math.max(offshoreSequence.current, self?.offshoreSeq ?? -1) + 1;
+    offshoreSequence.current = seq;
+    roomRef.current.send(MESSAGE.OFFSHORE, { action, seq });
+    return true;
+  }, []);
+
   useEffect(() => {
     mountedRef.current = true;
     function restorePreviousRoom() {
@@ -490,6 +511,6 @@ export default function useMultiplayer() {
     status, error, code, players, selfId, snapshotRef, initialNickname, inviteCode,
     createRoom: useCallback(name => connect('create', name), [connect]),
     joinRoom: useCallback((roomCode, name) => connect('join', name, roomCode), [connect]),
-    leaveRoom, sendInput, travel,
+    leaveRoom, sendInput, travel, sendOffshore, offshoreNoticeRef,
   };
 }

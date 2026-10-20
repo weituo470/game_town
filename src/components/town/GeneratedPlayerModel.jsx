@@ -100,7 +100,7 @@ export default function GeneratedPlayerModel({ poseRef, asset, fallback = null, 
     const height = Number.isFinite(pose.y) ? Math.max(0, pose.y) : 0;
     actor.current.position.set(Number.isFinite(pose.x) ? pose.x : 0, height, Number.isFinite(pose.z) ? pose.z : 0);
     actor.current.rotation.y = Number.isFinite(pose.yaw) ? pose.yaw : 0;
-    const next = reducedMotion || height > 0.015 ? null : pose.moving ? 'walk' : loaded.actions.idle ? 'idle' : null;
+    const next = reducedMotion || height > 0.015 && !pose.aboard ? null : pose.moving ? 'walk' : loaded.actions.idle ? 'idle' : null;
     if (next !== loaded.active) {
       if (!next) loaded.mixer.stopAllAction(); // restore rest pose in the air
       else {

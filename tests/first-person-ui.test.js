@@ -27,6 +27,15 @@ function appHarness() {
     start() { throw new Error('Outdoor gameplay is outside this camera UI harness'); },
     exit() { throw new Error('Outdoor gameplay is outside this camera UI harness'); },
   };
+  const offshore = {
+    runtimeRef: { current: { now: 0, plan: { startAt: 0, returnAt: 0 }, aboard: false, seat: -1,
+      sample: { x: 16, y: 0, z: 85, yaw: 0, pitch: 0, roll: 0, phase: 'docked', label: '靠港待命', progress: 0, moving: false, docked: true, remainingMs: 0 } } },
+    state: { phase: 'docked', label: '靠港待命', aboard: false, seat: -1, error: '', pending: '', online: false },
+    board() { assert.fail('Boarding is outside this camera UI harness'); },
+    depart() { assert.fail('Voyage actions are outside this camera UI harness'); },
+    returnToPort() { assert.fail('Voyage actions are outside this camera UI harness'); },
+    disembark() { assert.fail('Disembarking is outside this camera UI harness'); },
+  };
   const React = {
     ...react,
     useState(initial) {
@@ -48,6 +57,7 @@ function appHarness() {
       if (id === '../shared/world.js') return world;
       if (id === './lib/catalog.js') return catalog;
       if (id === './lib/useMultiplayer.js') return { __esModule: true, default: () => ({}) };
+      if (id === './lib/useOffshoreCruise.js') return { __esModule: true, default: () => offshore };
       if (id === './lib/useWorldClock.js') return { __esModule: true, default: () => ({ timeRef: { current: 0 }, label: '白天' }) };
       if (id === './components/OutdoorPlay.jsx') return {
         useOutdoorPlay: () => outdoor,

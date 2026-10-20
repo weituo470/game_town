@@ -147,9 +147,9 @@ test('carrier and mirror-droplet render paths share the town without duplicating
     const h = townTree({ viewMode: 'drone', active: false, droneFpv: { program } });
     const carrier = program === 'carrier-battle';
     const lazy = h.nodes.filter(node => node.type?.$$typeof === Symbol.for('react.lazy'));
-    assert.equal(lazy.length, carrier ? 3 : 2);
+    assert.equal(lazy.length, carrier ? 4 : 3);
     assert.deepEqual(lazy.map(node => node.type.modulePath).sort(),
-      (carrier ? ['./town/DeepSeekPark.jsx', './town/SphereLandmark.jsx', './drone/CarrierBattleScene.jsx'] : ['./town/DeepSeekPark.jsx', './town/SphereLandmark.jsx']).sort());
+      (carrier ? ['./town/DeepSeekPark.jsx', './town/SphereLandmark.jsx', './town/OffshoreIsland.jsx', './drone/CarrierBattleScene.jsx'] : ['./town/DeepSeekPark.jsx', './town/SphereLandmark.jsx', './town/OffshoreIsland.jsx']).sort());
     const sphere = lazy.find(node => node.type.modulePath === './town/SphereLandmark.jsx');
     assert.equal(sphere.props.timeRef, h.npcTimeRef);
     assert.equal(sphere.props.onSelect, undefined, 'cinematic input never opens the sphere viewer');

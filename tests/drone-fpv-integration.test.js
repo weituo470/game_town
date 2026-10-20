@@ -583,8 +583,20 @@ test('App FPV selection, seat changes, seek and look never change the parked ava
   const hooks = hookRuntime(), { clock } = clockFixture();
   const sent = [], worldTimeRef = { current: 140000 };
   const controller = { ...clock, get state() { return clock.snapshot(); } };
-  const overrides = { react: hooks.react,
+  const offshore = {
+    runtimeRef: { current: { now: 0, plan: { startAt: 0, returnAt: 0 }, aboard: false, seat: -1,
+      sample: { x: 16, y: 0, z: 85, yaw: 0, pitch: 0, roll: 0, phase: 'docked', label: '靠港待命', progress: 0, moving: false, docked: true, remainingMs: 0 } } },
+    state: { phase: 'docked', label: '靠港待命', aboard: false, seat: -1, error: '', pending: '', online: false },
+    board() { assert.fail('Drone FPV must not board a ship'); }, depart() { assert.fail('Drone FPV must not start a voyage'); },
+    returnToPort() { assert.fail('Drone FPV must not return a ship'); }, disembark() { assert.fail('Drone FPV must not disembark'); },
+  };
+  const overrides = { react: { ...hooks.react, lazy(loader) {
+    const source = String(loader);
+    if (/import\(["']\.\/components\/WonderSchedule\.jsx["']\)/.test(source)) return /\.WonderHud\b/.test(source) ? 'WonderHud' : 'WonderSchedule';
+    return hooks.react.lazy(loader);
+  } },
     './lib/useMultiplayer.js': { __esModule: true, default: () => ({ status: 'disconnected', sendInput: value => sent.push(value) }) },
+    './lib/useOffshoreCruise.js': { __esModule: true, default: () => offshore },
     './lib/useWorldClock.js': { __esModule: true, default: () => ({ timeRef: worldTimeRef, label: '白天' }) },
     './lib/profile.js': { loadProfile: () => ({ visits: [], dismissed: [] }), getCompletion: () => 0 },
     './lib/gameCharacterClient.js': { gameCharacterClient: {} }, './lib/marketRecommendations.js': {},

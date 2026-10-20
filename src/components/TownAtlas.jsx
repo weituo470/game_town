@@ -8,6 +8,7 @@ import { WONDERS, WONDER_BRIDGES, WONDER_MAP } from '../../shared/wonders.js';
 import { GPT_PARK, GPT_BRIDGE } from '../../shared/gpt-park.js';
 import { DEEPSEEK_PARK, PARK_BRIDGES } from '../../shared/deepseek-park.js';
 import { SPHERE_LANDMARK, SPHERE_BRIDGE } from '../../shared/sphere-landmark.js';
+import { OFFSHORE_ISLAND, OFFSHORE_BRIDGE, OFFSHORE_DOCK } from '../../shared/offshore-island.js';
 import './atlas.css';
 
 const left = WONDER_MAP.centerX - WONDER_MAP.width / 2;
@@ -18,13 +19,13 @@ const positionStyle = (x, z) => ({
   top: `${(z - top) / WONDER_MAP.depth * 100}%`,
 });
 
-export default function TownAtlas({ onTravel, onOutdoorStart, onGptTour, onDeepSeekTour, onSphereTour }) {
+export default function TownAtlas({ onTravel, onOutdoorStart, onGptTour, onDeepSeekTour, onSphereTour, onOffshoreTour }) {
   return (
     <div className="town-atlas">
       {onOutdoorStart && <section className="atlas-destinations" aria-label="户外游乐导航"><h3>直接在小镇里玩</h3><div className="outdoor-atlas-links">{OUTDOOR_GAMES.map(game => <button key={game.id} onClick={() => onOutdoorStart(game.id)}><span>{game.place} · {game.name}</span><span>{game.global ? '操作说明' : '游玩 ↗'}</span></button>)}</div></section>}
       <p className="atlas-intro">
         主镇长宽各扩展 {WORLD_SIZE.scale} 倍，面积扩大至原来的 {WORLD_SIZE.scale ** 2} 倍。
-        三处奇观、球幕剧场、东北方 GPT 园区与西北方 DeepSeek 园区通过步桥相连。可步行、飞行探索，或选择下方入口直接前往。
+        南岸科考港、三处奇观、球幕剧场、东北方 GPT 园区与西北方 DeepSeek 园区通过步桥相连。可步行、飞行探索，或选择下方入口直接前往。
       </p>
 
       <figure className="atlas-figure">
@@ -33,7 +34,7 @@ export default function TownAtlas({ onTravel, onOutdoorStart, onGptTour, onDeepS
             className="atlas-svg"
             viewBox={`${left} ${top} ${WONDER_MAP.width} ${WONDER_MAP.depth}`}
             role="img"
-            aria-label="小镇街道平面图，北方朝上。十字主街连接中央喷泉，环街连接四个新区。四座现有小游戏建筑用编号标记，虚线地块尚未建造。西侧球幕剧场与虎鲸湾、东侧航母港、北侧发射场、东北方 GPT 主题园区与西北方 DeepSeek 蓝鲸岛用步桥相连。"
+            aria-label="小镇街道平面图，北方朝上。十字主街连接中央喷泉，环街连接四个新区。四座现有小游戏建筑用编号标记，虚线地块尚未建造。南岸科考港可登船出海，西侧球幕剧场与虎鲸湾、东侧航母港、北侧发射场、东北方 GPT 主题园区与西北方 DeepSeek 蓝鲸岛用步桥相连。"
           >
             <title>游戏小镇街道与预留地块</title>
             <rect fill="#c1dcdf" x={left} y={top} width={WONDER_MAP.width} height={WONDER_MAP.depth} rx="3" />
@@ -66,6 +67,8 @@ export default function TownAtlas({ onTravel, onOutdoorStart, onGptTour, onDeepS
             <rect className="atlas-street atlas-street-side" x={SPHERE_BRIDGE.x - SPHERE_BRIDGE.width / 2} y={SPHERE_BRIDGE.z - SPHERE_BRIDGE.depth / 2} width={SPHERE_BRIDGE.width} height={SPHERE_BRIDGE.depth}/>
             <circle className="atlas-plaza" cx={SPHERE_LANDMARK.x} cy={SPHERE_LANDMARK.z} r={SPHERE_LANDMARK.groundRadius}/>
             <circle fill="#efcd5c" stroke="#ad8c3e" strokeWidth=".5" cx={SPHERE_LANDMARK.x} cy={SPHERE_LANDMARK.z} r={SPHERE_LANDMARK.radius}/>
+            {[OFFSHORE_BRIDGE, OFFSHORE_DOCK].map((r, i) => <rect key={i} data-offshore-ground={i ? 'dock' : 'bridge'} x={r.x-r.width/2} y={r.z-r.depth/2} width={r.width} height={r.depth} fill="#bdc8c6" stroke="#728b92" strokeWidth=".4"/>)}
+            <rect data-offshore-vessel x={OFFSHORE_ISLAND.x-OFFSHORE_ISLAND.width/2} y={OFFSHORE_ISLAND.z-OFFSHORE_ISLAND.length/2} width={OFFSHORE_ISLAND.width} height={OFFSHORE_ISLAND.length} fill="#1e7766" rx="4"/>
             <circle className="atlas-plaza" cx={FOUNTAIN.x} cy={FOUNTAIN.z} r={FOUNTAIN.plazaRadius} />
             <circle className="atlas-plaza-edge" cx={FOUNTAIN.x} cy={FOUNTAIN.z} r={FOUNTAIN.plazaRadius - .9} />
             <circle className="atlas-water-edge" cx={FOUNTAIN.x} cy={FOUNTAIN.z} r={FOUNTAIN.visualRadius + .55} />
@@ -82,6 +85,7 @@ export default function TownAtlas({ onTravel, onOutdoorStart, onGptTour, onDeepS
           </svg>
           {/* HTML markers retain their readable CSS size as the SVG scales. */}
           <div className="atlas-markers" aria-hidden="true">
+            <span className="atlas-direction" data-theme-park-marker="offshore" style={positionStyle(OFFSHORE_ISLAND.x, OFFSHORE_ISLAND.z)}>船</span>
             <span className="atlas-direction" data-theme-park-marker="sphere" style={positionStyle(SPHERE_LANDMARK.x, SPHERE_LANDMARK.z)}>球</span>
             <span className="atlas-direction" data-theme-park-marker={GPT_PARK.id} style={positionStyle(GPT_PARK.x, GPT_PARK.z)}>G</span>
             <span className="atlas-direction" data-theme-park-marker={DEEPSEEK_PARK.id} style={positionStyle(DEEPSEEK_PARK.x, DEEPSEEK_PARK.z)}>D</span>
@@ -107,6 +111,7 @@ export default function TownAtlas({ onTravel, onOutdoorStart, onGptTour, onDeepS
         <li><span className="atlas-key atlas-key-plot" aria-hidden="true" />预留空地</li>
       </ul>
       <p className="atlas-note">虚线区域暂未建房，可自由穿行；后续小游戏将沿这些街道继续扩展。</p>
+      <section className="atlas-destinations" aria-label="远海浮动岛导航"><h3>远海浮动岛 · 南岸科考港</h3><p className="atlas-intro">沿南岸步桥到达码头，登船体验约 2 分 30 秒的离港、巡航与返航。船身和码头以普通字体书写“上海交通大学”；这是非官方科普场景，并非真实船舶运行演示。</p><button type="button" className="atlas-landmark" onClick={() => onTravel('offshore')}>前往科考码头<span className="atlas-arrow" aria-hidden="true">↗</span></button>{onOffshoreTour && <div className="atlas-district-links"><button type="button" onClick={onOffshoreTour}>登船观景 · 远海浮动岛 ↗</button></div>}</section>
       <section className="atlas-destinations" aria-label="球幕剧场导航"><h3>球幕剧场 · 西岸光影地标</h3><p className="atlas-intro">沿虎鲸湾西侧步桥走到球体脚下，或飞到半空观察 LED 外墙。黄色表情、巨型眼球、蓝色星球与篮球可自由切换。</p><button type="button" className="atlas-landmark" onClick={() => onTravel('sphere')}>前往球幕剧场<span className="atlas-arrow" aria-hidden="true">↗</span></button>{onSphereTour && <div className="atlas-district-links"><button onClick={onSphereTour}>观看球幕外墙秀 ↗</button></div>}</section>
       <section className="atlas-destinations" aria-label="DeepSeek 园区导航">
         <h3>DeepSeek 主题园区 · 西北蓝鲸岛</h3>

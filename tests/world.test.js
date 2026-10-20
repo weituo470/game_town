@@ -175,7 +175,7 @@ test('empty plots are readable expansion placeholders, not buildings or road obs
 });
 
 test('protocol has enough unique player colors and coherent timing bounds', () => {
-  assert.equal(PROTOCOL_VERSION, 7);
+  assert.equal(PROTOCOL_VERSION, 8);
   assert.equal(MAX_PLAYERS, 8);
   assert.equal(new Set(PLAYER_COLORS).size, MAX_PLAYERS);
   assert.ok(PLAYER_COLORS.every(color => /^#[0-9a-f]{6}$/i.test(color)));

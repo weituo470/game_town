@@ -12,6 +12,7 @@ import { sequencedInput } from './inputSequence.js';
 import FirstPersonLook from './FirstPersonLook.jsx';
 import { closeThirdPersonLens, closeThirdPersonCamera, firstPersonInput } from './firstPerson.js';
 import { nearestOutdoorGame } from '../../minigames/outdoor.js';
+import { OFFSHORE_ARRIVAL, sampleOffshorePassenger } from '../../../shared/offshore-island.js';
 
 const MOVEMENT_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 const ZERO_INPUT = Object.freeze({ x: 0, z: 0 });
@@ -28,7 +29,7 @@ function worldInput(held, touch, lookYaw = null) {
   return length ? { x: (right * 0.817 - forward * 0.577) / length, z: (-right * 0.577 - forward * 0.817) / length } : ZERO_INPUT;
 }
 
-function RemotePlayer({ player, snapshotRef, Model, reducedMotion }) {
+function RemotePlayer({ player, snapshotRef, Model, reducedMotion, offshoreRef }) {
   const pose = useRef({ x: player.x, y: player.y || 0, z: player.z, vy: player.vy || 0, yaw: player.yaw, moving: false, jetpack: player.jetpack, thrusting: player.thrusting, hovering: player.hovering });
   const latest = useRef({ ...player, receivedAt: performance.now() });
   const lastSnapshot = useRef(null);
@@ -46,6 +47,12 @@ function RemotePlayer({ player, snapshotRef, Model, reducedMotion }) {
     }
     const next = latest.current;
     const current = pose.current;
+    const voyage = offshoreRef?.current;
+    if (next.aboard && voyage) {
+      Object.assign(current, sampleOffshorePassenger(voyage.plan, voyage.now, next.offshoreSeat));
+      return;
+    }
+    if (current.aboard) Object.assign(current, next, { aboard: false });
     const distance = Math.hypot(current.x - next.x, current.z - next.z);
     const factor = distance > 3 || reducedMotion ? 1 : 1 - Math.exp(-Math.min(frameDelta, 0.05) * 16);
     current.x += (next.x - current.x) * factor;
@@ -72,7 +79,7 @@ function RemotePlayer({ player, snapshotRef, Model, reducedMotion }) {
   return <Model poseRef={pose} name={player.connected === false ? `${player.name} · 重连中` : player.name} color={player.color} reducedMotion={reducedMotion} />;
 }
 
-export default function PlayerController({ Model, active, inputRef, destination, onNearest, reducedMotion, network, viewMode = 'overview', onStartExploring, onLookStatus, playerPoseRef, outdoorRef, onNearestOutdoor, npcTimeRef, flightRef, onFlyingChange }) {
+export default function PlayerController({ Model, active, inputRef, destination, onNearest, reducedMotion, network, viewMode = 'overview', onStartExploring, onLookStatus, playerPoseRef, outdoorRef, onNearestOutdoor, npcTimeRef, flightRef, onFlyingChange, offshoreRef }) {
   const pose = useRef({ ...SPAWN, y: 0, vy: 0, moving: false, jetpack: false, thrusting: false, hovering: false });
   const heldSince = useRef(null);
   const hoverRequested = useRef(false);
@@ -124,7 +131,11 @@ export default function PlayerController({ Model, active, inputRef, destination,
     explorationRequested.current = false;
     cameraInitialized.current = false;
     if (!pose.current.jetpack) stopInput();
-    if (viewMode === 'first-person') {
+    if (pose.current.aboard && ['follow', 'first-person'].includes(viewMode)) {
+      // Start outside the port-side viewing corridor, not behind a solid cabin.
+      // This heading is ship-local while aboard; right-drag can still orbit it.
+      look.current = { yaw: Math.PI / 2, pitch: .12 };
+    } else if (viewMode === 'first-person') {
       // Start behind the avatar, on foot or airborne. The close camera and a
       // held W key retain its heading instead of turning towards a landmark.
       look.current.yaw = Math.atan2(Math.sin(pose.current.yaw), -Math.cos(pose.current.yaw));
@@ -168,7 +179,7 @@ export default function PlayerController({ Model, active, inputRef, destination,
     const interactive = element => ['BUTTON', 'A', 'SUMMARY'].includes(element?.tagName)
       || !!element?.closest?.('button,a[href],summary,[role="button"],[role="checkbox"],[role="radio"],[role="switch"],[role="tab"],[role="menuitem"],[role="option"],[role="slider"]');
     const keydown = event => {
-      if (!active || outdoorRef?.current || event.ctrlKey || event.metaKey || event.altKey || editable(event.target)) return;
+      if (!active || outdoorRef?.current || offshoreRef?.current?.aboard || event.ctrlKey || event.metaKey || event.altKey || editable(event.target)) return;
       if (event.code === 'KeyH') {
         if (interactive(event.target) || event.repeat || keys.current.KeyH) return;
         keys.current.KeyH = true;
@@ -295,7 +306,7 @@ export default function PlayerController({ Model, active, inputRef, destination,
   useEffect(() => {
     // DroneCamera owns its full lens/rail; never overwrite its far plane after
     // the declarative camera's layout effects (especially on portrait screens).
-    if (viewMode === 'drone' || viewMode === 'sphere') { invalidate(); return; }
+    if (viewMode === 'drone' || viewMode === 'sphere' || viewMode === 'offshore') { invalidate(); return; }
     if (firstPerson || follow || viewMode === 'wonder') {
       // The declarative PerspectiveCamera becomes default after its layout
       // effect. Do not accidentally turn the preserved orthographic camera
@@ -338,6 +349,40 @@ export default function PlayerController({ Model, active, inputRef, destination,
   useFrame((_, frameDelta) => {
     const delta = Math.min(frameDelta, 0.1);
     const current = pose.current;
+    const voyage = offshoreRef?.current;
+    if (voyage?.aboard) {
+      if (!current.aboard) {
+        stopInput(); nearest.current = null; nearestOutdoor.current = null;
+        outdoorReturn.current = null;
+        if (camera.isOrthographicCamera) camera.clearViewOffset();
+        callbacks.current.onNearest?.(null); onNearestOutdoor?.(null);
+        authority.current.correctionX = 0; authority.current.correctionY = 0; authority.current.correctionZ = 0;
+        if (publishedFlight.current) { publishedFlight.current = false; onFlyingChange?.(false); }
+      }
+      // Fixed viewing stations share the exact server route and deck transform.
+      // Neither prediction nor gravity may pull passengers off the moving ship.
+      Object.assign(current, sampleOffshorePassenger(voyage.plan, voyage.now, voyage.seat), { activity: null });
+      if (flightRef) Object.assign(flightRef.current, { height: 0, flying: false, thrusting: false, hovering: false, speed: 0 });
+      if ((firstPerson || follow) && camera.isPerspectiveCamera) {
+        const shot = (firstPerson ? closeThirdPersonCamera : followOrbitCamera)(current, look.current.yaw - voyage.sample.yaw, look.current.pitch, { aspect: camera.aspect });
+        camera.position.set(shot.position.x, shot.position.y, shot.position.z);
+        desiredTarget.current.set(shot.target.x, shot.target.y, shot.target.z);
+        camera.lookAt(desiredTarget.current);
+      } else if (camera.isOrthographicCamera) {
+        const target = getCameraTarget(viewMode, current, size.width, npcTimeRef?.current);
+        cameraTarget.current.set(target.x, target.y, target.z);
+        camera.position.copy(cameraTarget.current).add(cameraOffset.current);
+        camera.lookAt(cameraTarget.current);
+      }
+      return;
+    }
+    if (current.aboard) {
+      Object.assign(current, OFFSHORE_ARRIVAL, { y: 0, vy: 0, aboard: false, offshoreSeat: -1, moving: false, jetpack: false, thrusting: false, hovering: false });
+      look.current = firstPerson ? { yaw: Math.PI, pitch: .12 } : { ...FOLLOW_LOOK };
+      authority.current.session = null; authority.current.tick = -1;
+      authority.current.correctionX = 0; authority.current.correctionY = 0; authority.current.correctionZ = 0;
+      cameraInitialized.current = false; stopInput();
+    }
     const outdoor = outdoorRef?.current;
     if (outdoor) {
       if (!outdoorReturn.current) {
@@ -502,6 +547,6 @@ export default function PlayerController({ Model, active, inputRef, destination,
   return <>
     <FirstPersonLook enabled={firstPerson || follow} active={active} orbitOnly={follow} blockedRef={outdoorRef} lookRef={look} onStatus={onLookStatus} onStop={stopInput} />
     <Model poseRef={pose} self name={self?.name || ''} color={self?.color} reducedMotion={reducedMotion} />
-    {players.filter(player => player.id !== network.selfId).map(player => <RemotePlayer key={player.id} player={player} snapshotRef={network.snapshotRef} Model={Model} reducedMotion={reducedMotion} />)}
+    {players.filter(player => player.id !== network.selfId).map(player => <RemotePlayer key={player.id} player={player} snapshotRef={network.snapshotRef} Model={Model} reducedMotion={reducedMotion} offshoreRef={offshoreRef} />)}
   </>;
 }

@@ -1,8 +1,8 @@
 // Additive islands: the original town/plots and resident routes stay intact.
 // Rendering, atlas, navigation and server collision all consume this contract.
 export const WONDER_CYCLE_MS = 180000;
-export const WONDER_MAP = Object.freeze({ width: 230, depth: 184, centerX: -31, centerZ: -48 });
-export const EXPLORATION_BOUNDS = Object.freeze({ minX: -138, maxX: 77, minZ: -133, maxZ: 40.3 });
+export const WONDER_MAP = Object.freeze({ width: 230, depth: 264, centerX: -31, centerZ: -8 });
+export const EXPLORATION_BOUNDS = Object.freeze({ minX: -138, maxX: 77, minZ: -133, maxZ: 270 });
 export const WONDERS = Object.freeze([
   { id: 'orca', name: '虎鲸湾', subtitle: '双鲸跃水 · 海湾剧场', x: -63, z: 20, width: 28, depth: 28, start: 0, duration: 40000, color: '#74d9dc', arrival: { x: -53, z: 22, yaw: -Math.PI / 2 } },
   { id: 'carrier', name: '航母港', subtitle: '甲板漫游 · 舰载机起飞', x: 63, z: 20, width: 28, depth: 30, start: 60000, duration: 45000, color: '#b3c7f0', arrival: { x: 58, z: 29, yaw: Math.PI } },
