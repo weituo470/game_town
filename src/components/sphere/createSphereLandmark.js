@@ -6,7 +6,7 @@ const TAU = Math.PI * 2;
 const clamp = value => Math.max(0, Math.min(1, value));
 const smooth = value => { const p = clamp(value); return p * p * (3 - 2 * p); };
 const ART_MODES = SPHERE_MODES.filter(mode => mode.id !== 'auto').map(mode => mode.id);
-export const SPHERE_RENDER_BUDGET = Object.freeze({ drawCalls: 15, triangles: 30000, cycleMs: 72000, modeMs: 18000, crossfadeMs: 1400 });
+export const SPHERE_RENDER_BUDGET = Object.freeze({ drawCalls: 15, triangles: 30000, cycleMs: 120000, modeMs: 30000, crossfadeMs: 1400 });
 
 /** Pure absolute-time sampler: seeking/reduced motion never depends on a RAF. */
 export function sampleSphereWall(timeMs = 0, { mode = 'auto', reducedMotion = false, night = 0 } = {}) {
@@ -95,6 +95,7 @@ export function createSphereLandmark() {
 
   const wallUniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
     uTime: { value: 0 }, uMode: { value: 0 }, uNextMode: { value: 1 }, uBlend: { value: 0 }, uNight: { value: 0 }, uReduced: { value: 0 },
+    uBlow: { value: 0 }, uPuff: { value: 0 }, uLookUp: { value: 0 },
   }]);
   const wallMaterial = material(new THREE.ShaderMaterial({ name: 'sphere-led-artwork', uniforms: wallUniforms, vertexShader: sphereWallVertexShader,
     fragmentShader: sphereWallFragmentShader, fog: true, toneMapped: true }));
@@ -134,6 +135,10 @@ export function createSphereLandmark() {
     const state = sampleSphereWall(timeMs, options);
     wallUniforms.uTime.value = state.timeSeconds; wallUniforms.uMode.value = state.modeIndex; wallUniforms.uNextMode.value = state.nextModeIndex;
     wallUniforms.uBlend.value = state.blend; wallUniforms.uNight.value = state.night; wallUniforms.uReduced.value = state.reducedMotion ? 1 : 0;
+    const expression = options.bubbleExpression;
+    wallUniforms.uBlow.value = clamp(Number.isFinite(expression?.blow) ? expression.blow : 0);
+    wallUniforms.uPuff.value = clamp(Number.isFinite(expression?.cheek) ? expression.cheek : 0);
+    wallUniforms.uLookUp.value = clamp(Number.isFinite(expression?.lookUp) ? expression.lookUp : 0);
     glass.emissiveIntensity = .05 + state.night * .15; lamp.emissiveIntensity = .35 + state.night * .8;
     return state;
   };

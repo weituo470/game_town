@@ -60,6 +60,23 @@ test('early return is position-continuous at every phase and safely docks within
   }
 });
 
+test('distance from port is exact horizontal berth displacement and returns to zero without changing the route', () => {
+  const plan = { startAt: 1000, returnAt: 0 };
+  assert.equal(sampleOffshoreVoyage({}, 1000).distanceFromPort, 0);
+  let previous = -1;
+  for (let elapsed = 0; elapsed <= 28000; elapsed += 500) {
+    const sample = sampleOffshoreVoyage(plan, 1000 + elapsed);
+    close(sample.distanceFromPort, Math.hypot(sample.x - OFFSHORE_ISLAND.x, sample.z - OFFSHORE_ISLAND.z));
+    assert.ok(sample.distanceFromPort >= previous); previous = sample.distanceFromPort;
+  }
+  close(sampleOffshoreVoyage(plan, 71000).distanceFromPort, 147);
+  close(sampleOffshoreVoyage(plan, 6000).distanceFromPort, 4.298013848396499);
+  assert.equal(sampleOffshoreVoyage(plan, 151000).distanceFromPort, 0);
+  for (const returnAt of [3000, 71000, 123000]) {
+    assert.equal(sampleOffshoreVoyage({ ...plan, returnAt }, returnAt + 25001).distanceFromPort, 0);
+  }
+});
+
 test('eight reserved passenger stations transform exactly with the tilted moving deck', () => {
   const seats = new Set(), plan = { startAt: 1000, returnAt: 0 };
   for (let seat = 0; seat < 8; seat++) {

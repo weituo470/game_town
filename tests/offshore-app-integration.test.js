@@ -45,6 +45,7 @@ function appHarness(search = '') {
   Object.defineProperty(runtime, 'sample', { get: () => sampleOffshoreVoyage(runtime.plan, runtime.now) });
   const controller = { runtimeRef: { current: runtime }, get state() { return { ...runtime.sample, aboard: runtime.aboard, seat: runtime.seat, error: '', pending: '', online: false }; },
     board() { calls.push('board'); runtime.aboard = true; runtime.seat = 0; }, depart() { calls.push('depart'); runtime.plan = { startAt: runtime.now, returnAt: 0 }; },
+    boardAndDepart() { calls.push('board-and-depart'); runtime.aboard = true; runtime.seat = 0; runtime.plan = { startAt: runtime.now, returnAt: 0 }; },
     returnToPort() { calls.push('return'); }, disembark() { calls.push('disembark'); runtime.aboard = false; runtime.seat = -1; } };
   const outdoor = { runtimeRef: { current: null }, selected: null, start(id) { calls.push(`outdoor:${id}`); this.selected = id; }, exit() { calls.push('outdoor:exit'); this.selected = null; } };
   const drone = { state: { active: false, program: 'avatar' }, timeRef: { current: 0 }, start({ program }) { calls.push('drone:start'); this.state.active = true; this.state.program = program; }, close() { calls.push('drone:close'); this.state.active = false; } };
@@ -152,4 +153,28 @@ test('night preview and camera mode are purely visual and never alter voyage, me
   assert.equal(app.controls().props.night, true); assert.equal(app.town().props.offshoreView, 'deck'); assert.equal(app.modes.at(-1), 'night');
   assert.equal(JSON.stringify(app.runtime), before); assert.equal(app.runtime.plan, plan); assert.equal(app.town().props.npcTimeRef, clock);
   assert.deepEqual(app.calls, []); app.controls().props.onNight(); app.render(); assert.equal(app.modes.at(-1), 'day');
+});
+
+test('dock proximity supplies a real one-click embarkation control and removes it once aboard', () => {
+  const app = appHarness(); app.render(); app.town().props.onStartExploring(); app.render();
+  app.town().props.onNearestOffshoreDock(true); app.render();
+  const prompt = app.all().find(node => node.props.className === 'nearby-prompt offshore-nearby-prompt');
+  assert.ok(prompt);
+  nodes(prompt).find(node => node.type === 'button').props.onClick(); app.render();
+  assert.equal(app.calls.filter(value => value === 'board-and-depart').length, 1);
+  assert.equal(app.town().props.viewMode, 'offshore');
+  assert.equal(app.runtime.aboard, true);
+  assert.equal(app.runtime.sample.docked, false);
+  assert.ok(!app.all().some(node => node.props.className === 'nearby-prompt offshore-nearby-prompt'));
+});
+
+test('sphere replay returns to the face and advances the shared scene cue, without creating a second scene', () => {
+  const app = appHarness('?landmark=sphere'); app.render();
+  let controls = app.find('Lazy:SphereControls');
+  const before = app.town().props.sphereBubbleCue;
+  controls.props.onMode('earth'); app.render();
+  controls = app.find('Lazy:SphereControls'); controls.props.onBlow(); app.render();
+  assert.equal(app.town().props.sphereMode, 'smile');
+  assert.equal(app.town().props.sphereBubbleCue, before + 1);
+  assert.equal(app.all().filter(node => node.type === 'Town').length, 1);
 });

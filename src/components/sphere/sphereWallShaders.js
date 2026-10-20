@@ -22,6 +22,9 @@ export const sphereWallFragmentShader = /* glsl */`
   uniform float uBlend;
   uniform float uNight;
   uniform float uReduced;
+  uniform float uBlow;
+  uniform float uPuff;
+  uniform float uLookUp;
   varying vec3 vSphere;
   varying vec3 vWorldPosition;
   varying vec3 vWorldNormal;
@@ -57,21 +60,26 @@ export const sphereWallFragmentShader = /* glsl */`
       vec2 radius=vec2(.215,.28*open+.009);
       float eye=ink(oval(q,radius))*front;
       color=mix(color,vec3(.98,.98,.91),eye);
-      vec2 pupil=q-vec2(glance, -.027+surprise*.025);
+      vec2 pupil=q-vec2(glance*(1.-uBlow*.8), -.027+surprise*.025+uLookUp*.085);
       float pupilMask=ink(oval(pupil,vec2(.088,.131)))*eye;
       color=mix(color,vec3(.009,.012,.018),pupilMask);
       float glint=ink(oval(pupil-vec2(-.027,.047),vec2(.025,.036)))*pupilMask;
       color=mix(color,vec3(1.),glint*.98);
       // A short arched eyebrow, with a deliberate one-sided inquisitive lift.
-      float browLift=surprise*.075 + (side==0?1.:0.)*.07*(smoothstep(4.7,5.5,beat)-smoothstep(6.3,7.,beat))*(1.0-uReduced);
+      float browLift=surprise*.075 + uPuff*.025 + uLookUp*.04 + (side==0?1.:0.)*.07*(smoothstep(4.7,5.5,beat)-smoothstep(6.3,7.,beat))*(1.0-uReduced);
       float browX=clamp(q.x/.215,-1.,1.);
       float arch=.565 + browLift + .085*(1.0-browX*browX);
       float brow=ink(abs(p.y-arch)-.018)*(1.-smoothstep(.18,.215,abs(q.x)))*front;
       color=mix(color,vec3(.055,.029,.01),brow);
+      float cheek=exp(-pow(length((p-vec2(s*.43,-.13))/vec2(.19,.16)),2.))*front*uPuff;
+      color=mix(color,vec3(1.,.81,.12),cheek*.38);
     }
     // The small surprised mouth is part of the supplied expression, not a
     // giant emoji grin. Its anticipation/open/relax stages are continuous.
-    float mouth=ink(oval(p-vec2(0.,-.205),vec2(.062+surprise*.027,.092+surprise*.065)))*front;
+    vec2 mouthRadius=mix(vec2(.062+surprise*.027,.092+surprise*.065),vec2(.075,.075),uBlow);
+    float pucker=ink(oval(p-vec2(0.,-.205),mouthRadius*1.34))*front*uBlow;
+    color=mix(color,vec3(.84,.39,.025),pucker*.75);
+    float mouth=ink(oval(p-vec2(0.,-.205),mouthRadius))*front;
     color=mix(color,vec3(.035,.014,.006),mouth);
     float lip=ink(oval(p-vec2(-.009,-.235-surprise*.035),vec2(.031,.014)))*mouth;
     color=mix(color,vec3(.47,.095,.03),lip*.55);

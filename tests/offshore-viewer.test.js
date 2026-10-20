@@ -98,10 +98,10 @@ test('mounted offshore camera follows live ship poses with a monotonic rail and 
 });
 
 test('offshore buttons dispatch explicit passenger actions and closing never disembarks', () => {
-  for (const [phase, aboard, allowed] of [['docked', false, ['board', 'dock']], ['docked', true, ['depart', 'disembark']], ['cruising', true, ['return']], ['cruising', false, ['dock']]]) {
+  for (const [phase, aboard, allowed] of [['docked', false, ['board-and-depart', 'board', 'dock']], ['docked', true, ['depart', 'disembark']], ['cruising', true, ['return']], ['cruising', false, ['dock']]]) {
     const ui = mountControls(), calls = [];
     const controller = { state: { phase, aboard, label: '测试航程', online: true, seat: 1 }, runtimeRef: { current: { sample: { docked: phase === 'docked' } } },
-      board: () => calls.push('board'), depart: () => calls.push('depart'), returnToPort: () => calls.push('return'), disembark: () => calls.push('disembark') };
+      boardAndDepart: () => calls.push('board-and-depart'), board: () => calls.push('board'), depart: () => calls.push('depart'), returnToPort: () => calls.push('return'), disembark: () => calls.push('disembark') };
     const tree = ui.default({ controller, onDock: () => calls.push('dock'), onClose: () => calls.push('close'), onView: id => calls.push(id), onNight: () => calls.push('night') });
     assert.deepEqual(calls, [], 'render must never invoke actions');
     const buttons = elements(tree).filter(node => node.type === 'button');
@@ -124,17 +124,32 @@ test('offshore pending/return state prevents duplicate operations and reports fa
   assert.ok(nodes.some(node => node.props.role === 'alert' && textOf(node) === '请先到码头登船。'));
   const returning = elements(ui.default({ controller: { state: { phase: 'returning', aboard: true } } }));
   assert.ok(returning.find(node => textOf(node) === '正在返航靠泊' && node.type === 'button').props.disabled);
+  for (const [aboard, pendingStage, pendingLabel] of [[false, 'board', '正在确认登船，请稍候…'], [true, 'cooldown', '已登船，正在准备离港，无需再次点击。'], [true, 'depart', '正在确认启航，即将驶离码头…']]) {
+    const combined = elements(ui.default({ controller: { state: { phase: 'docked', aboard, pending: 'board-and-depart', pendingStage, pendingLabel } } }));
+    assert.ok(combined.some(node => node.props.role === 'status' && textOf(node) === pendingLabel));
+    const actions = combined.find(node => node.props.className === 'offshore-actions');
+    assert.ok(elements(actions).filter(node => node.type === 'button' && node.props.className !== 'offshore-light').every(node => node.props.disabled));
+  }
 });
 
 test('progress polls only its own component every 250ms and releases listeners/timer', () => {
   let interval, removed = 0, cleared = 0, reads = 0;
   const ui = mountControls({ document: { hidden: false, addEventListener() {}, removeEventListener() { removed++; } },
     setInterval(fn, delay) { assert.equal(delay, 250); interval = fn; return 7; }, clearInterval(id) { assert.equal(id, 7); cleared++; } });
-  const runtimeRef = { get current() { reads++; return { sample: { progress: .5, remainingMs: 75000, docked: false } }; } };
+  const runtimeRef = { get current() { reads++; return { sample: { progress: .5, remainingMs: 75000, distanceFromPort: 136.3, docked: false } }; } };
   const tree = ui.OffshoreProgress({ runtimeRef });
-  assert.match(textOf(tree), /1:15/); const cleanup = ui.effects[0](); interval();
+  assert.match(textOf(tree), /1:15/); assert.match(textOf(tree), /距港 136 米/); const cleanup = ui.effects[0](); interval();
   assert.equal(reads, 3); assert.equal(ui.updates.length, 2); cleanup();
   assert.equal(cleared, 1); assert.equal(removed, 1);
+});
+
+test('offshore telemetry shows small departure movement, zero at berth, and safe values for invalid samples', () => {
+  for (const [sample, expected] of [[{ docked: false, distanceFromPort: .2 }, '距港 0.2 米'], [{ docked: true, distanceFromPort: 0 }, '港内待命 · 距港 0 米'], [{ docked: false, distanceFromPort: NaN, remainingMs: Infinity }, '距港 0.0 米']]) {
+    const ui = mountControls(), tree = ui.OffshoreProgress({ runtimeRef: { current: { sample } } });
+    assert.match(textOf(tree), new RegExp(expected.replaceAll('.', '\\.')));
+    assert.doesNotMatch(textOf(tree), /NaN|Infinity/);
+    assert.equal(elements(tree).filter(node => node.type === 'output' && node.props['aria-label']).length, 2);
+  }
 });
 
 test('Escape only closes the viewer, removes its listener and restores prior focus', () => {

@@ -148,6 +148,7 @@ export default function App() {
   const flightRef = useRef({ height: 0, flying: false, thrusting: false, hovering: false });
   const [flying, setFlying] = useState(false);
   const [nearestOutdoor, setNearestOutdoor] = useState(null);
+  const [nearOffshoreDock, setNearOffshoreDock] = useState(false);
   const [dayNightMode, setDayNightMode] = useState('auto');
   const { timeRef, label: dayNightLabel } = useWorldClock({ network: multiplayer, mode: dayNightMode });
   // Lighting preview is local; residents always follow the shared automatic
@@ -185,6 +186,8 @@ export default function App() {
   const offshoreReturn = useRef('overview');
   const [sphereMode, setSphereMode] = useState('smile');
   const [sphereOrbit, setSphereOrbit] = useState(false);
+  const [sphereBubbleCue, setSphereBubbleCue] = useState(0);
+  const blowSphereBubbles = useCallback(() => { setSphereMode('smile'); setSphereBubbleCue(value => value + 1); }, []);
   const sphereReturn = useRef('overview');
   const [lookStatus, setLookStatus] = useState('ready');
   const [selectedCharacter, setSelectedCharacter] = useState(null);
@@ -213,6 +216,7 @@ export default function App() {
     drone.close(); outdoor.exit(); setModal(null); setMapOpen(false);
     setOffshoreView('director'); setViewMode('offshore');
   }, [viewMode, drone.close, outdoor.exit]);
+  const startOffshoreCruise = useCallback(() => { openOffshore(); offshore.boardAndDepart(); }, [openOffshore, offshore.boardAndDepart]);
   const closeOffshore = useCallback(() => {
     inputRef.current = { ...EMPTY_INPUT };
     setViewMode(offshore.runtimeRef.current.aboard ? 'follow' : offshoreReturn.current);
@@ -305,20 +309,21 @@ export default function App() {
     const handleKey = event => {
       if (event.key === 'Escape') setMapOpen(false);
       if (droneWatching || sphereWatching || offshoreWatching || offshore.state.aboard || modal || mapOpen || outdoor.selected || event.repeat || event.ctrlKey || event.metaKey || event.altKey || event.target?.closest?.('input, textarea, select, button, a, [contenteditable="true"], [role="button"]')) return;
+      if (nearOffshoreDock && event.key.toLowerCase() === 'e') { event.preventDefault(); startOffshoreCruise(); return; }
       if (nearestOutdoor && event.key.toLowerCase() === 'e') { event.preventDefault(); startOutdoor(nearestOutdoor); return; }
       if (nearest && event.key.toLowerCase() === 'e') { event.preventDefault(); openGame(nearest); }
       if (nearestNpc && event.key.toLowerCase() === 'f') { event.preventDefault(); inspectResidents(nearestNpc); }
     };
     window.addEventListener('keydown', handleKey);
     return () => window.removeEventListener('keydown', handleKey);
-  }, [droneWatching, sphereWatching, offshoreWatching, offshore.state.aboard, modal, mapOpen, nearest, nearestNpc, openGame, inspectResidents, outdoor.selected, nearestOutdoor, startOutdoor]);
+  }, [droneWatching, sphereWatching, offshoreWatching, offshore.state.aboard, modal, mapOpen, nearest, nearestNpc, openGame, inspectResidents, outdoor.selected, nearestOutdoor, startOutdoor, nearOffshoreDock, startOffshoreCruise]);
   const travel = useCallback(id => {
     if (offshore.runtimeRef.current.aboard) { setToast('请返航靠泊后下船，再前往其他地点。'); return; }
     if (!getDestination(id)) return;
     closeModal(); setMapOpen(false); setViewMode(mode => WONDERS.some(w => w.id === id) || mode === 'first-person' ? 'first-person' : 'follow');
     setDestination({ id, nonce: Date.now() });
     const name = GAME_MAP[id]?.name || (id === GPT_PARK.id ? GPT_PARK.name : id === DEEPSEEK_PARK.id ? DEEPSEEK_PARK.name : id === 'sphere' ? '球幕剧场' : id === 'offshore' ? '南岸科考码头' : null) || WONDERS.find(item => item.id === id)?.name || DISTRICTS.find(area => area.id === id)?.name || '中央喷泉广场';
-    setToast(`前往${name}${GAME_MAP[id] ? '。到达门口后按 E 进入。' : '，沿街自由探索。'}`);
+    setToast(`前往${name}${id === 'offshore' ? '。到达后按 E，或点击“登船并出海”。' : GAME_MAP[id] ? '。到达门口后按 E 进入。' : '，沿街自由探索。'}`);
   }, [closeModal, offshore.runtimeRef]);
   function saveResult(feedback) { setProfile(previous => addVisit(previous, result, feedback)); setResult(null); setModal({ type: 'passport' }); setToast('新印章已收进你的玩家护照。'); }
   function clearData() { const success = clearProfile(); const marketSuccess = clearPreferences(); setProfile({ version: 1, visits: [], dismissed: [] }); setToast(success && marketSuccess ? '本地记录和推荐偏好已清除，重新开始探索吧。' : '当前记录已重置，但浏览器不允许访问全部本地存储。'); closeModal(); }
@@ -338,10 +343,10 @@ export default function App() {
       <MultiplayerStatus multiplayer={multiplayer} onClick={() => { setMapOpen(false); setModal({ type: 'multiplayer' }); }}/><button className="help-button" aria-label="怎么玩" onClick={() => setModal({ type: 'help' })}><HelpCircle size={20}/><span>怎么玩</span></button>
     </header>
     <main className={`town-shell is-${viewMode}${droneWatching && drone.state.view === 'fpv' && !reducedMotion ? ' is-drone-fpv' : ''}${nearestWonder ? ' has-wonder' : ''}${offshore.state.aboard ? ' is-offshore-aboard' : ''}${outdoor.selected ? ' has-outdoor-game' : ''}${flying && !outdoor.selected ? ' is-flying' : ''}`} inert={!!modal} aria-label="游戏小镇探索场景">
-      <div className="world-stage"><SceneBoundary><Suspense fallback={null}><Town offshoreRef={offshore.runtimeRef} offshoreView={offshoreView} offshoreAboard={offshore.state.aboard} onOffshoreSelect={openOffshore} sphereMode={sphereMode} sphereOrbit={sphereOrbit} onSphereSelect={openSphere} onSkyAppearance={skyAppearance} suspended={['cinema', 'gpt-park', 'deepseek-park'].includes(modal?.type)} onGptSelect={openGptPark} onDeepSeekSelect={openDeepSeekPark} active={!droneWatching && !sphereWatching && !offshoreWatching && !modal && !mapOpen} droneTimeRef={droneWatching ? drone.timeRef : npcTimeRef} droneFpv={{ aiRuntime: droneWatching ? drone.state.aiRuntime : undefined, program: droneWatching ? drone.state.program : 'avatar', view: drone.state.view, seatId: droneSeatId, onSeatsReady: setDroneSeats, lookInputRef: droneLookInput, recenterRef: droneRecenter, telemetryRef: droneTelemetry, onLookStatus: setDroneLookStatus }} network={multiplayer} inputRef={inputRef} destination={destination} onNearest={setNearest} onReady={sceneReady} reducedMotion={reducedMotion} completedIds={completedIds} onInspectResidents={inspectResidents} viewMode={viewMode} onStartExploring={beginExploring} onLookStatus={setLookStatus} timeRef={droneWatching ? DRONE_NIGHT_TIME : timeRef} npcTimeRef={npcTimeRef} onNearestNpc={setNearestNpc} nearestNpcId={nearestNpc} characterAsset={characterAsset} onNearestWonder={setNearestWonder} outdoorRef={outdoor.runtimeRef} outdoorSelected={outdoor.selected} onOutdoorStart={startOutdoor} onNearestOutdoor={setNearestOutdoor} flightRef={flightRef} onFlyingChange={setFlying}/></Suspense></SceneBoundary></div>
+      <div className="world-stage"><SceneBoundary><Suspense fallback={null}><Town offshoreRef={offshore.runtimeRef} offshoreView={offshoreView} offshoreAboard={offshore.state.aboard} onOffshoreSelect={openOffshore} sphereMode={sphereMode} sphereBubbleCue={sphereBubbleCue} onNearestOffshoreDock={setNearOffshoreDock} sphereOrbit={sphereOrbit} onSphereSelect={openSphere} onSkyAppearance={skyAppearance} suspended={['cinema', 'gpt-park', 'deepseek-park'].includes(modal?.type)} onGptSelect={openGptPark} onDeepSeekSelect={openDeepSeekPark} active={!droneWatching && !sphereWatching && !offshoreWatching && !modal && !mapOpen} droneTimeRef={droneWatching ? drone.timeRef : npcTimeRef} droneFpv={{ aiRuntime: droneWatching ? drone.state.aiRuntime : undefined, program: droneWatching ? drone.state.program : 'avatar', view: drone.state.view, seatId: droneSeatId, onSeatsReady: setDroneSeats, lookInputRef: droneLookInput, recenterRef: droneRecenter, telemetryRef: droneTelemetry, onLookStatus: setDroneLookStatus }} network={multiplayer} inputRef={inputRef} destination={destination} onNearest={setNearest} onReady={sceneReady} reducedMotion={reducedMotion} completedIds={completedIds} onInspectResidents={inspectResidents} viewMode={viewMode} onStartExploring={beginExploring} onLookStatus={setLookStatus} timeRef={droneWatching ? DRONE_NIGHT_TIME : timeRef} npcTimeRef={npcTimeRef} onNearestNpc={setNearestNpc} nearestNpcId={nearestNpc} characterAsset={characterAsset} onNearestWonder={setNearestWonder} outdoorRef={outdoor.runtimeRef} outdoorSelected={outdoor.selected} onOutdoorStart={startOutdoor} onNearestOutdoor={setNearestOutdoor} flightRef={flightRef} onFlyingChange={setFlying}/></Suspense></SceneBoundary></div>
       {offshoreWatching && <Suspense fallback={<p className="sphere-loading" role="status">正在打开远海科考港…</p>}><OffshoreControls controller={offshore} view={offshoreView} onView={setOffshoreView} onClose={closeOffshore} onDock={() => { if (offshore.runtimeRef.current.aboard) { offshore.disembark(); } else { travel('offshore'); } }} reducedMotion={reducedMotion} night={dayNightMode === 'night' || dayNightLabel === '夜晚'} onNight={() => setDayNightMode(dayNightMode === 'night' || dayNightLabel === '夜晚' ? 'day' : 'night')}/></Suspense>}
       {offshore.state.aboard && !offshoreWatching && !droneWatching && !sphereWatching && <button className="offshore-resume" onClick={openOffshore}>船上观景 · 返航 / 离船 ↗</button>}
-      {sphereWatching && <Suspense fallback={<p className="sphere-loading" role="status">正在打开球幕观景…</p>}><SphereControls mode={sphereMode} onMode={setSphereMode} orbit={sphereOrbit} onOrbit={setSphereOrbit} onExit={closeSphere} onEnter={() => travel('sphere')} night={dayNightMode === 'night' || dayNightLabel === '夜晚'} onNight={() => setDayNightMode(dayNightMode === 'night' || dayNightLabel === '夜晚' ? 'day' : 'night')} reducedMotion={reducedMotion}/></Suspense>}
+      {sphereWatching && <Suspense fallback={<p className="sphere-loading" role="status">正在打开球幕观景…</p>}><SphereControls onBlow={blowSphereBubbles} mode={sphereMode} onMode={setSphereMode} orbit={sphereOrbit} onOrbit={setSphereOrbit} onExit={closeSphere} onEnter={() => travel('sphere')} night={dayNightMode === 'night' || dayNightLabel === '夜晚'} onNight={() => setDayNightMode(dayNightMode === 'night' || dayNightLabel === '夜晚' ? 'day' : 'night')} reducedMotion={reducedMotion}/></Suspense>}
       {!outdoor.selected && !droneWatching && <FlightStatus flightRef={flightRef} flying={flying} onToggleHover={requestHover} viewMode={viewMode}/>}
       {!outdoor.selected && !mapOpen && <OutdoorLauncher onStart={startOutdoor} nearest={nearestOutdoor}/>}
       {outdoor.selected && <OutdoorHud key={outdoor.selected} runtimeRef={outdoor.runtimeRef} selected={outdoor.selected} onExit={outdoor.exit} connected={multiplayer.status === 'connected'}/>}
@@ -358,6 +363,7 @@ export default function App() {
       {nearestWonder && !modal && !mapOpen && viewMode !== 'overview' && <Suspense fallback={null}><WonderHud id={nearestWonder} timeRef={npcTimeRef} onOpen={openWonders} reducedMotion={reducedMotion} observing={viewMode === 'wonder'} onObserve={() => changeViewMode(viewMode === 'wonder' ? 'first-person' : 'wonder')}/></Suspense>}
       <div className="compass-mark" aria-hidden="true"><span>N</span><Compass size={42}/></div>
       <div className="journey-widget"><button className="journey-button" onClick={() => setModal({ type: 'passport' })}><span className="journey-icon"><Flag size={22}/></span><span><strong>我的探索旅程</strong><span>{complete === 0 ? '你的第一枚印章，等你来拿' : `${complete} / 4 个地点已探索`}</span></span><ChevronRight size={20}/></button><div className="journey-stamps">{GAMES.map(g => <span key={g.id} className={completedIds.includes(g.id) ? 'done' : ''} title={`${g.name}：${completedIds.includes(g.id) ? '已探索' : '待探索'}`}><GameIcon id={g.id} size={20}/></span>)}<span className="journey-line"/></div></div>
+      {nearOffshoreDock && !offshore.state.aboard && !modal && !mapOpen && !outdoor.selected && ['follow', 'first-person'].includes(viewMode) && <div className="nearby-prompt offshore-nearby-prompt"><div><strong>南岸科考码头</strong><span>远海浮动岛 · 自动巡航与返港</span></div><button className="button-primary" onClick={startOffshoreCruise}><kbd>E</kbd> 登船并出海</button></div>}
       {nearest && !nearestNpc && !modal && viewMode !== 'overview' && <div className="nearby-prompt"><span className="nearby-icon" style={{ '--game-color': GAME_MAP[nearest].color }}><GameIcon id={nearest} size={24}/></span><div><strong>{GAME_MAP[nearest].name}</strong><span>{GAME_MAP[nearest].subtitle}</span></div><button className="button-primary" onClick={() => openGame(nearest)}><kbd>E</kbd> 进入体验</button></div>}
       {nearestNpc && NPC_MAP[nearestNpc] && !modal && !mapOpen && viewMode !== 'overview' && <div className="nearby-prompt npc-nearby-prompt"><img src={NPC_MAP[nearestNpc].portrait} alt=""/><div><strong>{NPC_MAP[nearestNpc].name}</strong><span>{NPC_MAP[nearestNpc].role}</span></div><button className="button-primary" onClick={() => inspectResidents(nearestNpc)}><kbd>F</kbd> 聊一聊</button></div>}
       <div className="world-controls"><div className="keyboard-hint"><span className="key-group"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span><span>移动</span><span className="control-divider"/><kbd>空格</kbd><span>跳跃 / 长按喷气</span><kbd>H</kbd><span>悬停</span>{viewMode === 'follow' && <span>按住右键环视</span>}<span className="control-divider"/><kbd>E</kbd><span>进入店铺</span></div><button className="button-plain reset-view" onClick={() => travel('center')}><RotateCcw size={17}/>回到广场</button></div>
@@ -367,7 +373,7 @@ export default function App() {
       <div className="local-note"><ShieldCheck size={15}/>{storageOk ? '本机记录 · 随时可清除' : '仅本次会话 · 本地存储不可用'}</div>
     </main>
     <div className="toast-container" aria-live="polite">{toast && <div className="toast"><Check size={19}/>{toast}</div>}</div>
-    {modal?.type === 'atlas' && <Dialog wide title="小镇街区导览" eyebrow="TOWN PLAN / TOWN + WONDERS" onClose={closeModal}><Suspense fallback={<p role="status">正在打开小镇地图…</p>}><TownAtlas onTravel={travel} onOutdoorStart={startOutdoor} onGptTour={openGptPark} onDeepSeekTour={openDeepSeekPark} onSphereTour={openSphere} onOffshoreTour={openOffshore}/></Suspense></Dialog>}
+    {modal?.type === 'atlas' && <Dialog wide title="小镇街区导览" eyebrow="TOWN PLAN / TOWN + WONDERS" onClose={closeModal}><Suspense fallback={<p role="status">正在打开小镇地图…</p>}><TownAtlas onTravel={travel} onOutdoorStart={startOutdoor} onGptTour={openGptPark} onDeepSeekTour={openDeepSeekPark} onSphereTour={openSphere} onOffshoreTour={startOffshoreCruise}/></Suspense></Dialog>}
     {modal?.type === 'gpt-park' && <GptEntryBoundary onClose={closeModal}><Suspense fallback={<Dialog title="GPT 主题园区" onClose={closeModal}><p role="status">正在打开 GPT 园区…</p></Dialog>}><GptParkExperience onClose={closeModal} onEnterTown={() => travel('gpt')} reducedMotion={reducedMotion}/></Suspense></GptEntryBoundary>}
     {modal?.type === 'deepseek-park' && <DeepSeekEntryBoundary onClose={closeModal}><Suspense fallback={<Dialog title="DeepSeek 主题园区" onClose={closeModal}><p role="status">正在打开 DeepSeek 园区…</p></Dialog>}><DeepSeekParkExperience onClose={closeModal} onEnterTown={() => travel(DEEPSEEK_PARK.id)} reducedMotion={reducedMotion}/></Suspense></DeepSeekEntryBoundary>}
     {modal?.type === 'wonders' && <Dialog wide title="奇观时刻" eyebrow="PLAYTOWN / ONE CONNECTED WORLD" onClose={closeModal}><Suspense fallback={<p role="status">正在打开奇观时刻…</p>}><WonderSchedule onOffshore={openOffshore} onSphere={openSphere} onDroneShow={openDroneShow} onAiDrone={openAiDrone} onImmerse={observeWonder} timeRef={npcTimeRef} onTravel={travel} reducedMotion={reducedMotion} onReducedMotion={setReducedMotion}/></Suspense></Dialog>}

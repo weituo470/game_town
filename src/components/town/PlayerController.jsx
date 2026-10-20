@@ -79,7 +79,7 @@ function RemotePlayer({ player, snapshotRef, Model, reducedMotion, offshoreRef }
   return <Model poseRef={pose} name={player.connected === false ? `${player.name} · 重连中` : player.name} color={player.color} reducedMotion={reducedMotion} />;
 }
 
-export default function PlayerController({ Model, active, inputRef, destination, onNearest, reducedMotion, network, viewMode = 'overview', onStartExploring, onLookStatus, playerPoseRef, outdoorRef, onNearestOutdoor, npcTimeRef, flightRef, onFlyingChange, offshoreRef }) {
+export default function PlayerController({ Model, active, inputRef, destination, onNearest, reducedMotion, network, viewMode = 'overview', onStartExploring, onLookStatus, playerPoseRef, outdoorRef, onNearestOutdoor, npcTimeRef, flightRef, onFlyingChange, offshoreRef, onNearestOffshoreDock }) {
   const pose = useRef({ ...SPAWN, y: 0, vy: 0, moving: false, jetpack: false, thrusting: false, hovering: false });
   const heldSince = useRef(null);
   const hoverRequested = useRef(false);
@@ -88,6 +88,7 @@ export default function PlayerController({ Model, active, inputRef, destination,
   const publishedFlight = useRef(false);
   const outdoorReturn = useRef(null);
   const nearestOutdoor = useRef(null);
+  const nearOffshoreDock = useRef(false);
   const outdoorOffset = useRef(new THREE.Vector3(18, 24, 28));
   // Share the rendered/predicted pose with ambient NPC proximity only. This
   // never feeds NPC data back into player or server movement authority.
@@ -350,6 +351,8 @@ export default function PlayerController({ Model, active, inputRef, destination,
     const delta = Math.min(frameDelta, 0.1);
     const current = pose.current;
     const voyage = offshoreRef?.current;
+    const nearDock = Boolean(active && !voyage?.aboard && ['follow', 'first-person'].includes(viewMode) && current.y < 1.5 && Math.hypot(current.x - OFFSHORE_ARRIVAL.x, current.z - OFFSHORE_ARRIVAL.z) <= 10);
+    if (nearDock !== nearOffshoreDock.current) { nearOffshoreDock.current = nearDock; onNearestOffshoreDock?.(nearDock); }
     if (voyage?.aboard) {
       if (!current.aboard) {
         stopInput(); nearest.current = null; nearestOutdoor.current = null;

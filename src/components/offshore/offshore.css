@@ -18,6 +18,8 @@
 .offshore-progress { display:flex; gap:12px; align-items:center; min-width:0; font-size:var(--text-control,1rem); }
 .offshore-progress progress { width:100%; min-width:50px; max-width:180px; height:6px; accent-color:#a4d6cf; }
 .offshore-progress output { white-space:nowrap; }
+.offshore-telemetry { display:flex; flex-wrap:wrap; gap:4px 12px; line-height:1.5; }
+.offshore-telemetry output:first-child { color:#d3e9df; font-weight:600; }
 .offshore-view-tabs,.offshore-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
 .offshore-view-tabs button[aria-pressed="true"] { background:#d3e9df; color:#173443; border-color:#d3e9df; }
 .offshore-controls .offshore-primary { background:#e2c991; color:#253135; border-color:#e2c991; }
@@ -40,7 +42,9 @@
  .offshore-close { top:18px; right:14px; padding:10px!important; }
  .offshore-console { bottom:max(10px,env(safe-area-inset-bottom)); left:12px; right:12px; padding:12px; grid-template-columns:minmax(0,1fr); gap:8px; max-height:44svh; }
  .offshore-status { gap:3px 10px; }
- .offshore-progress { justify-content:space-between; }
+ .offshore-progress { justify-content:space-between; flex-wrap:wrap; }
+ .offshore-progress progress { flex:1; }
+ .offshore-telemetry { flex:1 1 180px; justify-content:space-between; }
  .offshore-view-tabs { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); }
  .offshore-controls button { padding:9px 10px; }
  .offshore-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }

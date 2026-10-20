@@ -70,7 +70,8 @@ export function sampleOffshoreVoyage(plan, now) {
   const y = Math.sin(t * 0.75) * 0.11 * wave;
   const roll = Math.sin(t * 0.46) * 0.004 * wave, pitch = Math.sin(t * 0.38) * 0.003 * wave;
   const remainingMs = docked ? 0 : returning ? Math.max(0, p.returnAt + offshoreReturnDuration(p) - now) : OFFSHORE_CRUISE_MS - elapsed;
-  return { x, y, z, yaw, pitch, roll, phase, label, progress: elapsed / OFFSHORE_CRUISE_MS, moving: !docked && phase !== 'observing', docked, remainingMs };
+  const distanceFromPort = Math.hypot(x - OFFSHORE_ISLAND.x, z - OFFSHORE_ISLAND.z);
+  return { x, y, z, yaw, pitch, roll, phase, label, progress: elapsed / OFFSHORE_CRUISE_MS, moving: !docked && phase !== 'observing', docked, remainingMs, distanceFromPort };
 }
 
 export function offshoreSeatLocal(seat = 0) {

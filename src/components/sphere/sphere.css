@@ -10,11 +10,14 @@
 .sphere-title h1 { margin:8px 0; font-size:clamp(1.75rem,3vw,2.5rem); font-weight:600; }
 .sphere-title p { margin:0; font-size:var(--text-body,1.125rem); line-height:1.7; }
 .sphere-exit { position:absolute; top:30px; right:32px; }
-.sphere-console { position:absolute; bottom:24px; left:32px; right:32px; display:flex; flex-wrap:wrap; align-items:center; gap:12px 20px; }
+.sphere-console { max-height:42svh; overflow:auto; pointer-events:auto; padding:8px 0; position:absolute; bottom:24px; left:32px; right:32px; display:flex; flex-wrap:wrap; align-items:center; gap:12px 20px; }
 .sphere-modes,.sphere-tools { display:flex; flex-wrap:wrap; gap:8px; }
 .sphere-modes button[aria-pressed="true"] { color:#26291e; background:#f5d56d; border-color:#f5d56d; }
 .sphere-tools { margin-left:auto; }
+.sphere-controls .sphere-blow { background:#f5d56d; border-color:#f5d56d; color:#26291e; }
+.sphere-controls .sphere-blow:hover { background:#ffe58b; color:#26291e; }
 .sphere-controls .sphere-enter { background:#e8e4d3; color:#233142; }
+.sphere-controls .sphere-enter:hover { background:#fff8e4; color:#233142; }
 .sphere-meta { width:100%; margin:0; display:flex; flex-wrap:wrap; justify-content:space-between; gap:6px 20px; font-size:var(--text-body,1.125rem); line-height:1.7; color:#dce5ec; }
 .sphere-meta > span { font-size:var(--text-meta,.875rem); }
 .sphere-loading { position:absolute; inset:0; z-index:9; display:grid; place-items:center; color:white; font-size:var(--text-body,1.125rem); }
@@ -27,6 +30,6 @@
   .sphere-console { bottom:max(16px,env(safe-area-inset-bottom)); left:16px; right:16px; gap:10px; }
   .sphere-modes { display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); width:100%; gap:8px; }
   .sphere-controls button { padding:9px 10px; }
-  .sphere-tools { margin-left:0; width:100%; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); }
+  .sphere-tools { margin-left:0; width:100%; display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
   .sphere-meta { gap:3px; }
 }
