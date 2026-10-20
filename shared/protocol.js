@@ -1,6 +1,6 @@
-// Version 8 adds the shared offshore vessel and authoritative passenger seats.
+// Version 9 adds authoritative ship-local walking and deck pose replication.
 // Older loaded clients must refresh instead of using an incompatible schema.
-export const PROTOCOL_VERSION = 8;
+export const PROTOCOL_VERSION = 9;
 export const TOWN_ROOM_TYPE = 'town';
 export const MAX_PLAYERS = 8;
 export const SERVER_TICK_MS = 50;

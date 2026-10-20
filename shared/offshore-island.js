@@ -1,5 +1,6 @@
 // One shared, deterministic sea route for the room authority and every renderer.
 // This is a game experience, not a navigation system for a real vessel.
+import { isOffshoreDeckWalkable } from './offshore-deck.js';
 export const OFFSHORE_ISLAND = Object.freeze({ id: 'offshore', name: '远海浮动岛', x: 16, z: 85, width: 26, length: 38, deckY: 8 });
 export const OFFSHORE_DOCK = Object.freeze({ x: 16, z: 58, width: 18, depth: 12 });
 export const OFFSHORE_BRIDGE = Object.freeze({ x: 16, z: 46, width: 6, depth: 16 });
@@ -79,15 +80,30 @@ export function offshoreSeatLocal(seat = 0) {
   // Left-side observation corridor, clear of the front cabin and cranes.
   return { x: -8, y: OFFSHORE_ISLAND.deckY, z: 4 + i };
 }
-export function sampleOffshorePassenger(plan, now, seat = 0) {
-  const ship = sampleOffshoreVoyage(plan, now), p = offshoreSeatLocal(seat);
+export function offshoreLocalToWorld(ship, p) {
   // Matches a THREE Euler XYZ transform exactly, including deck heave and tilt.
   const cz = Math.cos(ship.roll), sz = Math.sin(ship.roll), cy = Math.cos(ship.yaw), sy = Math.sin(ship.yaw), cx = Math.cos(ship.pitch), sx = Math.sin(ship.pitch);
   const ax = p.x * cz - p.y * sz, ay = p.x * sz + p.y * cz;
   const bx = ax * cy + p.z * sy, bz = -ax * sy + p.z * cy;
-  return { x: ship.x + bx, y: ship.y + ay * cx - bz * sx, z: ship.z + ay * sx + bz * cx, yaw: ship.yaw,
+  return { x: ship.x + bx, y: ship.y + ay * cx - bz * sx, z: ship.z + ay * sx + bz * cx };
+}
+export function worldToOffshoreLocal(ship, p) {
+  // Reverse XYZ's actual multiplication order: inverse X, then Y, then Z.
+  const x = p.x - ship.x, y = p.y - ship.y, z = p.z - ship.z;
+  const cz = Math.cos(ship.roll), sz = Math.sin(ship.roll), cy = Math.cos(ship.yaw), sy = Math.sin(ship.yaw), cx = Math.cos(ship.pitch), sx = Math.sin(ship.pitch);
+  const ay = y * cx + z * sx, az = -y * sx + z * cx;
+  const bx = x * cy - az * sy, bz = x * sy + az * cy;
+  return { x: bx * cz + ay * sz, y: -bx * sz + ay * cz, z: bz };
+}
+export function sampleOffshorePassenger(plan, now, seat = 0, local) {
+  const ship = sampleOffshoreVoyage(plan, now), origin = offshoreSeatLocal(seat);
+  const valid = isOffshoreDeckWalkable(local?.deckX, local?.deckZ);
+  const p = valid ? { x: local.deckX, y: OFFSHORE_ISLAND.deckY, z: local.deckZ } : origin;
+  const deckYaw = finite(local?.deckYaw);
+  return { ...offshoreLocalToWorld(ship, p), yaw: ship.yaw + deckYaw,
     aboard: true, offshoreSeat: clamp(Number.isInteger(seat) ? seat : 0, 0, OFFSHORE_SEATS - 1),
-    vy: 0, moving: false, jetpack: false, thrusting: false, hovering: false };
+    deckX: p.x, deckZ: p.z, deckYaw,
+    vy: 0, moving: valid && local?.moving === true, jetpack: false, thrusting: false, hovering: false };
 }
 export function canBoardOffshore(player, plan, now) {
   return player?.connected !== false && player?.aboard !== true && finite(player?.y, 99) < 1.5

@@ -87,6 +87,9 @@ export function snapshotFromState(state, selfId) {
       connected: player.connected !== false, seq: Number.isFinite(player.seq) ? player.seq : 0,
       aboard: player.aboard === true, offshoreSeat: Number.isInteger(player.offshoreSeat) ? player.offshoreSeat : -1,
       offshoreSeq: Number.isSafeInteger(player.offshoreSeq) ? player.offshoreSeq : -1,
+      deckX: Number.isFinite(player.deckX) ? player.deckX : 0,
+      deckZ: Number.isFinite(player.deckZ) ? player.deckZ : 0,
+      deckYaw: Number.isFinite(player.deckYaw) ? player.deckYaw : 0,
       serverTick: Number.isFinite(state.tick) ? state.tick : 0,
     });
   });

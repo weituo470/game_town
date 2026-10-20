@@ -91,7 +91,7 @@ test('offshore deep link retains the real Town single Canvas and grants only its
   assert.equal(children.filter(node => node.type === 'Canvas').length, 0);
   const camera = children.find(node => node.type === 'Lazy:OffshoreCamera');
   assert.equal(camera.props.runtimeRef, app.controller.runtimeRef);
-  assert.equal(children.find(node => node.type === './town/PlayerController').props.offshoreRef, app.controller.runtimeRef);
+  assert.equal(children.find(node => node.type === 'Lazy:PlayerController').props.offshoreRef, app.controller.runtimeRef);
 });
 
 test('opening offshore stops outdoor and drone modes, resets held inputs and returns to the prior shore view', () => {
@@ -115,12 +115,14 @@ test('opening offshore stops outdoor and drone modes, resets held inputs and ret
 
 test('aboard close switches to follow and exposes resume without disembarking or resetting the voyage', () => {
   const app = appHarness('?landmark=offshore'); app.runtime.aboard = true; app.runtime.seat = 3; app.runtime.plan.startAt = 75000; app.render();
-  const plan = app.runtime.plan, close = app.controls().props.onClose;
-  app.controls().props.onView('deck'); app.render(); close(); app.render();
+  const plan = app.runtime.plan, walk = app.controls().props.onWalk;
+  assert.equal(walk, app.controls().props.onClose);
+  app.controls().props.onView('deck'); app.render(); walk(); app.render();
   assert.equal(app.town().props.viewMode, 'follow'); assert.equal(app.runtime.aboard, true);
   assert.equal(app.calls.includes('disembark'), false); assert.equal(app.runtime.plan, plan);
   const resume = app.all().find(node => node.props.className === 'offshore-resume');
   assert.ok(resume); assert.ok(app.all().find(node => node.type === 'main').props.className.includes('is-offshore-aboard'));
+  assert.ok(app.all().some(node => node.props.className === 'offshore-walk-hint'));
   resume.props.onClick(); app.render(); assert.equal(app.controls().props.view, 'director');
   assert.equal(app.town().props.offshoreAboard, true); assert.equal(app.runtime.plan, plan);
 });

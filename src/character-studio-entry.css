@@ -20,10 +20,11 @@
   pointer-events: none;
 }
 .generated-character-status.is-error { border-color: #efbd9b; }
-@media (min-width: 761px) and (max-width: 1080px) {
+@media (min-width: 761px) and (max-width: 1200px) {
   .topbar:has(.character-studio-nav) { gap: 14px; padding-inline: 20px; }
   .topbar nav:has(.character-studio-nav) { gap: 14px; }
   .topbar nav:has(.character-studio-nav) .nav-item > svg { display: none; }
+  .topbar nav:has(.character-studio-nav) .nav-item { white-space:nowrap; }
 }
 @media (max-width: 760px) {
   .topbar nav:has(.character-studio-nav) { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); width: 100%; gap: 4px; }
@@ -31,4 +32,7 @@
   .topbar nav:has(.character-studio-nav) .nav-item > svg,
   .topbar nav:has(.character-studio-nav) .nav-count { display: none; }
   .generated-character-status { top: auto; bottom: 184px; left: 14px; right: 14px; max-width: none; }
+  .topbar:has(.architect-nav) { height:156px; grid-template-rows:56px 92px; }
+  .topbar nav:has(.architect-nav) { grid-template-columns:repeat(3,minmax(0,1fr)); grid-template-rows:repeat(2,44px); }
+  .topbar:has(.architect-nav) + .town-shell { height:calc(100svh - 156px); }
 }

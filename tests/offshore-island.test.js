@@ -137,7 +137,7 @@ test('authority rejects spoofed positions, stale sequence, remote boarding and c
   h.room.receiveOffshore(a.client, { action: 'return', seq: 0 }); assert.equal(h.room.state.offshoreReturnAt, 0);
 });
 
-test('authority carries all eight seats, ignores walking/thrust, forbids travel and disembark at sea', () => {
+test('authority carries all eight passengers, ignores thrust, forbids travel and disembark at sea', () => {
   const h = harness(), passengers = Array.from({ length: 8 }, (_, i) => h.add(`p${i}`));
   passengers.forEach(p => p.act('board'));
   assert.equal(new Set(passengers.map(p => p.player.offshoreSeat)).size, 8);

@@ -661,6 +661,7 @@ test('App FPV selection, seat changes, seek and look never change the parked ava
 test('Town wires the same fleet and private clock into one camera without replacing the town, player, or shared environment', () => {
   for (const reducedMotion of [false, true]) {
     const hooks = hookRuntime();
+    hooks.react.lazy = loader => ({ $$typeof: Symbol.for('react.lazy'), modulePath: loader.toString().match(/\bimport\(\s*["']([^"']+)["']\s*\)/)?.[1] });
     const imports = ['./DuskScenery', './town/PlayerController', './town/SceneEffects', './town/SoftPenumbra', './town/characters/Residents', './town/landmarks/LandmarkFountain.jsx', './town/TownSky.jsx', './town/TownEnvironment.jsx', './town/WonderIslands.jsx', './town/GptPark.jsx', './town/DeepSeekPark.jsx', './town/GeneratedPlayerModel.jsx', './town/OutdoorScenery.jsx', './town/JetpackRig.jsx'];
     const overrides = Object.fromEntries(imports.map(id => [id, componentNamespace(id)]));
     Object.assign(overrides, { react: hooks.react,
@@ -683,7 +684,7 @@ test('Town wires the same fleet and private clock into one camera without replac
     assert.equal(show.props.timeRef, showClock); assert.equal(camera.props.timeRef, showClock);
     assert.equal(camera.props.lookInputRef, droneFpv.lookInputRef);
     assert.equal(show.props.firstPersonSeatId, reducedMotion ? null : 'hair-tip');
-    const player = scene.find(node => node.type === './town/PlayerController');
+    const player = scene.find(node => node.type?.modulePath === './town/PlayerController.jsx');
     assert.equal(player.props.active, false); assert.equal(player.props.inputRef, inputRef); assert.equal(player.props.destination, destination);
     const sky = scene.find(node => node.type === './town/TownSky.jsx'), wonders = scene.find(node => node.type === './town/WonderIslands.jsx');
     assert.equal(sky.props.timeRef, lightingClock); assert.equal(wonders.props.timeRef, sharedClock);
@@ -705,7 +706,7 @@ test('Town wires the same fleet and private clock into one camera without replac
     assert.equal(battleWonders.props.timeRef, sharedClock, 'other wonders retain their shared clock');
     assert.equal(wonders.props.battleTimeRef, null, 'normal show does not lift the port ship');
     assert.equal(battleScene.filter(node => node.type === 'PerspectiveCamera').length, 1);
-    assert.equal(battleScene.find(node => node.type === './town/PlayerController').props.destination, destination);
+    assert.equal(battleScene.find(node => node.type?.modulePath === './town/PlayerController.jsx').props.destination, destination);
   }
 });
 

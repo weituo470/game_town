@@ -13,6 +13,8 @@ import FirstPersonLook from './FirstPersonLook.jsx';
 import { closeThirdPersonLens, closeThirdPersonCamera, firstPersonInput } from './firstPerson.js';
 import { nearestOutdoorGame } from '../../minigames/outdoor.js';
 import { OFFSHORE_ARRIVAL, sampleOffshorePassenger } from '../../../shared/offshore-island.js';
+import { stepOffshoreDeck } from '../../../shared/offshore-deck.js';
+import { blendOffshoreDeck, offshoreWalkingCamera, remoteOffshorePose } from './offshoreWalking.js';
 
 const MOVEMENT_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 const ZERO_INPUT = Object.freeze({ x: 0, z: 0 });
@@ -49,7 +51,7 @@ function RemotePlayer({ player, snapshotRef, Model, reducedMotion, offshoreRef }
     const current = pose.current;
     const voyage = offshoreRef?.current;
     if (next.aboard && voyage) {
-      Object.assign(current, sampleOffshorePassenger(voyage.plan, voyage.now, next.offshoreSeat));
+      Object.assign(current, remoteOffshorePose(current, next, voyage, frameDelta, reducedMotion, performance.now() - next.receivedAt < 400));
       return;
     }
     if (current.aboard) Object.assign(current, next, { aboard: false });
@@ -105,6 +107,7 @@ export default function PlayerController({ Model, active, inputRef, destination,
   const lastSent = useRef({ x: 0, z: 0, at: -Infinity });
   const lastInput = useRef(ZERO_INPUT);
   const authority = useRef({ session: null, tick: -1, correctionX: 0, correctionZ: 0, correctionY: 0 });
+  const deckAuthority = useRef({ signature: null, correctionX: 0, correctionZ: 0 });
   const cameraTarget = useRef(new THREE.Vector3(0, 0, 3));
   const desiredTarget = useRef(new THREE.Vector3());
   const cameraPosition = useRef(new THREE.Vector3());
@@ -166,7 +169,9 @@ export default function PlayerController({ Model, active, inputRef, destination,
     jumpRequested.current = false;
     if (inputRef) inputRef.current = {};
     lastInput.current = ZERO_INPUT;
-    Object.assign(pose.current, stoppedVertical(pose.current));
+    Object.assign(pose.current, pose.current.aboard
+      ? { moving: false, vy: 0, jetpack: false, thrusting: false, hovering: false }
+      : stoppedVertical(pose.current));
     authority.current.correctionY = 0;
     const stopSeq = sendInput({ ...ZERO_INPUT, stop: true });
     if (Number.isSafeInteger(stopSeq)) verticalSequence.current = stopSeq;
@@ -180,7 +185,8 @@ export default function PlayerController({ Model, active, inputRef, destination,
     const interactive = element => ['BUTTON', 'A', 'SUMMARY'].includes(element?.tagName)
       || !!element?.closest?.('button,a[href],summary,[role="button"],[role="checkbox"],[role="radio"],[role="switch"],[role="tab"],[role="menuitem"],[role="option"],[role="slider"]');
     const keydown = event => {
-      if (!active || outdoorRef?.current || offshoreRef?.current?.aboard || event.ctrlKey || event.metaKey || event.altKey || editable(event.target)) return;
+      if (!active || outdoorRef?.current || event.ctrlKey || event.metaKey || event.altKey || editable(event.target)) return;
+      if (offshoreRef?.current?.aboard && !MOVEMENT_KEYS.has(event.code)) return;
       if (event.code === 'KeyH') {
         if (interactive(event.target) || event.repeat || keys.current.KeyH) return;
         keys.current.KeyH = true;
@@ -360,14 +366,41 @@ export default function PlayerController({ Model, active, inputRef, destination,
         if (camera.isOrthographicCamera) camera.clearViewOffset();
         callbacks.current.onNearest?.(null); onNearestOutdoor?.(null);
         authority.current.correctionX = 0; authority.current.correctionY = 0; authority.current.correctionZ = 0;
+        deckAuthority.current = { signature: null, correctionX: 0, correctionZ: 0 };
+        Object.assign(current, sampleOffshorePassenger(voyage.plan, voyage.now, voyage.seat, voyage.self));
         if (publishedFlight.current) { publishedFlight.current = false; onFlyingChange?.(false); }
       }
-      // Fixed viewing stations share the exact server route and deck transform.
-      // Neither prediction nor gravity may pull passengers off the moving ship.
-      Object.assign(current, sampleOffshorePassenger(voyage.plan, voyage.now, voyage.seat), { activity: null });
+      // Movement remains ship-local throughout prediction and reconciliation.
+      // Only direction packets go to the server; ship translation is sampled
+      // afterward, so vessel turns never look like a player teleport.
+      const snapshot = network?.snapshotRef?.current;
+      const frameSelf = connected ? voyage.self || snapshot?.players?.find(p => p.id === (snapshot?.selfId || network.selfId)) : null;
+      const canWalk = active && (firstPerson || follow) && !waitingForServer && focused.current && !document.hidden && (!connected || !!frameSelf?.aboard);
+      const input = canWalk ? worldInput(keys.current, inputRef?.current || {}, look.current.yaw) : ZERO_INPUT;
+      if (frameSelf?.aboard) {
+        const state = deckAuthority.current, signature = `${frameSelf.id}:${snapshot?.tick}:${frameSelf.seq}:${frameSelf.deckX}:${frameSelf.deckZ}:${frameSelf.deckYaw}`;
+        if (signature !== state.signature) {
+          const target = sampleOffshorePassenger(voyage.plan, voyage.now, voyage.seat, frameSelf);
+          const lead = stepOffshoreDeck(target, lastInput.current, frameSelf.moving && canWalk ? SERVER_TICK_MS / 1000 : 0);
+          if (state.signature === null || Math.hypot(current.deckX - lead.deckX, current.deckZ - lead.deckZ) > 1.5) {
+            Object.assign(current, lead); state.correctionX = 0; state.correctionZ = 0;
+          } else { state.correctionX = lead.deckX - current.deckX; state.correctionZ = lead.deckZ - current.deckZ; }
+          state.signature = signature;
+        }
+      }
+      lastInput.current = input;
+      if (connected && !document.hidden && (input.x !== lastSent.current.x || input.z !== lastSent.current.z || performance.now() - lastSent.current.at >= SERVER_TICK_MS)) sendInput(input);
+      let local = stepOffshoreDeck(current, input, delta);
+      if (connected) {
+        const state = deckAuthority.current, factor = 1 - Math.exp(-delta * 12);
+        const corrected = blendOffshoreDeck(local, { ...local, deckX: local.deckX + state.correctionX, deckZ: local.deckZ + state.correctionZ }, factor);
+        state.correctionX -= corrected.deckX - local.deckX; state.correctionZ -= corrected.deckZ - local.deckZ;
+        local = { ...corrected, moving: local.moving };
+      }
+      Object.assign(current, sampleOffshorePassenger(voyage.plan, voyage.now, voyage.seat, local), { activity: null });
       if (flightRef) Object.assign(flightRef.current, { height: 0, flying: false, thrusting: false, hovering: false, speed: 0 });
       if ((firstPerson || follow) && camera.isPerspectiveCamera) {
-        const shot = (firstPerson ? closeThirdPersonCamera : followOrbitCamera)(current, look.current.yaw - voyage.sample.yaw, look.current.pitch, { aspect: camera.aspect });
+        const shot = offshoreWalkingCamera(current, voyage.sample, look.current, firstPerson, camera.aspect);
         camera.position.set(shot.position.x, shot.position.y, shot.position.z);
         desiredTarget.current.set(shot.target.x, shot.target.y, shot.target.z);
         camera.lookAt(desiredTarget.current);

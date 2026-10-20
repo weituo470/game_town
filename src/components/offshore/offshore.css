@@ -23,6 +23,9 @@
 .offshore-view-tabs,.offshore-actions { display:flex; flex-wrap:wrap; gap:8px; align-items:center; }
 .offshore-view-tabs button[aria-pressed="true"] { background:#d3e9df; color:#173443; border-color:#d3e9df; }
 .offshore-controls .offshore-primary { background:#e2c991; color:#253135; border-color:#e2c991; }
+.offshore-controls .offshore-primary:hover:not(:disabled) { background:#f2dca9; color:#253135; }
+.offshore-controls .offshore-walk { background:#d3e9df; color:#173443; border-color:#d3e9df; }
+.offshore-controls .offshore-walk:hover:not(:disabled) { background:#edf9f4; color:#173443; }
 .offshore-actions { justify-content:flex-end; }
 .offshore-caption { grid-column:1/-1; margin:0; font-size:var(--text-body,1.125rem); line-height:1.7; }
 .offshore-caption > span { display:inline; margin-left:18px; }
@@ -30,7 +33,8 @@
 .offshore-message,.offshore-error { grid-column:1/-1; margin:0; font-size:var(--text-body,1.125rem); line-height:1.7; }
 .offshore-error { color:#ffcfac; }
 .offshore-loading { position:absolute; inset:0; z-index:9; display:grid; place-items:center; color:white; font-size:var(--text-body,1.125rem); }
-.town-shell.is-offshore-aboard .world-controls,.town-shell.is-offshore-aboard .touch-controls,.town-shell.is-offshore-aboard .mobile-jump-button,.town-shell.is-offshore-aboard .outdoor-launcher,.town-shell.is-offshore-aboard .jetpack-status,.town-shell.is-offshore-aboard .first-person-overlay,.town-shell.is-offshore-aboard .nearby-prompt,.town-shell.is-offshore-aboard .npc-nearby-prompt,.town-shell.is-offshore-aboard .town-intro,.town-shell.is-offshore-aboard .journey-widget { display:none; }
+.town-shell.is-offshore-aboard .world-controls,.town-shell.is-offshore-aboard .mobile-jump-button,.town-shell.is-offshore-aboard .mobile-map-button,.town-shell.is-offshore-aboard .outdoor-launcher,.town-shell.is-offshore-aboard .jetpack-status,.town-shell.is-offshore-aboard .first-person-overlay,.town-shell.is-offshore-aboard .nearby-prompt,.town-shell.is-offshore-aboard .npc-nearby-prompt,.town-shell.is-offshore-aboard .town-intro,.town-shell.is-offshore-aboard .journey-widget { display:none; }
+.offshore-walk-hint { position:absolute; z-index:8; bottom:30px; left:50%; transform:translateX(-50%); max-width:calc(100% - 32px); margin:0; padding:8px 14px; background:#123442f5; border-radius:7px; color:#f3f7f6; font-size:var(--text-body,1.125rem); line-height:1.7; text-align:center; pointer-events:none; }
 .offshore-resume { position:absolute; z-index:12; bottom:max(90px,calc(env(safe-area-inset-bottom) + 70px)); left:50%; transform:translateX(-50%); width:max-content; max-width:calc(100% - 32px); min-height:44px; border:1px solid #a7d5cf; border-radius:9px; padding:12px 18px; background:#123442f5; color:#f3f7f6; font:inherit; font-size:var(--text-control,1rem); line-height:1.5; cursor:pointer; }
 .offshore-resume:focus-visible { outline:3px solid #f5d56d; outline-offset:4px; }
 .offshore-resume:hover { background:#285263; }
@@ -50,6 +54,8 @@
  .offshore-actions { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); }
  .offshore-actions .offshore-light { grid-column:1/-1; }
  .offshore-caption > span { display:block; margin-left:0; }
- .offshore-resume { bottom:max(90px,calc(env(safe-area-inset-bottom) + 70px)); padding:11px 14px; }
+ .offshore-resume { bottom:max(164px,calc(env(safe-area-inset-bottom) + 152px)); padding:11px 14px; }
+ .town-shell.is-offshore-aboard.is-follow .touch-controls,.town-shell.is-offshore-aboard.is-first-person .touch-controls { display:grid; gap:8px; }
+ .offshore-walk-hint { left:auto; right:12px; bottom:34px; transform:none; max-width:calc(100% - 190px); padding:8px; text-align:left; }
 }
 @media(prefers-reduced-motion:reduce) { .offshore-controls * { scroll-behavior:auto; } }

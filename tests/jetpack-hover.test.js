@@ -100,7 +100,7 @@ function roomHarness() {
 
 test('server owns unlimited ascent, horizontal hover movement and immediate stop cancellation', () => {
   const h = roomHarness();
-  assert.equal(PROTOCOL_VERSION, 8);
+  assert.equal(PROTOCOL_VERSION, 9);
   for (let i = 0; i < 1200; i++) { h.input({ thrust: true }); h.tick(); }
   assert.ok(h.player.y > 400);
   h.input({ hover: true }); h.tick(); const height = h.player.y, x = h.player.x;

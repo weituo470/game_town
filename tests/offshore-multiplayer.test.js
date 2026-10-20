@@ -14,8 +14,8 @@ async function until(check, message, timeout = 4000) {
   assert.ok(check(), message);
 }
 
-test('real SDK peers share voyage, ride assigned deck stations, reconnect aboard and safely leave', async () => {
-  assert.equal(PROTOCOL_VERSION, 8); assert.equal(RECONNECT_SECONDS, 15);
+test('real SDK peers share voyage, walk on deck, reconnect at their local pose and safely leave', async () => {
+  assert.equal(PROTOCOL_VERSION, 9); assert.equal(RECONNECT_SECONDS, 15);
   const server = await createTownServer({ port: 0, secret: 'offshore-tests-only-secret-minimum-32-bytes', npcConfig: { enabled: false }, npcSpeechConfig: { enabled: false }, aiDroneConfig: { enabled: false }, gameImageConfig: { enabled: false }, gameCharacterConfig: { enabled: false } });
   const peers = new Set(); let code;
   const post = async (path, body) => { const response = await fetch(`${server.url}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); assert.equal(response.status, 200, await response.clone().text()); return response.json(); };
@@ -55,6 +55,11 @@ test('real SDK peers share voyage, ride assigned deck stations, reconnect aboard
     assert.equal(late.room.state.offshoreStartAt, b.room.state.offshoreStartAt, 'late join reads the existing vessel, never restarts it');
     assert.equal(late.room.state.players.get(late.room.sessionId).aboard, false);
     a.room.send('input', { x: 1, z: 0, thrust: true, seq: 2 });
+    await until(() => b.room.state.players.get(aid).deckX > -7.8, 'peer receives ship-local walking rather than a fixed seat');
+    await until(() => b.room.state.players.get(aid).moving === false, 'stale input stops walking');
+    const walked = b.room.state.players.get(aid), localBeforeDrop = { deckX: walked.deckX, deckZ: walked.deckZ, deckYaw: walked.deckYaw };
+    const transformed = sampleOffshorePassenger(offshorePlan(b.room.state), b.room.state.serverTime, seat, walked);
+    assert.ok(Math.hypot(walked.x - transformed.x, walked.y - transformed.y, walked.z - transformed.z) < .001);
     a.room.send('travel', { id: 'center' });
     await sleep(550); a.room.send('offshore', { action: 'disembark', seq: 2 });
     await until(() => a.notices.some(n => n.code === 'OFFSHORE_AT_SEA'), 'early disembark is rejected');
@@ -64,10 +69,13 @@ test('real SDK peers share voyage, ride assigned deck stations, reconnect aboard
     authority.clients.get(aid).ref.terminate();
     await until(() => b.room.state.players.get(aid)?.connected === false, 'disconnected seat remains reserved');
     assert.equal(b.room.state.players.get(aid).aboard, true);
+    assert.deepEqual({ deckX: b.room.state.players.get(aid).deckX, deckZ: b.room.state.players.get(aid).deckZ, deckYaw: b.room.state.players.get(aid).deckYaw }, localBeforeDrop);
     const replacement = await new Client(server.url).reconnect(token); replacement.onMessage('notice', () => {});
     peers.delete(a.room); peers.add(replacement); a = { room: replacement };
     await until(() => replacement.state?.players?.get(aid)?.connected === true, 'reconnected schema');
     assert.equal(replacement.state.players.get(aid).aboard, true); assert.equal(replacement.state.players.get(aid).offshoreSeat, seat);
+    const restored = replacement.state.players.get(aid);
+    assert.deepEqual({ deckX: restored.deckX, deckZ: restored.deckZ, deckYaw: restored.deckYaw }, localBeforeDrop);
     await sleep(350); replacement.send('offshore', { action: 'return', seq: 3 });
     await until(() => b.room.state.offshoreReturnAt > 0, 'return command is replicated');
     authority.state.offshoreStartAt = Date.now() - OFFSHORE_CRUISE_MS + 300;

@@ -8,7 +8,8 @@ import * as THREE from 'three';
 import * as catalog from '../src/lib/catalog.js';
 import { SPAWN } from '../shared/world.js';
 import { OFFSHORE_ARRIVAL, sampleOffshorePassenger, sampleOffshoreVoyage } from '../shared/offshore-island.js';
-import { followOrbitCamera } from '../src/components/town/camera.js';
+import { offshoreWalkingCamera } from '../src/components/town/offshoreWalking.js';
+import { isOffshoreDeckWalkable } from '../shared/offshore-deck.js';
 
 const file = new URL('../src/components/town/PlayerController.jsx', import.meta.url), require = createRequire(file);
 const code = (await transformWithEsbuild(fs.readFileSync(file, 'utf8'), 'PlayerController.jsx', { loader: 'jsx', jsx: 'automatic', format: 'cjs' })).code;
@@ -19,16 +20,18 @@ function emitter() {
     removeEventListener(type, fn) { events.get(type)?.delete(fn); },
     emit(type, details = {}) { for (const fn of events.get(type) || []) fn({ target: { tagName: 'BODY' }, preventDefault() {}, ...details }); } };
 }
-function harness({ remote = false, outdoorRef = { current: null }, viewMode = 'offshore' } = {}) {
+function harness({ remote = false, online = false, outdoorRef = { current: null }, viewMode = 'offshore' } = {}) {
   const contexts = { self: { slots: [], effects: [], pending: [], cursor: 0 }, remote: { slots: [], effects: [], pending: [], cursor: 0 } };
   let context = contexts.self, time = 150000, tree;
   const runtime = { now: time, plan: { startAt: 100000, returnAt: 0 }, aboard: !remote, seat: 2 };
   Object.defineProperty(runtime, 'sample', { get: () => sampleOffshoreVoyage(runtime.plan, runtime.now) });
   const inputRef = { current: {} }, poseRef = { current: null }, flightRef = { current: {} }, win = emitter(), doc = emitter(), packets = [];
   const self = { ...SPAWN, id: 'self', seq: 0, y: 0, vy: 0, yaw: 0, connected: true };
+  if (online) Object.assign(self, sampleOffshorePassenger(runtime.plan, time, runtime.seat));
   const other = { ...self, id: 'remote', name: '同行者', aboard: true, offshoreSeat: 5, y: 0, vy: -50 };
   const snapshotRef = { current: { selfId: 'self', tick: 1, players: [self, other] } };
-  const network = remote ? { status: 'connected', selfId: 'self', players: [self, other], snapshotRef, sendInput(packet) { packets.push(packet); } } : null;
+  const network = remote || online ? { status: 'connected', selfId: 'self', players: [self, other], snapshotRef, sendInput(packet) { packets.push(packet); } } : null;
+  Object.defineProperty(runtime, 'self', { get: () => online ? snapshotRef.current.players.find(p => p.id === 'self') : null });
   const camera = new THREE.PerspectiveCamera(48, 16 / 9, .2, 1000);
   camera.position.set(100, 100, 100);
   const module = { exports: {} };
@@ -52,7 +55,7 @@ function harness({ remote = false, outdoorRef = { current: null }, viewMode = 'o
     context = contexts.remote; context.cursor = 0; remotePose = child.type(child.props).props.poseRef;
     while (context.pending.length) context.pending.shift()();
   }
-  return { runtime, inputRef, poseRef, remotePose, flightRef, camera, win, snapshotRef, outdoorRef, packets, render,
+  return { runtime, inputRef, poseRef, remotePose, flightRef, camera, win, doc, network, snapshotRef, outdoorRef, packets, render,
     lookRef: () => elements(tree).find(node => node.type === 'Look').props.lookRef,
     frame(delta = 1 / 60, kind = 'self') { time += delta * 1000; runtime.now = time; contexts[kind].frame({}, delta); },
     dispose() { for (const ctx of Object.values(contexts)) for (const effect of ctx.effects) effect?.cleanup?.(); } };
@@ -111,7 +114,7 @@ test('closing aboard observation into follow initializes the port-side view, rot
     assert.equal(app.lookRef().current.yaw, Math.PI / 2);
     for (const delta of [1 / 60, 15, 1 / 60]) {
       app.frame(delta);
-      const expected = followOrbitCamera(app.poseRef.current, app.lookRef().current.yaw - app.runtime.sample.yaw, .12, { aspect: app.camera.aspect });
+      const expected = offshoreWalkingCamera(app.poseRef.current, app.runtime.sample, app.lookRef().current, false, app.camera.aspect);
       assert.deepEqual(app.camera.position.toArray(), [expected.position.x, expected.position.y, expected.position.z]);
     }
     const before = app.camera.position.clone();
@@ -119,5 +122,56 @@ test('closing aboard observation into follow initializes the port-side view, rot
     app.frame(0);
     assert.ok(app.camera.position.distanceTo(before) > .2, 'manual orbit is not reset by the next ship frame');
     assertPose(app.poseRef.current, sampleOffshorePassenger(app.runtime.plan, app.runtime.now, app.runtime.seat));
+  } finally { app.dispose(); }
+});
+
+test('follow mode walks with WASD and touch directions while the local deck rides the turning ship', () => {
+  const app = harness();
+  try {
+    app.frame(); app.render({ viewMode: 'follow', active: true });
+    const before = { ...app.poseRef.current };
+    app.win.emit('keydown', { code: 'KeyA' });
+    for (let i = 0; i < 30; i++) { app.frame(); assert.ok(isOffshoreDeckWalkable(app.poseRef.current.deckX, app.poseRef.current.deckZ)); }
+    assert.ok(app.poseRef.current.deckZ < before.deckZ - 1.5);
+    app.win.emit('keyup', { code: 'KeyA' });
+    app.inputRef.current = { backward: true, jetHeld: true, jumpRequested: 1, hoverToggle: 1 };
+    const x = app.poseRef.current.deckX;
+    for (let i = 0; i < 20; i++) app.frame();
+    assert.ok(app.poseRef.current.deckX < x - 1);
+    assert.equal(app.poseRef.current.jetpack, false); assert.equal(app.poseRef.current.vy, 0);
+    assertPose(app.poseRef.current, sampleOffshorePassenger(app.runtime.plan, app.runtime.now, app.runtime.seat, app.poseRef.current));
+    const stood = { ...app.poseRef.current };
+    app.win.emit('blur'); app.frame(10);
+    assert.equal(app.poseRef.current.deckX, stood.deckX); assert.equal(app.poseRef.current.deckZ, stood.deckZ);
+    assert.equal(app.poseRef.current.moving, false); assert.notEqual(app.poseRef.current.z, stood.z, 'standing passenger still travels with the boat');
+    app.win.emit('focus'); app.render({ viewMode: 'offshore', active: false });
+    const observation = { ...app.poseRef.current };
+    app.inputRef.current = { forward: true }; app.frame();
+    assert.equal(app.poseRef.current.deckX, observation.deckX);
+    app.render({ viewMode: 'follow', active: true }); app.frame();
+    assert.equal(app.poseRef.current.deckX, observation.deckX, 'return to walking preserves the previous location');
+  } finally { app.dispose(); }
+});
+
+test('online follow predicts only deck directions, reconciles authoritative local fields and freezes on reconnect', () => {
+  const app = harness({ online: true });
+  try {
+    app.frame(); app.render({ viewMode: 'follow', active: true });
+    app.win.emit('keydown', { code: 'KeyA' });
+    for (let i = 0; i < 20; i++) app.frame();
+    assert.ok(app.poseRef.current.deckZ < 5);
+    assert.ok(app.packets.some(p => p.z < -.9));
+    assert.ok(app.packets.every(p => !('deckX' in p) && !('deckZ' in p) && !p.thrust && !p.hover && !p.jump));
+    app.win.emit('keyup', { code: 'KeyA' });
+    const authoritative = { ...app.snapshotRef.current.players[0], deckX: -8, deckZ: 5.1, deckYaw: Math.PI, moving: false, seq: 100 };
+    app.snapshotRef.current = { ...app.snapshotRef.current, tick: 3, players: [authoritative] };
+    for (let i = 0; i < 60; i++) app.frame();
+    assert.ok(Math.abs(app.poseRef.current.deckZ - 5.1) < .001);
+    app.network.status = 'reconnecting'; app.render();
+    const stopped = { ...app.poseRef.current };
+    app.win.emit('keydown', { code: 'KeyW' }); app.inputRef.current = { forward: true };
+    for (let i = 0; i < 30; i++) app.frame();
+    assert.equal(app.poseRef.current.deckX, stopped.deckX); assert.equal(app.poseRef.current.deckZ, stopped.deckZ);
+    assert.equal(app.poseRef.current.moving, false);
   } finally { app.dispose(); }
 });

@@ -17,6 +17,9 @@ import { createReconnectDiagnostics } from './reconnectDiagnostics.js';
 import { loadNpcLlmConfig } from './npcLlmConfig.js';
 import { createNpcChatService } from './npcChat.js';
 import { createAiDroneDirector, loadAiDroneConfig, AiDroneDirectorError } from './aiDroneDirector.js';
+import { createArchitectService } from './architect/service.js';
+import { loadArchitectConfig } from './architect/config.js';
+import { ArchitectError } from './architect/errors.js';
 import { loadNpcTtsConfig } from './npcTtsConfig.js';
 import { createNpcSpeechService } from './npcSpeech.js';
 import { loadGameImageConfig, createGameImageModule } from './gameImages/index.js';
@@ -79,6 +82,7 @@ export async function createTownServer({
   reconnectSeconds, maxRooms = 32,
   npcConfig = loadNpcLlmConfig(), npcFetch = globalThis.fetch,
   aiDroneConfig = loadAiDroneConfig(), aiDroneFetch = globalThis.fetch, aiDroneStore, aiDroneNow,
+  architectConfig = loadArchitectConfig({ npcConfig }), architectFetch = globalThis.fetch, architectStore, architectNow, architectSchedule = true,
   npcSpeechConfig = loadNpcTtsConfig(), npcSpeechFetch = globalThis.fetch,
   gameImageConfig = loadGameImageConfig(), gameImageProvider,
   gameCharacterConfig = loadGameCharacterConfig(), gameCharacterProvider,
@@ -90,6 +94,7 @@ export async function createTownServer({
   const creates = createRateLimiter({ limit: 12, windowMs: 60_000 });
   const npcChats = createNpcChatService({ config: npcConfig, fetchImpl: npcFetch });
   const aiDroneDirector = createAiDroneDirector({ config: aiDroneConfig, fetchImpl: aiDroneFetch, store: aiDroneStore, ...(aiDroneNow ? { now: aiDroneNow } : {}) });
+  const architect = createArchitectService({ config: architectConfig, fetchImpl: architectFetch, store: architectStore, schedule: false, ...(architectNow ? { now: architectNow } : {}) });
   const npcSpeech = createNpcSpeechService({ config: npcSpeechConfig, fetchImpl: npcSpeechFetch, resolveReply: input => npcChats.getReplyForSpeech(input) });
   // Open private stores only when the character workshop is used. Both stages
   // share one authenticated cookie identity, never a browser-supplied owner ID.
@@ -127,6 +132,7 @@ export async function createTownServer({
   const gameServer = new Server({ transport, greet: false, gracefullyShutdown: false });
   gameServer.define(TOWN_ROOM_TYPE, makeTownRoom({ identity, roomCodes, reconnectSeconds }));
   await gameServer.listen(port, host);
+  if (architectSchedule) architect.start();
 
   // Colyseus owns its routes. Dispatch to them only after our origin/rate gate;
   // disallow public create/join APIs so clients cannot bypass invite validation.
@@ -148,6 +154,28 @@ export async function createTownServer({
       if (['GET', 'HEAD'].includes(req.method) && !path.startsWith('/api/') && !path.startsWith('/matchmake/')) { await serveStatic(path, req, res); return; }
       const ip = getRequestClientIp(req, { trustProxyLoopback });
       if (!requests.take(ip)) throw fail(429, 'RATE_LIMITED', '请求太频繁，请稍后重试。');
+      if (path === '/api/architect/status' && req.method === 'GET') {
+        try { json(res, 200, architect.status()); }
+        catch { json(res, 503, { error: '工程账本暂时不可用。', code: 'ARCHITECT_STORAGE' }); }
+        return;
+      }
+      if (path === '/api/architect/generate' && req.method === 'POST') {
+        try {
+          const body = await readJson(req, 8192);
+          const guest = identity.verify(body.token);
+          if (!guest) throw fail(401, 'GUEST_EXPIRED', '建筑审批身份已过期，请重新连接。');
+          // A disconnected browser does not undo a claimed engineering request.
+          // The same immutable key retrieves its result without another paid call.
+          const result = await architect.generate({ guestId: guest.guestId, idempotencyKey: body.idempotencyKey,
+            brief: body.brief, password: body.password, ip });
+          json(res, 200, result);
+        } catch (error) {
+          if (error instanceof ArchitectError || (typeof error.code === 'string' && [400, 401, 413, 415].includes(error.status)))
+            json(res, error.status, { error: error.message, message: error.message, code: error.code });
+          else json(res, 503, { error: '建筑师暂时不可用，未进行建设。', code: 'ARCHITECT_UNAVAILABLE' });
+        }
+        return;
+      }
       if (path === '/api/drone-director/status' && req.method === 'GET') { json(res, 200, aiDroneDirector.status()); return; }
       if (['/api/drone-director/generate', '/api/drone-director/usage'].includes(path) && req.method === 'POST') {
         try {
@@ -275,6 +303,7 @@ export async function createTownServer({
       npcSpeech.close();
       npcChats.close();
       await aiDroneDirector.close();
+      await architect.close();
       if (charactersPromise) await charactersPromise.then(module => module.close()).catch(() => {});
       if (imagesPromise) await imagesPromise.then(module => module.close()).catch(() => {});
       await gameServer.gracefullyShutdown(false);

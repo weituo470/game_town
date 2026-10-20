@@ -1,4 +1,6 @@
 // Shared geometry and movement rules. Neither renderer nor client owns authority.
+import { getArchitectProjects, isArchitectSolid } from './architectWorld.js';
+import { architectPlot } from './architectPlan.js';
 import { inWonderGround, wonderSolid, wonderDestination } from './wonders.js';
 import { inGptGround, gptSolid, gptDestination } from './gpt-park.js';
 import { inParkGround, parkSolid, parkDestination } from './deepseek-park.js';
@@ -73,7 +75,7 @@ export const TREE_POSITIONS = [
   [-20, -8, 0.85], [20, -8, 0.9], [-20, 18.5, 0.85], [20, 18.5, 0.9],
 ];
 export function isWalkable(x, z) {
-  if (!Number.isFinite(x) || !Number.isFinite(z)) return false;
+  if (!Number.isFinite(x) || !Number.isFinite(z) || isArchitectSolid(x, z)) return false;
   const inTown = x >= WORLD_BOUNDS.minX && x <= WORLD_BOUNDS.maxX && z >= WORLD_BOUNDS.minZ && z <= WORLD_BOUNDS.maxZ;
   if (!inTown && !inWonderGround(x, z) && !inGptGround(x, z) && !inParkGround(x, z) && !onRiverPier(x, z) && !inSphereGround(x, z) && !inOffshoreGround(x, z)) return false;
   if (wonderSolid(x, z) || gptSolid(x, z) || parkSolid(x, z) || sphereSolid(x, z)) return false;
@@ -85,6 +87,27 @@ export function isWalkable(x, z) {
   return true;
 }
 export function getDestination(id) {
+  if (typeof id !== 'string') return null;
+  // Both the server and the browser resolve these named destinations. No
+  // request supplies coordinates, and an unbuilt plot is never a destination.
+  const safeArrival = (x, z) => [-0.45, 0, 0.45].every(dx =>
+    [-0.45, 0, 0.45].every(dz => isWalkable(x + dx, z + dz)));
+  if (id === 'architect') return safeArrival(-6, 25.5) ? { x: -6, z: 25.5, yaw: Math.PI } : null;
+  if (id.startsWith('architect-project:')) {
+    const projectId = id.slice('architect-project:'.length);
+    if (!/^[a-zA-Z0-9:_-]{1,100}$/.test(projectId)) return null;
+    const project = getArchitectProjects().find(item => item.id === projectId);
+    if (!project) return null;
+    const plot = architectPlot(project.plan.plotId);
+    const offsets = [[0, 3.3], [3.3, 0], [0, -3.3], [-3.3, 0]];
+    const front = project.plan.orientation / 90;
+    for (let step = 0; step < offsets.length; step++) {
+      const [dx, dz] = offsets[(front + step) % offsets.length];
+      const x = plot.x + dx, z = plot.z + dz;
+      if (safeArrival(x, z)) return { x, z, yaw: Math.atan2(plot.x - x, plot.z - z) };
+    }
+    return null;
+  }
   const offshore = offshoreDestination(id);
   if (offshore) return offshore;
   const sphere = sphereDestination(id);

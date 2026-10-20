@@ -22,7 +22,7 @@ export function OffshoreProgress({ runtimeRef }) {
   return <div className="offshore-progress" aria-live="off"><progress max="1" value={snapshot.progress} aria-label="本次航程进度"/><div className="offshore-telemetry"><output aria-label="距港距离">{snapshot.docked ? '港内待命 · 距港 0 米' : `距港 ${distance} 米`}</output><output aria-label="预计剩余航程">{snapshot.docked ? '登船后可立即启航' : `约 ${time} 后靠港`}</output></div></div>;
 }
 
-export default function OffshoreControls({ controller, view = 'director', onView, onClose, onDock, reducedMotion, night, onNight }) {
+export default function OffshoreControls({ controller, view = 'director', onView, onClose, onWalk, onDock, reducedMotion, night, onNight }) {
   const state = controller?.state ?? {}, exit = useRef(), close = useRef(onClose);
   close.current = onClose;
   const docked = state.phase === 'docked', aboard = state.aboard === true, pending = Boolean(state.pending);
@@ -37,10 +37,11 @@ export default function OffshoreControls({ controller, view = 'director', onView
     <header className="offshore-heading"><span>PLAYTOWN / OCEAN VOYAGE</span><h1>远海浮动岛</h1><p>上海交通大学 · 海洋科普想象</p></header>
     <button ref={exit} type="button" className="offshore-close" onClick={onClose} aria-label="关闭观景，保留当前乘船状态">关闭观景 ×</button>
     <div className="offshore-console" aria-busy={pending}>
-      <div className="offshore-status"><strong role="status">{state.label || '靠港待命'}</strong><span>{aboard ? `船上观景站 ${Number.isInteger(state.seat) ? state.seat + 1 : ''}` : '岸边观览'} · {state.online ? '同游航程' : '单人航程'}</span></div>
+      <div className="offshore-status"><strong role="status">{state.label || '靠港待命'}</strong><span>{aboard ? '已登船 · 可自由走动' : '岸边观览'} · {state.online ? '同游航程' : '单人航程'}</span></div>
       <OffshoreProgress runtimeRef={controller?.runtimeRef}/>
       <div className="offshore-view-tabs" role="group" aria-label="观景镜头">{VIEWS.map(([id, name]) => <button key={id} type="button" aria-pressed={view === id} onClick={() => onView(id)}>{name}</button>)}</div>
       <div className="offshore-actions">
+        {aboard && <button type="button" className="offshore-walk" disabled={pending} onClick={onWalk || onClose}>甲板行走 ↗</button>}
         {docked && !aboard && <><button type="button" className="offshore-primary" disabled={pending} onClick={() => controller.boardAndDepart()}>登船并出海</button><button type="button" disabled={pending} onClick={() => controller.board()}>仅登船</button><button type="button" onClick={onDock} disabled={pending}>前往码头 ↗</button></>}
         {docked && aboard && <><button type="button" className="offshore-primary" disabled={pending} onClick={() => controller.depart()}>启航 · 约 2 分 30 秒</button><button type="button" disabled={pending} onClick={() => controller.disembark()}>下船回码头</button></>}
         {!docked && aboard && <button type="button" disabled={pending || state.phase === 'returning'} onClick={() => controller.returnToPort()}>{state.phase === 'returning' ? '正在返航靠泊' : '提前返航'}</button>}
@@ -49,7 +50,7 @@ export default function OffshoreControls({ controller, view = 'director', onView
       </div>
       {pending && <p className="offshore-message" role="status">{state.pendingLabel || '正在确认，请稍候…'}</p>}
       {state.error && <p className="offshore-error" role="alert">{typeof state.error === 'string' ? state.error : '操作未完成，请稍后重试。'}</p>}
-      <p className="offshore-caption">出海巡航 · 约 2 分 30 秒航程 · 可提前返航<span>{aboard ? '固定观景站，不开放甲板自由行走；关闭镜头不会下船。' : docked ? '点击“登船并出海”即可自动离港；选择“仅登船”则停泊观景。' : '船只正在海上；可岸边观看，靠港后再登船。'}</span></p>
+      <p className="offshore-caption">出海巡航 · 约 2 分 30 秒航程 · 可提前返航<span>{aboard ? '点击“甲板行走”，用 WASD 或触屏方向键移动；关闭镜头不会下船。船上不开放跳跃和喷气。' : docked ? '点击“登船并出海”即可自动离港；选择“仅登船”则停泊观景。' : '船只正在海上；可岸边观看，靠港后再登船。'}</span></p>
       <div className="offshore-footnote">非官方科普模拟 · 非真实船舶操控{reducedMotion && <span> · 已减少镜头动态</span>}</div>
     </div>
   </section>;

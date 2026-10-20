@@ -118,7 +118,7 @@ test('merged Town keeps ambient sky enabled only for ordinary exploration, with 
       const selections = [], onDeepSeekSelect = id => selections.push(id);
       const h = townTree({ viewMode: mode, active, reducedMotion, onDeepSeekSelect, droneFpv: { program: 'droplet' } });
       assert.equal(h.tree.filter(node => node.type === 'Canvas').length, 1);
-      assert.equal(h.nodes.filter(node => node.type === './town/PlayerController').length, 1);
+      assert.equal(h.nodes.filter(node => node.type?.modulePath === './town/PlayerController.jsx').length, 1);
       const ambient = h.nodes.find(node => node.type === './town/AmbientBlackHole.jsx');
       assert.equal(ambient.props.enabled, active && ['overview', 'follow', 'first-person'].includes(mode));
       assert.equal(ambient.props.onAppearance, h.props.onSkyAppearance);
@@ -147,9 +147,9 @@ test('carrier and mirror-droplet render paths share the town without duplicating
     const h = townTree({ viewMode: 'drone', active: false, droneFpv: { program } });
     const carrier = program === 'carrier-battle';
     const lazy = h.nodes.filter(node => node.type?.$$typeof === Symbol.for('react.lazy'));
-    assert.equal(lazy.length, carrier ? 4 : 3);
+    assert.equal(lazy.length, carrier ? 6 : 5);
     assert.deepEqual(lazy.map(node => node.type.modulePath).sort(),
-      (carrier ? ['./town/DeepSeekPark.jsx', './town/SphereLandmark.jsx', './town/OffshoreIsland.jsx', './drone/CarrierBattleScene.jsx'] : ['./town/DeepSeekPark.jsx', './town/SphereLandmark.jsx', './town/OffshoreIsland.jsx']).sort());
+      ['./town/DeepSeekPark.jsx', './town/SphereLandmark.jsx', './town/OffshoreIsland.jsx', './town/PlayerController.jsx', './architect/ArchitectWorld.jsx', ...(carrier ? ['./drone/CarrierBattleScene.jsx'] : [])].sort());
     const sphere = lazy.find(node => node.type.modulePath === './town/SphereLandmark.jsx');
     assert.equal(sphere.props.timeRef, h.npcTimeRef);
     assert.equal(sphere.props.onSelect, undefined, 'cinematic input never opens the sphere viewer');

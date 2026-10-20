@@ -98,11 +98,11 @@ test('mounted offshore camera follows live ship poses with a monotonic rail and 
 });
 
 test('offshore buttons dispatch explicit passenger actions and closing never disembarks', () => {
-  for (const [phase, aboard, allowed] of [['docked', false, ['board-and-depart', 'board', 'dock']], ['docked', true, ['depart', 'disembark']], ['cruising', true, ['return']], ['cruising', false, ['dock']]]) {
+  for (const [phase, aboard, allowed] of [['docked', false, ['board-and-depart', 'board', 'dock']], ['docked', true, ['walk', 'depart', 'disembark']], ['cruising', true, ['walk', 'return']], ['cruising', false, ['dock']]]) {
     const ui = mountControls(), calls = [];
     const controller = { state: { phase, aboard, label: '测试航程', online: true, seat: 1 }, runtimeRef: { current: { sample: { docked: phase === 'docked' } } },
       boardAndDepart: () => calls.push('board-and-depart'), board: () => calls.push('board'), depart: () => calls.push('depart'), returnToPort: () => calls.push('return'), disembark: () => calls.push('disembark') };
-    const tree = ui.default({ controller, onDock: () => calls.push('dock'), onClose: () => calls.push('close'), onView: id => calls.push(id), onNight: () => calls.push('night') });
+    const tree = ui.default({ controller, onDock: () => calls.push('dock'), onWalk: () => calls.push('walk'), onClose: () => calls.push('close'), onView: id => calls.push(id), onNight: () => calls.push('night') });
     assert.deepEqual(calls, [], 'render must never invoke actions');
     const buttons = elements(tree).filter(node => node.type === 'button');
     for (const button of buttons) if (!['offshore-close', 'offshore-light'].includes(button.props.className) && button.props['aria-pressed'] === undefined) button.props.onClick();
@@ -167,11 +167,12 @@ test('Escape only closes the viewer, removes its listener and restores prior foc
 test('viewer source keeps safe focus/escape handling, isolated playback, and readable controls', () => {
   const css = source('src/components/offshore/offshore.css');
   assert.match(controlsSource, /event.key === 'Escape'/); assert.match(controlsSource, /exit.current\?\.focus/);
-  assert.match(controlsSource, /关闭镜头不会下船/); assert.match(controlsSource, /固定观景站/);
+  assert.match(controlsSource, /关闭镜头不会下船/); assert.match(controlsSource, /甲板行走/); assert.doesNotMatch(controlsSource, /固定观景站/);
   assert.doesNotMatch(controlsSource + cameraSource, /fetch\(|<Canvas|requestAnimationFrame|createRoot|getUserMedia|npcTimeRef/);
   assert.match(css, /\.town-shell.is-offshore > :not\(\.world-stage\)/);
   assert.match(css, /min-height:44px/); assert.match(css, /max-height:44svh/); assert.match(css, /:focus-visible/);
-  for (const name of ['world-controls', 'touch-controls', 'mobile-jump-button', 'outdoor-launcher', 'jetpack-status']) assert.ok(css.includes(`.town-shell.is-offshore-aboard .${name}`));
+  for (const name of ['world-controls', 'mobile-jump-button', 'outdoor-launcher', 'jetpack-status']) assert.ok(css.includes(`.town-shell.is-offshore-aboard .${name}`));
+  assert.match(css, /\.town-shell.is-offshore-aboard.is-follow .touch-controls[^}]*display:grid/);
   assert.match(css, /\.offshore-resume\s*\{[^}]*bottom:max\(90px/);
   const audit = auditSources([{ path: 'src/styles.css', content: source('src/styles.css') },
     { path: 'src/components/offshore/offshore.css', content: css }, { path: 'src/components/offshore/OffshoreControls.jsx', content: controlsSource }]);
