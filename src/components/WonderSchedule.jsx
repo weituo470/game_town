@@ -15,10 +15,11 @@ export function nextShowText(state) {
   const seconds = Math.ceil(state.nextIn / 1000);
   return `下一场 ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, '0')}`;
 }
-export default function WonderSchedule({ timeRef, onTravel, onImmerse, onDroneShow, onAiDrone, reducedMotion, onReducedMotion }) {
+export default function WonderSchedule({ timeRef, onTravel, onImmerse, onDroneShow, onAiDrone, onSphere, reducedMotion, onReducedMotion }) {
   const time = useWonderTime(timeRef);
   return <div className="wonder-schedule">
     {onDroneShow && <DroneInvitation onStart={onDroneShow} onAiDrone={onAiDrone}/>}
+    {onSphere && <section className="wonder-lead" aria-label="球幕剧场入口"><span className="wonder-kicker">西岸新地标 / 巨型外墙秀</span><h3>球幕剧场</h3><p>黄色表情会眨眼、侧目与挑眉。巨型眼球、蓝色星球和篮球接续登场；沿虎鲸湾西侧步桥可走到建筑脚下。</p><button className="button-primary wonder-travel" onClick={onSphere}>观看球幕外墙秀<ArrowUpRight size={20}/></button></section>}
     <div className="wonder-lead"><span className="wonder-kicker">海洋 / 航海 / 航天</span><h3>同一座小镇，三处奇观。</h3><p>沿街走到海湾、登上航母甲板，或飞向北岸发射场。奇观与小镇共用天空和昼夜；观景镜头也留在这张地图里。每三分钟一轮，错峰演出。</p></div>
     <div className="wonder-programme">
       {WONDERS.map((w, index) => {

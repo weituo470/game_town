@@ -9,6 +9,7 @@ import * as outdoor from '../src/minigames/outdoor.js';
 import * as wonders from '../shared/wonders.js';
 import * as park from '../shared/deepseek-park.js';
 import * as gpt from '../shared/gpt-park.js';
+import * as sphere from '../shared/sphere-landmark.js';
 import * as world from '../shared/world.js';
 import * as catalog from '../src/lib/catalog.js';
 import { auditSources } from '../scripts/check-readability.mjs';
@@ -26,6 +27,7 @@ vm.runInNewContext(transformed.code, {
     if (id === '../../shared/wonders.js') return wonders;
     if (id === '../../shared/deepseek-park.js') return park;
     if (id === '../../shared/gpt-park.js') return gpt;
+    if (id === '../../shared/sphere-landmark.js') return sphere;
     if (id === '../../shared/world.js') return world;
     if (id === '../lib/catalog.js') return catalog;
     if (id === './atlas.css') return {};
@@ -59,7 +61,7 @@ test('atlas: renders shared streets, reserved plots and all existing buildings',
 test('atlas: every navigation button calls exactly one server-approved destination', () => {
   const calls = [];
   const buttons = elements(TownAtlas({ onTravel: id => calls.push(id) })).filter(node => node.type === 'button');
-  const destinations = [park.DEEPSEEK_PARK.id, gpt.GPT_PARK.id, ...wonders.WONDERS.map(w => w.id), 'center', ...world.DISTRICTS.map(item => item.id), ...catalog.GAMES.map(item => item.id)];
+  const destinations = [sphere.SPHERE_LANDMARK.id, park.DEEPSEEK_PARK.id, gpt.GPT_PARK.id, ...wonders.WONDERS.map(w => w.id), 'center', ...world.DISTRICTS.map(item => item.id), ...catalog.GAMES.map(item => item.id)];
   assert.equal(buttons.length, destinations.length);
   for (const button of buttons) {
     assert.equal(button.props.type, 'button');
@@ -79,7 +81,7 @@ test('atlas: labels stay outside scalable SVG and all map markers stay within th
   assert.ok(drawing.props['aria-label']);
   assert.equal(elements(drawing).filter(node => node.type === 'text').length, 0);
   const markers = nodes.filter(node => node.props.className === 'atlas-number' || node.props.className === 'atlas-direction');
-  assert.equal(markers.length, world.DISTRICTS.length + catalog.GAMES.length + 2);
+  assert.equal(markers.length, world.DISTRICTS.length + catalog.GAMES.length + 3);
   for (const marker of markers) {
     for (const axis of ['left', 'top']) {
       const coordinate = Number.parseFloat(marker.props.style[axis]);
@@ -98,6 +100,22 @@ test('atlas: local font declarations meet the project readability regression gua
     { path: 'src/components/TownAtlas.jsx', content: source },
   ]);
   assert.deepEqual(audit.issues, []);
+});
+
+test('atlas: sphere observation is separate from arrival and its marker uses shared coordinates', () => {
+  const calls = []; let tours = 0;
+  const nodes = elements(TownAtlas({ onTravel: id => calls.push(id), onSphereTour: () => { tours += 1; } }));
+  const section = nodes.find(node => node.props['aria-label'] === '球幕剧场导航');
+  const buttons = elements(section).filter(node => node.type === 'button');
+  assert.equal(buttons.length, 2);
+  buttons[1].props.onClick(); assert.equal(tours, 1); assert.deepEqual(calls, []);
+  buttons[0].props.onClick(); assert.deepEqual(calls, ['sphere']);
+  const marker = nodes.find(node => node.props['data-theme-park-marker'] === 'sphere');
+  const map = wonders.WONDER_MAP, landmark = sphere.SPHERE_LANDMARK;
+  assert.equal(marker.props.children, '球');
+  assert.equal(marker.props.style.left, `${(landmark.x - map.centerX + map.width / 2) / map.width * 100}%`);
+  assert.equal(marker.props.style.top, `${(landmark.z - map.centerZ + map.depth / 2) / map.depth * 100}%`);
+  assert.match(nodes.find(node => node.props.className === 'atlas-svg').props['aria-label'], /球幕剧场/);
 });
 
 test('atlas: GPT island and bridge share geometry and offer optional immersive entry', () => {

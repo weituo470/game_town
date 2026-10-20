@@ -2,12 +2,15 @@ import { isWalkable, movePlayer, WORLD_LOCATIONS, TREE_POSITIONS, FOUNTAIN, SPAW
 import { EXPLORATION_BOUNDS, wonderSolid } from './wonders.js';
 import { startJump, stepJump } from './jump.js';
 import { parkFlightFloor } from './deepseek-park.js';
+import { sphereFlightFloor } from './sphere-landmark.js';
 
 export const JETPACK = Object.freeze({ holdSeconds: 0.22, climbSpeed: 7, acceleration: 22, gravity: 12, fallSpeed: 8, travelSpeed: 8 });
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const valid = (value, fallback = 0) => Number.isFinite(value) ? value : fallback;
 
 export function flightFloor(x, z) {
+  const sphereFloor = sphereFlightFloor(x, z);
+  if (sphereFloor > 0) return sphereFloor;
   const parkFloor = parkFlightFloor(x, z);
   if (parkFloor > 0) return parkFloor;
   if (isWalkable(x,z)) return 0;

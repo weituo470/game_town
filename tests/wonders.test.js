@@ -39,7 +39,8 @@ test('all wonder arrivals and walking bridges are reachable from the original to
 });
 
 test('sea, pool, gantry and parked aircraft are solid; player cannot tunnel into water', () => {
-  for (const [x, z] of [[-64, 19], [0, -61], [5.6, -63], [69.5, 21], [69, 10], [69, 31], [48, 15], [76, 22], [-79, 20], [0, -76], [50, -20]]) assert.equal(isWalkable(x, z), false, `${x},${z}`);
+  for (const [x, z] of [[-64, 19], [0, -61], [5.6, -63], [69.5, 21], [69, 10], [69, 31], [48, 15], [76, 22], [-79, 17], [0, -76], [50, -20]]) assert.equal(isWalkable(x, z), false, `${x},${z}`);
+  assert.equal(isWalkable(-79, 20), true, 'the new visible sphere bridge crosses this former sea point');
   for (const x of [NaN, Infinity, '63', null]) assert.equal(inWonderGround(x, 20), false);
   let player = getDestination('orca');
   for (let i = 0; i < 100; i++) { player = movePlayer(player, { x: -1, z: 0 }, 0.1); assert.ok(isWalkable(player.x, player.z)); }

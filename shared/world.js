@@ -3,6 +3,7 @@ import { inWonderGround, wonderSolid, wonderDestination } from './wonders.js';
 import { inGptGround, gptSolid, gptDestination } from './gpt-park.js';
 import { inParkGround, parkSolid, parkDestination } from './deepseek-park.js';
 import { onRiverPier, FISHING_SPOT } from './river.js';
+import { inSphereGround, sphereSolid, sphereDestination } from './sphere-landmark.js';
 export const WORLD_VERSION = 3;
 export const WORLD_SIZE = Object.freeze({ baseWidth: 32, baseDepth: 29, scale: 3, width: 96, depth: 87, centerX: 0, centerZ: 0.4 });
 export const WORLD_BOUNDS = Object.freeze({ minX: -42.9, maxX: 42.9, minZ: -38.9, maxZ: 40.3 });
@@ -73,8 +74,8 @@ export const TREE_POSITIONS = [
 export function isWalkable(x, z) {
   if (!Number.isFinite(x) || !Number.isFinite(z)) return false;
   const inTown = x >= WORLD_BOUNDS.minX && x <= WORLD_BOUNDS.maxX && z >= WORLD_BOUNDS.minZ && z <= WORLD_BOUNDS.maxZ;
-  if (!inTown && !inWonderGround(x, z) && !inGptGround(x, z) && !inParkGround(x, z) && !onRiverPier(x, z)) return false;
-  if (wonderSolid(x, z) || gptSolid(x, z) || parkSolid(x, z)) return false;
+  if (!inTown && !inWonderGround(x, z) && !inGptGround(x, z) && !inParkGround(x, z) && !onRiverPier(x, z) && !inSphereGround(x, z)) return false;
+  if (wonderSolid(x, z) || gptSolid(x, z) || parkSolid(x, z) || sphereSolid(x, z)) return false;
   if (Math.hypot(x - FOUNTAIN.x, z - FOUNTAIN.z) < FOUNTAIN.radius) return false;
   for (const place of WORLD_LOCATIONS) {
     if (Math.abs(x - place.x) < 3.22 && Math.abs(z - place.z) < 2.8) return false;
@@ -83,6 +84,8 @@ export function isWalkable(x, z) {
   return true;
 }
 export function getDestination(id) {
+  const sphere = sphereDestination(id);
+  if (sphere) return sphere;
   if (id === 'fishing') return { ...FISHING_SPOT };
   const park = parkDestination(id);
   if (park) return park;

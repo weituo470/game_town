@@ -295,7 +295,7 @@ export default function PlayerController({ Model, active, inputRef, destination,
   useEffect(() => {
     // DroneCamera owns its full lens/rail; never overwrite its far plane after
     // the declarative camera's layout effects (especially on portrait screens).
-    if (viewMode === 'drone') { invalidate(); return; }
+    if (viewMode === 'drone' || viewMode === 'sphere') { invalidate(); return; }
     if (firstPerson || follow || viewMode === 'wonder') {
       // The declarative PerspectiveCamera becomes default after its layout
       // effect. Do not accidentally turn the preserved orthographic camera
