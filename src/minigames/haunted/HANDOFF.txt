@@ -1,0 +1,76 @@
+月灯旧宅 / 鬼屋探索 / gameId=haunted
+交付日期：2026-10-18（Asia/Shanghai）
+状态：可玩版本已发布 index.jsx；已从真实宿主入口通关并进入统一 Feedback。
+
+接口与接入
+- index.jsx 默认重导出 Game.jsx 的 Game({onComplete,onExit})，由现有 MiniGame.jsx 的 import.meta.glob 自动发现。
+- 未修改 App.jsx、Town.jsx、MiniGame.jsx、共享 lib、package.json、全局 CSS 或其它游戏模块。
+- src/minigames/haunted/ 内所有视觉、剧情、地图、音效均为本次原创，无外部素材和新增依赖。
+- 不使用 localStorage、账号、网络、摄像头、麦克风、心率、画像或恐惧诊断。
+
+玩法
+- 方向键/WASD 或屏幕方向键逐格移动；到信物所在格按 E / 查看按钮收集并阅读。
+- 三件线索可以任意顺序收集；全部取得后到右下角绿色花园门，按 E / 打开出口完成。
+- 路线提示逐步指向最近的剩余线索，全部收集后指向出口；不会自动移动或穿墙。
+- 猫与旧钟是两个可选故事，完全不影响通关与成绩。
+- 桌面显示全图，390px 显示随人物移动的 7×7 手电视野；可辨认实墙、木地板道路、信物及出口。
+- 温和默认，无怪物追逐、频闪、突然大音量或强恐怖开关。环境声默认关，需明确点开。
+- 不限时；约 1–2 分钟为含阅读的体验预估，非倒计时或对所有玩家的完成承诺。
+
+结算约定
+- 只有成功打开出口才 onComplete；ref + mode + completed 三重阻挡重复结算。
+- 每次完成固定 score=100：表示本局主线完成，不奖励速度，也不因可选故事、停留、提示或碰墙扣分。
+- completed=true、difficulty='standard'、gameId='haunted'。
+- durationSeconds 为有效游玩秒数（小数一位，最小0.1）；不含开场、暂停、阅读、失焦、完成后的时间。
+- inputDevice：有真实 pointerType='touch' 输入记 touch，否则 keyboard-mouse；仅作为输入设备记录。
+- metrics（扁平，共9项）：
+  cluesFound / cluesTotal：已收集与总线索数量。
+  validSteps：成功跨到相邻可行走格的步数（不含撞墙，允许回头路）。
+  uniqueTiles：本局走过的不同可行走格数（含起点）。
+  optionalExplored / optionalTotal：读过与总可选小故事数量。
+  exitReached：成功打开出口；gentleMode：本局为温和内容；summary：中文客观摘要。
+- 退出只 onExit，不提交失败/零分；退出关闭声音、停止时钟。
+- 本模块不问喜欢/刺激强度、不推断胆量、智力、人格或天赋。温和体验的完成不等于同意强恐怖推荐；宿主仍负责明确询问强度意愿。
+
+生命周期
+- clock 为独立可测试的主动时钟；blur / visibilitychange 立即停止，只有明确继续才重新计时。
+- 阅读/暂停/完成时清除250ms UI计时器和环境声循环；声音原生低增益 sine 合成，起落包络，无外部音频。
+- 卸载清理 window/document/mediaQuery 监听、时钟、interval 和 AudioContext。
+- 验收挂载于 React.StrictMode，验证未重复移动/结算；重玩重置地图、线索、路径和计时。
+
+验证结果
+1. node --test tests/haunted-game.test.js：9/9 PASS。
+   覆盖地图每个可行走格可达、所有目标可达、围墙/越界/斜向、6种线索收集顺序、锁门条件、重复收集、可选内容、路线提示、时钟排除暂停、音频循环清理、对比度、CSS字号回归。
+2. npm test：323/323 PASS（当时工作树快照，包含其它会话测试）。
+3. npm run check:readability：PASS，覆盖变量、font/font-size、覆盖、工具类和媒体查询。
+4. npm run build：PASS；保留既有大 chunk 提示，没有为拆包修改共享配置。
+5. 真实 IAB 浏览器桌面1280px：键盘通关，3线索+2可选，46有效步，回调一次；重复E不再次结算。重玩、Esc暂停、环境声开关、阅读停止计时已操作。
+6. 真实浏览器390px iframe视口：全程点屏幕方向按钮完成主线，42有效步、35不同格、0可选，单次完成回调；32.4有效秒不含阅读/暂停。实际自动化指针是鼠标，因此收据正确标为 keyboard-mouse，不冒充真实触摸设备。
+7. 390px计算样式：root=16px，正文18px、按钮16px、次要信息14px、方向键52×52，其它按钮至少46px高；overflow=false，字号/触控尺寸违规0。
+8. 手机阅读自动聚焦曾把开头滚出视野，已改为 preventScroll + 将卡片起点滚入视野；真实浏览器复核标题、全文和继续/退出按钮均可读。
+9. 点击390px iframe外部实际触发失焦：显示“窗口已失焦，探索与计时已暂停”，时间停在0秒；不自动恢复。退出后完成收据仍仅1次，新增1次exit，无失败成绩。
+10. 宿主真实路径：探索小镇 -> 直接体验鬼屋探险 -> 月灯旧宅 -> 通关 -> 统一Feedback；100分与中文摘要正确接管，验收记录已选择“不保存本次记录”。
+
+复现
+工作目录：<project-root>
+命令：node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 4197 --strictPort
+独立验收：http://127.0.0.1:4197/src/minigames/haunted/preview.html
+390px验收：http://127.0.0.1:4197/src/minigames/haunted/preview.html?mobile=1
+宿主：http://127.0.0.1:4197/
+独立验收页有StrictMode、完成/退出收据、挂载卸载及真实计算字号检查按钮。
+注意：宿主联机代理正则会拦截 /qa-artifacts/haunted-game/ 路径，因此可运行HTML放在自己的src目录，证据仍保存在qa-artifacts。
+4197 为本会话独立启动的本地Vite，不曾重启/终止5173、5279、2567等既有服务，未发布公网。
+
+证据（均在 <project-root>
+- module-test.log、full-test.log、readability.log、build.log
+- desktop-result.json、desktop-complete.png
+- mobile-controls.png、mobile-story.png
+- host-map.png、host-feedback.png
+- browser-qa.json（手机计算字号与验收收据摘要）
+桌面第一轮542秒收据包含开发工具检查期间窗口持续处于游玩态的等待；不是通关速度基准或定时器失焦证据。
+
+限制/未验证
+- 未在实体手机硬件、iOS Safari、Android Chrome或真实手指pointerType事件上测试；已验证390px真实浏览器布局与可完成的屏幕按钮路径。
+- 环境音开关、AudioContext与清理经过UI操作和fake AudioContext单测，但未做扬声器听感/物理声压验收；低音量与静音默认仍应保留。
+- 无第一人称3D、复杂NPC、强恐怖、外部音乐、长期存档、人格评估；这些不是本轮范围。
+- 宿主完成后会立即卸载子游戏显示反馈；子游戏完成页重玩在独立验收可用，宿主通过重新进入游戏重玩。

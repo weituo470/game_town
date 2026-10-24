@@ -1,0 +1,6 @@
+import test from 'node:test';import assert from 'node:assert/strict';
+import {spectatorPose} from '../src/components/drone/spectatorOrbit.js';
+const base={position:[20,50,180],target:[0,45,0],far:600,fov:50,near:.1};
+test('spectator neutral/reset preserves the exact director composition without mutating its pose',()=>{const before=JSON.stringify(base),p=spectatorPose(base);assert.deepEqual(p,base);assert.notEqual(p.position,base.position);assert.equal(JSON.stringify(base),before);});
+test('spectator can orbit, elevate and zoom while the show target and timing remain untouched',()=>{for(const [look,zoom] of [[{yaw:.8,pitch:0},1],[{yaw:0,pitch:.3},1],[{yaw:.4,pitch:-.2},.5]]){const p=spectatorPose(base,look,zoom);assert.notDeepEqual(p.position,base.position);assert.deepEqual(p.target,base.target);assert.ok(p.position.every(Number.isFinite));assert.ok(p.position[1]>=1.2);assert.equal(p.fov,50);assert.equal(p.near,.1);}});
+test('spectator limits prevent invalid zoom, underwater camera and degenerate poles',()=>{for(const zoom of [-10,0,1000,NaN])for(const pitch of [-100,100,NaN]){const p=spectatorPose(base,{yaw:1,pitch},zoom);assert.ok(p.position.every(Number.isFinite));assert.ok(p.position[1]>=1.2);assert.ok(p.far>=600);}assert.throws(()=>spectatorPose({...base,position:[NaN,2,3]}));});

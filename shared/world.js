@@ -7,6 +7,9 @@ import { inParkGround, parkSolid, parkDestination } from './deepseek-park.js';
 import { onRiverPier, FISHING_SPOT } from './river.js';
 import { inSphereGround, sphereSolid, sphereDestination } from './sphere-landmark.js';
 import { inOffshoreGround, offshoreDestination } from './offshore-island.js';
+import { inSpacePort, inRailStation, SPACE_ELEVATOR } from './space-layout.js';
+import { inRealisticIsland, islandHeight, islandWalkable, islandCanStep, islandDestination } from './realistic-island.js';
+import { inMetroIsland, metroSolid, metroDestination } from './metro-island.js';
 export const WORLD_VERSION = 3;
 export const WORLD_SIZE = Object.freeze({ baseWidth: 32, baseDepth: 29, scale: 3, width: 96, depth: 87, centerX: 0, centerZ: 0.4 });
 export const WORLD_BOUNDS = Object.freeze({ minX: -42.9, maxX: 42.9, minZ: -38.9, maxZ: 40.3 });
@@ -76,8 +79,10 @@ export const TREE_POSITIONS = [
 ];
 export function isWalkable(x, z) {
   if (!Number.isFinite(x) || !Number.isFinite(z) || isArchitectSolid(x, z)) return false;
+  if (inMetroIsland(x, z)) return !metroSolid(x, z);
+  if (inRealisticIsland(x, z)) return islandWalkable(x, z);
   const inTown = x >= WORLD_BOUNDS.minX && x <= WORLD_BOUNDS.maxX && z >= WORLD_BOUNDS.minZ && z <= WORLD_BOUNDS.maxZ;
-  if (!inTown && !inWonderGround(x, z) && !inGptGround(x, z) && !inParkGround(x, z) && !onRiverPier(x, z) && !inSphereGround(x, z) && !inOffshoreGround(x, z)) return false;
+  if (!inTown && !inSpacePort(x,z) && !inRailStation(x,z) && !inWonderGround(x, z) && !inGptGround(x, z) && !inParkGround(x, z) && !onRiverPier(x, z) && !inSphereGround(x, z) && !inOffshoreGround(x, z)) return false;
   if (wonderSolid(x, z) || gptSolid(x, z) || parkSolid(x, z) || sphereSolid(x, z)) return false;
   if (Math.hypot(x - FOUNTAIN.x, z - FOUNTAIN.z) < FOUNTAIN.radius) return false;
   for (const place of WORLD_LOCATIONS) {
@@ -86,8 +91,18 @@ export function isWalkable(x, z) {
   for (const [tx, tz, scale] of TREE_POSITIONS) if (Math.hypot(x - tx, z - tz) < 0.5 * scale) return false;
   return true;
 }
+
+/** Absolute support height; the original town and its existing decks stay Y=0. */
+export function groundHeight(x, z) {
+  return inRealisticIsland(x, z) ? Math.max(0, islandHeight(x, z)) : 0;
+}
 export function getDestination(id) {
   if (typeof id !== 'string') return null;
+  const metro = metroDestination(id);
+  if (metro) return metro;
+  const island = islandDestination(id);
+  if (island) return island;
+  if (id === 'spaceport') return {x:36,z:54.8,yaw:Math.PI/2};
   // Both the server and the browser resolve these named destinations. No
   // request supplies coordinates, and an unbuilt plot is never a destination.
   const safeArrival = (x, z) => [-0.45, 0, 0.45].every(dx =>
@@ -139,8 +154,8 @@ export function movePlayer(state, input, deltaSeconds) {
   const step = PLAYER_SPEED * dt / steps;
   const startX = x, startZ = z;
   for (let i = 0; i < steps; i++) {
-    if (isWalkable(x + dx * step, z)) x += dx * step;
-    if (isWalkable(x, z + dz * step)) z += dz * step;
+    if (isWalkable(x + dx * step, z) && islandCanStep(x, z, x + dx * step, z)) x += dx * step;
+    if (isWalkable(x, z + dz * step) && islandCanStep(x, z, x, z + dz * step)) z += dz * step;
   }
   return { x, z, yaw, moving: Math.hypot(x - startX, z - startZ) > 0.0001 };
 }

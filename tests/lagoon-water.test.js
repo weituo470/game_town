@@ -176,14 +176,14 @@ test('lagoon water render: lighting previews do not move waves and pause/backwar
   app.dispose();
 });
 
-test('lagoon water render: reduced motion zeros geometry and impact uniforms while the common ocean remains untouched', () => {
+test('lagoon water render: reduced motion zeros geometry and impact uniforms while the extended common ocean keeps its independent shader', () => {
   const still = mount({ reducedMotion: true }); still.frame();
   assert.equal(still.material.uniforms.motion.value, 0); assert.equal(still.material.uniforms.time.value, 0);
   assert.ok(still.material.uniforms.impacts.value.every(value => value.w === 0)); still.dispose();
   const sea = mount({ pool: false }); sea.frame();
   assert.equal(sea.root.props.name, 'shared-town-sea');
   assert.deepEqual(Array.from(sea.root.props.position), [0, -1.28, -16]);
-  assert.equal(sea.geometry.parameters.width, 900); assert.equal(sea.geometry.parameters.height, 900);
+  assert.equal(sea.geometry.parameters.width, 3000); assert.equal(sea.geometry.parameters.height, 3000);
   assert.equal(sea.material.uniforms.time.value, 12);
   assert.equal(sea.material.uniforms.whales, undefined);
   assert.doesNotMatch(sea.material.vertexShader, /waterHeight|waveNormal/); sea.dispose();

@@ -1,8 +1,10 @@
+import { orientSpaceAvatar } from '../space/spaceOrientation.js';
+import { orbitWorldPose, sampleElevator } from '../../../shared/space-elevator.js';
 import { useEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { GAMES } from '../../lib/catalog';
-import { FOUNTAIN, getDestination, isWalkable, movePlayer, SPAWN } from '../../../shared/world.js';
+import { FOUNTAIN, getDestination, isWalkable, movePlayer, SPAWN, groundHeight } from '../../../shared/world.js';
 import { SERVER_TICK_MS } from '../../../shared/protocol.js';
 import { startJump, stepJump } from '../../../shared/jump.js';
 import { JETPACK, startAvatarJump, stepAvatar, stoppedVertical, safeLanding, stepFlightVertical, flightFloor } from '../../../shared/jetpack.js';
@@ -16,6 +18,7 @@ import { OFFSHORE_ARRIVAL, sampleOffshorePassenger } from '../../../shared/offsh
 import { stepOffshoreDeck } from '../../../shared/offshore-deck.js';
 import { blendOffshoreDeck, offshoreWalkingCamera, remoteOffshorePose } from './offshoreWalking.js';
 
+const spaceActor=new THREE.Object3D();
 const MOVEMENT_KEYS = new Set(['KeyW', 'KeyA', 'KeyS', 'KeyD', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight']);
 const ZERO_INPUT = Object.freeze({ x: 0, z: 0 });
 
@@ -49,6 +52,16 @@ function RemotePlayer({ player, snapshotRef, Model, reducedMotion, offshoreRef }
     }
     const next = latest.current;
     const current = pose.current;
+    if(next.spaceMode && next.spaceMode !== 'ground'){
+      Object.assign(current,next);
+      if(next.spaceMode==='ascent'||next.spaceMode==='descent'){
+        const now=(snapshot?.serverTime||Date.now())+Math.max(0,performance.now()-(snapshot?.receivedAtPerf||performance.now()));
+        const shot=sampleElevator(now-next.spaceStartAt,next.spaceMode);Object.assign(current,{x:shot.position[0],y:shot.position[1],z:shot.position[2],spaceNow:now});
+      }
+      orientSpaceAvatar(spaceActor,current,current.spaceNow||0);current.orientation=spaceActor.quaternion.toArray();
+      return;
+    }
+    current.spaceMode='ground';
     const voyage = offshoreRef?.current;
     if (next.aboard && voyage) {
       Object.assign(current, remoteOffshorePose(current, next, voyage, frameDelta, reducedMotion, performance.now() - next.receivedAt < 400));
@@ -66,13 +79,16 @@ function RemotePlayer({ player, snapshotRef, Model, reducedMotion, offshoreRef }
     let simulated = 0;
     while (elapsed > 0) {
       const dt = Math.min(0.1, elapsed);
-      Object.assign(vertical, next.jetpack ? stepFlightVertical(vertical, next.thrusting && simulated < 0.2, dt, flightFloor(next.x, next.z), next.hovering && simulated < 0.2) : stepJump(vertical, dt));
+      const support = groundHeight(next.x, next.z);
+      const localJump = next.jetpack ? null : stepJump({ y: Math.max(0, vertical.y - support), vy: vertical.vy }, dt);
+      Object.assign(vertical, next.jetpack ? stepFlightVertical(vertical, next.thrusting && simulated < 0.2, dt, flightFloor(next.x, next.z), next.hovering && simulated < 0.2) : { ...localJump, y: localJump.y + support });
       elapsed -= dt; simulated += dt;
     }
     current.y += (vertical.y - current.y) * factor;
     current.vy = vertical.vy;
     current.jetpack = vertical.jetpack === true; current.thrusting = vertical.thrusting === true; current.hovering = vertical.hovering === true;
-    if (vertical.y === 0 && current.y < 0.005) current.y = 0;
+    const support = groundHeight(next.x, next.z);
+    if (vertical.y <= support + .001 && current.y < support + .005) current.y = support;
     current.yaw = angleTowards(current.yaw, next.yaw, factor);
     // A stalled connection never leaves a remote avatar walking in place indefinitely.
     current.moving = next.connected !== false && !!next.moving && distance > 0.015 && performance.now() - next.receivedAt < 400;
@@ -81,7 +97,7 @@ function RemotePlayer({ player, snapshotRef, Model, reducedMotion, offshoreRef }
   return <Model poseRef={pose} name={player.connected === false ? `${player.name} · 重连中` : player.name} color={player.color} reducedMotion={reducedMotion} />;
 }
 
-export default function PlayerController({ Model, active, inputRef, destination, onNearest, reducedMotion, network, viewMode = 'overview', onStartExploring, onLookStatus, playerPoseRef, outdoorRef, onNearestOutdoor, npcTimeRef, flightRef, onFlyingChange, offshoreRef, onNearestOffshoreDock }) {
+export default function PlayerController({ spaceRuntime, Model, active, inputRef, destination, onNearest, reducedMotion, network, viewMode = 'overview', onStartExploring, onLookStatus, playerPoseRef, outdoorRef, onNearestOutdoor, npcTimeRef, flightRef, onFlyingChange, offshoreRef, onNearestOffshoreDock }) {
   const pose = useRef({ ...SPAWN, y: 0, vy: 0, moving: false, jetpack: false, thrusting: false, hovering: false });
   const heldSince = useRef(null);
   const hoverRequested = useRef(false);
@@ -185,7 +201,7 @@ export default function PlayerController({ Model, active, inputRef, destination,
     const interactive = element => ['BUTTON', 'A', 'SUMMARY'].includes(element?.tagName)
       || !!element?.closest?.('button,a[href],summary,[role="button"],[role="checkbox"],[role="radio"],[role="switch"],[role="tab"],[role="menuitem"],[role="option"],[role="slider"]');
     const keydown = event => {
-      if (!active || outdoorRef?.current || event.ctrlKey || event.metaKey || event.altKey || editable(event.target)) return;
+      if (!active || spaceRuntime?.current?.uiBlocked || outdoorRef?.current || event.ctrlKey || event.metaKey || event.altKey || editable(event.target)) return;
       if (offshoreRef?.current?.aboard && !MOVEMENT_KEYS.has(event.code)) return;
       if (event.code === 'KeyH') {
         if (interactive(event.target) || event.repeat || keys.current.KeyH) return;
@@ -249,7 +265,7 @@ export default function PlayerController({ Model, active, inputRef, destination,
       lastSent.current.at = -Infinity;
       keys.current = {};
       pose.current.moving = false;
-      pose.current.y = 0;
+      pose.current.y = groundHeight(pose.current.x, pose.current.z);
       pose.current.vy = 0;
       pose.current.hovering = false;
     }
@@ -294,7 +310,7 @@ export default function PlayerController({ Model, active, inputRef, destination,
   }
 
   useEffect(() => {
-    if (!destination) return;
+    if (!destination || (spaceRuntime?.current.mode && spaceRuntime.current.mode !== "ground")) return;
     if (['connecting', 'reconnecting'].includes(callbacks.current.network?.status)) return;
     if (callbacks.current.network?.status === 'connected') {
       stopInput();
@@ -313,7 +329,7 @@ export default function PlayerController({ Model, active, inputRef, destination,
   useEffect(() => {
     // DroneCamera owns its full lens/rail; never overwrite its far plane after
     // the declarative camera's layout effects (especially on portrait screens).
-    if (viewMode === 'drone' || viewMode === 'sphere' || viewMode === 'offshore') { invalidate(); return; }
+    if (viewMode === 'drone' || viewMode === 'sphere' || viewMode === 'offshore' || viewMode === 'island' || viewMode === 'metro') { invalidate(); return; }
     if (firstPerson || follow || viewMode === 'wonder') {
       // The declarative PerspectiveCamera becomes default after its layout
       // effect. Do not accidentally turn the preserved orthographic camera
@@ -322,7 +338,7 @@ export default function PlayerController({ Model, active, inputRef, destination,
         camera.zoom = 1;
         camera.fov = firstPerson ? closeThirdPersonLens(camera.aspect).fov : follow ? followCameraLens(camera.aspect).fov : 50;
         camera.near = 0.08;
-        camera.far = firstPerson || follow ? flightCameraFar(pose.current.y) : 420;
+        camera.far = firstPerson || follow ? flightCameraFar(pose.current.y) : 1800;
         camera.updateProjectionMatrix();
       }
       invalidate();
@@ -340,7 +356,7 @@ export default function PlayerController({ Model, active, inputRef, destination,
     }
     camera.zoom = cameraZoom(viewMode, size.width, size.height);
     cameraOffset.current.fromArray(CAMERA_OFFSETS[viewMode] || CAMERA_OFFSETS.follow);
-    camera.far = 420;
+    camera.far = 1800;
     camera.updateProjectionMatrix();
     if (!cameraInitialized.current || reducedMotion) {
       const target = getCameraTarget(viewMode, pose.current, size.width, reducedMotion ? 0 : npcTimeRef?.current);
@@ -356,6 +372,23 @@ export default function PlayerController({ Model, active, inputRef, destination,
   useFrame((_, frameDelta) => {
     const delta = Math.min(frameDelta, 0.1);
     const current = pose.current;
+    const space=spaceRuntime?.current;
+    if(space){
+      space.look=look.current;
+      if(space.returnPose){Object.assign(current,space.returnPose,{spaceMode:'ground'});space.returnPose=null;authority.current.signature=null;authority.current.session=null;camera.up.set(0,1,0);cameraInitialized.current=false;stopInput();}
+      if(space.mode!=='ground'&&space.pose){
+        const canMove=active&&focused.current&&!document.hidden&&!space.uiBlocked;
+        const thrust=space.mode!=='rail'&&canMove&&!!(keys.current.Space||inputRef?.current?.jetHeld);
+        if(hoverRequested.current){hoverEnabled.current=!hoverEnabled.current;hoverRequested.current=false;}
+        const touch=Number(inputRef?.current?.hoverToggle)>0;if(touch){hoverEnabled.current=!hoverEnabled.current;inputRef.current.hoverToggle=0;}
+        const input={...(canMove?worldInput(keys.current,inputRef?.current||{},space.surfaceYaw??look.current.yaw):ZERO_INPUT),thrust,hover:canMove&&!thrust&&hoverEnabled.current};
+        space.input=input;Object.assign(current,space.pose,{spaceNow:space.now});orientSpaceAvatar(spaceActor,current,space.now);current.orientation=spaceActor.quaternion.toArray();lastInput.current=input;
+        if(connected&&(performance.now()-lastSent.current.at>=SERVER_TICK_MS||input.x!==lastSent.current.x||input.z!==lastSent.current.z))sendInput(input);
+        if(flightRef)Object.assign(flightRef.current,{height:current.orbitY||0,flying:current.jetpack,thrusting:thrust,hovering:input.hover,speed:0});
+        return;
+      }
+      current.spaceMode='ground';space.groundPose=current;
+    }
     const voyage = offshoreRef?.current;
     const nearDock = Boolean(active && !voyage?.aboard && ['follow', 'first-person'].includes(viewMode) && current.y < 1.5 && Math.hypot(current.x - OFFSHORE_ARRIVAL.x, current.z - OFFSHORE_ARRIVAL.z) <= 10);
     if (nearDock !== nearOffshoreDock.current) { nearOffshoreDock.current = nearDock; onNearestOffshoreDock?.(nearDock); }
@@ -449,7 +482,7 @@ export default function PlayerController({ Model, active, inputRef, destination,
     }
     if (outdoorReturn.current) {
       const back = outdoorReturn.current;
-      Object.assign(current, back, safeLanding(back.x, back.z), { y: 0, vy: 0, moving: false, jetpack: false, thrusting: false, activity: null });
+      Object.assign(current, back, safeLanding(back.x, back.z), { y: groundHeight(back.x, back.z), vy: 0, moving: false, jetpack: false, thrusting: false, activity: null });
       outdoorReturn.current = null;
       authority.current.signature = null;
       authority.current.correctionX = 0; authority.current.correctionZ = 0; authority.current.correctionY = 0;
@@ -462,7 +495,11 @@ export default function PlayerController({ Model, active, inputRef, destination,
     const frameSelf = connected ? (snapshot?.players || players).find(player => player.id === (snapshot?.selfId || network.selfId)) : null;
     if (frameSelf) reconcileSelf(frameSelf, snapshot?.tick);
     const canControl = active && !waitingForServer && focused.current && !document.hidden && (!connected || !!frameSelf);
-    const direction = canControl ? worldInput(keys.current, inputRef?.current || {}, firstPerson || follow ? look.current.yaw : null) : ZERO_INPUT;
+    let direction = canControl ? worldInput(keys.current, inputRef?.current || {}, firstPerson || follow ? look.current.yaw : null) : ZERO_INPUT;
+    if(space?.walkTo&&canControl){
+      if(Math.hypot(direction.x,direction.z)>.01){space.walkTo=null;space.walkToCabin=false;}
+      else{const dx=space.walkTo.x-current.x,dz=space.walkTo.z-current.z,d=Math.hypot(dx,dz);if(d<.7)space.walkTo=null;else direction={x:dx/d,z:dz/d};}
+    }
     const rawSpaceHeld = canControl && !!(keys.current.Space || inputRef?.current?.jetHeld);
     const touchHover = Number.isFinite(inputRef?.current?.hoverToggle) && inputRef.current.hoverToggle > 0;
     if (touchHover) inputRef.current.hoverToggle = 0;
@@ -524,10 +561,11 @@ export default function PlayerController({ Model, active, inputRef, destination,
       state.correctionX -= dx;
       state.correctionZ -= dz;
       const dy = state.correctionY * factor;
-      current.y = Math.max(0, current.y + dy);
+      const support = groundHeight(current.x, current.z);
+      current.y = Math.max(support, current.y + dy);
       state.correctionY -= dy;
-      if (current.y < 0.005 && current.vy <= 0 && Math.abs(state.correctionY) < 0.005) {
-        current.y = 0; current.vy = 0; state.correctionY = 0;
+      if (current.y < support + 0.005 && current.vy <= 0 && Math.abs(state.correctionY) < 0.005) {
+        current.y = support; current.vy = 0; state.correctionY = 0;
       }
     }
 

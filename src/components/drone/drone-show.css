@@ -195,3 +195,9 @@
 .drone-show-ai .drone-title-block h1 { font-size: clamp(1.5rem, 3vw, 2.25rem); max-width: min(34rem, 65vw); line-height: 1.4; overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 .drone-show-ai .drone-details .drone-program { margin-bottom: 18px; }
 @media (max-width: 600px) { .drone-show-ai .drone-title-block h1 { max-width: calc(100vw - 150px); font-size: 1.5rem; } .drone-show-ai .drone-details .drone-program-buttons { flex-wrap: wrap; overflow: visible; } }
+
+.drone-spectator-controls{pointer-events:auto;max-width:100%;}.drone-spectator-controls p{font-size:var(--text-body,1.125rem);line-height:1.75;margin:0 0 8px;color:#eee4d2}.drone-spectator-actions{display:flex;flex-wrap:wrap;gap:8px}
+
+.drone-spectator-controls summary { cursor:pointer; min-height:44px; padding:10px 12px; font-size:var(--text-control,1rem); border:1px solid #f6dca52b; border-radius:5px; background:#1020368c; }
+.drone-spectator-controls[open] { flex-basis:100%; }
+.drone-spectator-controls[open] summary { margin-bottom:8px; }

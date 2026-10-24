@@ -1,0 +1,12 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {SPACE_ELEVATOR as E,CITY_BASIS,cityToWorld,worldToCity,orbitWorldPose,ELEVATOR_BOTTOM,ELEVATOR_TOP,sampleElevator,canAscend,canDescend,celestialAngularDiameter} from '../shared/space-elevator.js';
+const near=(a,b,e=1e-7)=>assert.ok(Math.abs(a-b)<e,`${a} != ${b}`);
+test('offshore terminal is >500m from the town and celestial city is kilometres above it',()=>{assert.ok(Math.hypot(E.port.x,E.port.z)>500);assert.ok(E.cityCenter[1]>=100000);assert.ok(celestialAngularDiameter()<6);assert.ok(celestialAngularDiameter()>.5);});
+test('city basis preserves person-scale metres and is orthonormal',()=>{for(let i=0;i<3;i++)for(let j=0;j<3;j++)near(CITY_BASIS[i].reduce((a,v,k)=>a+v*CITY_BASIS[j][k],0),i===j?1:0);const p=[15,222,-90];worldToCity(cityToWorld(p)).forEach((v,i)=>near(v,p[i]));});
+test('outbound and return use the same real spatial endpoints',()=>{sampleElevator(0).position.forEach((v,i)=>near(v,ELEVATOR_BOTTOM[i]));sampleElevator(E.durationMs).position.forEach((v,i)=>near(v,ELEVATOR_TOP[i]));sampleElevator(0,'descent').position.forEach((v,i)=>near(v,ELEVATOR_TOP[i]));sampleElevator(E.durationMs,'descent').position.forEach((v,i)=>near(v,ELEVATOR_BOTTOM[i]));orbitWorldPose(E.dock).position.forEach((v,i)=>near(v,ELEVATOR_TOP[i]));});
+test('trajectory has no position jump and accelerates/decelerates smoothly',()=>{let previous=sampleElevator(0).position,maxStep=0;for(let t=16;t<=E.durationMs;t+=16){const next=sampleElevator(t).position;maxStep=Math.max(maxStep,Math.hypot(...next.map((v,i)=>v-previous[i])));previous=next;}assert.ok(maxStep<30);assert.ok(Math.hypot(...sampleElevator(16).position.map((v,i)=>v-ELEVATOR_BOTTOM[i]))<.00001);});
+test('only near each physical terminal may players board',()=>{assert.ok(canAscend({x:E.port.x,z:E.port.z,y:0}));assert.ok(!canAscend({x:0,z:10,y:0}));assert.ok(!canAscend({x:E.port.x,z:E.port.z,y:0,aboard:true}));assert.ok(canDescend({spaceMode:'orbit',orbitX:E.dock.x,orbitY:0,orbitZ:E.dock.z}));assert.ok(!canDescend({spaceMode:'orbit',orbitX:0,orbitY:0,orbitZ:0}));});
+
+import {spaceClockTime} from '../shared/space-elevator.js';
+test('connection loss keeps cabin time continuous instead of mixing epoch and performance clocks',()=>{const state={};assert.equal(spaceClockTime(state,null,500),500);const time=1700000000000;assert.equal(spaceClockTime(state,{serverTime:time,receivedAtPerf:500},500),time);assert.equal(spaceClockTime(state,null,1500),time+1000);assert.equal(spaceClockTime(state,null,2500),time+2000);});

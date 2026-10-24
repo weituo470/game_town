@@ -84,7 +84,7 @@ test('town environment: HDR failure leaves sky, lighting and shared day/night fr
   assert.equal(boundary.render(), null);
   frame({ scene });
   assert.equal(scene.environmentIntensity, 0.5);
-  timeRef.current = 90000; frame({ scene });
+  timeRef.current = 450000; frame({ scene });
   assert.equal(scene.environmentIntensity, 0.12);
   timeRef.current = NaN; frame({ scene });
   assert.ok(Number.isFinite(scene.environmentIntensity));

@@ -53,7 +53,7 @@ function harness({ hdr = true } = {}) {
     '@react-three/fiber': { useThree: () => state, useFrame: callback => frames.push(callback) },
     'three/addons/postprocessing/EffectComposer.js': { EffectComposer: Composer },
     'three/addons/postprocessing/RenderPass.js': { RenderPass: class extends Pass { constructor() { super('render'); } } },
-    'three/addons/postprocessing/SAOPass.js': { SAOPass: class extends Pass { constructor() { super('ao'); } } },
+    'three/addons/postprocessing/SAOPass.js': { SAOPass: class extends Pass { constructor() { super('ao'); this.saoMaterial={fragmentShader:'1.0 - ambientOcclusion'}; } } },
     'three/addons/postprocessing/UnrealBloomPass.js': { UnrealBloomPass: class extends Pass { constructor() { super('bloom'); } } },
     'three/addons/postprocessing/OutputPass.js': { OutputPass: class extends Pass { constructor() { super('output'); } } },
     '../drone/dronePerformance.js': performancePolicy,

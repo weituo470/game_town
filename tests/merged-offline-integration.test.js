@@ -147,9 +147,9 @@ test('carrier and mirror-droplet render paths share the town without duplicating
     const h = townTree({ viewMode: 'drone', active: false, droneFpv: { program } });
     const carrier = program === 'carrier-battle';
     const lazy = h.nodes.filter(node => node.type?.$$typeof === Symbol.for('react.lazy'));
-    assert.equal(lazy.length, carrier ? 6 : 5);
+    assert.equal(lazy.length, carrier ? 9 : 9);
     assert.deepEqual(lazy.map(node => node.type.modulePath).sort(),
-      ['./town/DeepSeekPark.jsx', './town/SphereLandmark.jsx', './town/OffshoreIsland.jsx', './town/PlayerController.jsx', './architect/ArchitectWorld.jsx', ...(carrier ? ['./drone/CarrierBattleScene.jsx'] : [])].sort());
+      ['./town/GardenFireflies.jsx', './space/SpaceWorld.jsx', './town/DeepSeekPark.jsx', './town/SphereLandmark.jsx', './town/OffshoreIsland.jsx', './town/PlayerController.jsx', './architect/ArchitectWorld.jsx', './drone/DroneShow.jsx', ...(carrier ? ['./drone/CarrierBattleScene.jsx'] : ['./drone/DroneShow.jsx'])].sort());
     const sphere = lazy.find(node => node.type.modulePath === './town/SphereLandmark.jsx');
     assert.equal(sphere.props.timeRef, h.npcTimeRef);
     assert.equal(sphere.props.onSelect, undefined, 'cinematic input never opens the sphere viewer');
@@ -159,7 +159,7 @@ test('carrier and mirror-droplet render paths share the town without duplicating
     const park = lazy.find(node => node.type.modulePath === './town/DeepSeekPark.jsx');
     assert.equal(park.props.timeRef, h.npcTimeRef);
     assert.equal(park.props.onSelect, undefined, 'cinematic input never opens the park tour');
-    const formations = h.nodes.filter(node => node.type === './drone/DroneShow.jsx');
+    const formations = h.nodes.filter(node => node.type?.modulePath === './drone/DroneShow.jsx' && 'ambient' in node.props);
     assert.equal(formations.length, carrier ? 0 : 1);
     if (!carrier) { assert.equal(formations[0].props.program, program); assert.equal(formations[0].props.timeRef, h.droneTimeRef); }
     const harbour = h.nodes.find(node => node.type === './town/WonderIslands.jsx');
@@ -169,6 +169,6 @@ test('carrier and mirror-droplet render paths share the town without duplicating
     const effects = h.nodes.find(node => node.type === './town/SceneEffects');
     assert.equal(effects.props.performanceMode, 'drone');
     assert.equal(effects.props.faithfulBlackHole, program === 'blackhole');
-    assert.equal(h.nodes.filter(node => node.type === './drone/DroneShow.jsx:DroneCamera').length, 1);
+    assert.equal(h.nodes.filter(node => node.type?.modulePath === './drone/DroneShow.jsx' && !('ambient' in node.props)).length, 1);
   }
 });

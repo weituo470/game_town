@@ -1,4 +1,5 @@
 import { ArrowUpRight, Sparkles } from 'lucide-react';
+import { useState, useRef, useEffect } from 'react';
 import { DRONE_PROGRAM_MENU } from '../../../shared/dronePrograms.js';
 import './drone-integration.css';
 
@@ -29,8 +30,34 @@ function ProgrammeArt({ id }) {
 
 /** Only public performance scores are selectable; ambient sky events are not. */
 export default function DroneInvitation({ onStart, onAiDrone }) {
+  const [fireworkLoading, setFireworkLoading] = useState(false);
+  const [fireworkError, setFireworkError] = useState('');
+  const fireworkFlight = useRef(false), alive = useRef(true);
+  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
+  async function playFootprints() {
+    if (fireworkFlight.current) return;
+    fireworkFlight.current = true;
+    setFireworkLoading(true); setFireworkError('');
+    try { const { createDroneSampleRuntime } = await import('../../../shared/droneSamplePrograms.js'); if (alive.current) onStart('ai', createDroneSampleRuntime('footsteps-of-light')); }
+    catch { if (alive.current) setFireworkError('烟花节目暂未载入，请重试；没有调用模型。'); }
+    finally { fireworkFlight.current = false; if (alive.current) setFireworkLoading(false); }
+  }
   return <section className="drone-programme" aria-labelledby="drone-invitation-title">
-    <header className="drone-programme-heading"><span className="drone-invitation-kicker">小镇天幕 · 光影剧场</span><h3 id="drone-invitation-title">选择你想看的演出</h3><p>选择法天象地、水滴之战或空天母舰；观演中可切换节目，也可随时回到小镇。</p></header>
+    <header className="drone-programme-heading"><span className="drone-invitation-kicker">小镇天幕 · 光影剧场</span><h3 id="drone-invitation-title">选择你想看的演出</h3><p>全新烟花秀、法天象地、水滴之战与空天母舰。选择一场演出，也可随时回到小镇。</p></header>
+    <article className="drone-invitation" aria-labelledby="footprint-invitation-title">
+      <div className="drone-invitation-art" aria-hidden="true"><svg viewBox="0 0 200 170" fill="none" stroke="currentColor" strokeWidth="1.5">
+        {[0,1,2].map(i => <g key={i} transform={`translate(${35+i*60},${115-i*26}) rotate(65) scale(.85)`} opacity={.5+i*.25}>
+          <path d="M-1 23C-11 23-12 10-8 0L-10-13Q-11-23-6-25Q-2-27-1-20Q1-28 5-24L6-18Q9-25 12-20L12-15Q17-20 18-15L16-9Q22-14 22-8Q21-2 14 2Q7 5 7 13Q7 23-1 23Z"/>
+        </g>)}
+      </svg></div>
+      <div className="drone-invitation-copy"><span className="drone-invitation-kicker">全新 · 原创虚拟烟花秀</span>
+        <h4 id="footprint-invitation-title">足迹 · 向光而行</h4>
+        <p>参照2008北京奥运的水平空心脚印。轮廓上的烟花同步升空、顶点爆开，同一批火星自然散落，二十九步从远海走向小镇。</p>
+        <button type="button" className="drone-invitation-start" disabled={fireworkLoading} onClick={() => void playFootprints()}><Sparkles size={19} aria-hidden="true"/>{fireworkLoading ? '正在准备烟花…' : '观看足迹 · 向光而行'}<ArrowUpRight size={19} aria-hidden="true"/></button>
+        <span className="drone-invitation-meta">1 分 44 秒 · 水平空心足迹 · 实录爆炸音效 · 可静音与回放 · 非官方演绎</span>
+        {fireworkError && <p role="alert">{fireworkError}</p>}
+      </div>
+    </article>
     {onAiDrone && <article className="drone-invitation drone-invitation-ai">
       <div className="drone-invitation-copy">
         <span className="drone-invitation-kicker">AI 演出导演 · 让灵感升空</span>

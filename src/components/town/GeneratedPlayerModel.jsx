@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useFrame } from '@react-three/fiber';
+import { groundHeight } from '../../../shared/world.js';
 import { AnimationMixer, Box3, LoadingManager } from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { clone as cloneSkeleton } from 'three/addons/utils/SkeletonUtils.js';
@@ -99,8 +100,8 @@ export default function GeneratedPlayerModel({ poseRef, asset, fallback = null, 
     const pose = poseRef?.current ?? {};
     const height = Number.isFinite(pose.y) ? Math.max(0, pose.y) : 0;
     actor.current.position.set(Number.isFinite(pose.x) ? pose.x : 0, height, Number.isFinite(pose.z) ? pose.z : 0);
-    actor.current.rotation.y = Number.isFinite(pose.yaw) ? pose.yaw : 0;
-    const next = reducedMotion || height > 0.015 && !pose.aboard ? null : pose.moving ? 'walk' : loaded.actions.idle ? 'idle' : null;
+    if(pose.spaceMode&&pose.spaceMode!=='ground'&&Array.isArray(pose.orientation))actor.current.quaternion.fromArray(pose.orientation);else actor.current.rotation.set(0,Number.isFinite(pose.yaw)?pose.yaw:0,0);
+    const next = reducedMotion || (pose.spaceMode==='orbit'?(pose.orbitY||0)>.015:height - groundHeight(pose.x, pose.z) > 0.015 && !pose.aboard) ? null : pose.moving ? 'walk' : loaded.actions.idle ? 'idle' : null;
     if (next !== loaded.active) {
       if (!next) loaded.mixer.stopAllAction(); // restore rest pose in the air
       else {

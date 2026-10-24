@@ -156,3 +156,12 @@ Private photos, generated player models, speech caches, credentials, deployment
 records and QA media are not asset examples for this repository. The code for
 uploading or generating a private character does not authorize republishing that
 character or the source person's likeness.
+
+
+## Additional assets in the island release
+
+- public/metro-island/: original Blender geometry, reproducible editable-project generator, procedural textures and layout metadata authored for Game Town. MIT covers these original contributions; Blender was the creation tool, not a third-party asset source. Reproducible generator: scripts/build-metro-island.py.
+- src/components/island/: original procedural terrain and vegetation, MIT.
+- public/audio/footsteps-of-light.mp3 combines original synthesis with Rudmer_Rotteveel's CC0 recording 336008. The full source and licence are preserved in public/licenses/footprint-fireworks-audio.txt; original source preview is under public/audio/sources/. No Olympic footage, emblems, soundtrack or reference photograph is distributed.
+- src/vendor/wavesurfer-8.0.3/ is the unmodified ESM package distribution, BSD-3-Clause, with complete LICENSE and NOTICE retained.
+- Commercial song recordings, lyric text, private rehearsal scores, captured videos, generated private avatars and local runtime configuration remain excluded.

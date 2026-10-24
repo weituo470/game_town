@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
-import { DAY_NIGHT_CYCLE_MS, sampleDayNight } from '../shared/dayNight.js';
+import { DAY_NIGHT_CYCLE_MS, sampleDayNight, worldTimeAtSolarPhase } from '../shared/dayNight.js';
 import { createAmbientBlackHoleClock, sampleAmbientBlackHoleNight } from '../shared/ambientBlackHole.js';
 import { createAmbientBlackHoleRuntime, placeAmbientBlackHole } from '../src/components/town/ambientBlackHoleRuntime.js';
 import { SPAWN } from '../shared/world.js';
@@ -10,7 +10,7 @@ import { closeThirdPersonCamera, closeThirdPersonLens } from '../src/components/
 const NIGHT = DAY_NIGHT_CYCLE_MS / 2;
 const size = { width: 1280, height: 720 };
 const bearing = new THREE.Vector3(Math.sin(.65), Math.SQRT1_2 * .7, Math.cos(.65)).normalize();
-const timeAtElevation = elevation => Math.acos(elevation) / (2 * Math.PI) * DAY_NIGHT_CYCLE_MS;
+const timeAtElevation = elevation => worldTimeAtSolarPhase(Math.acos(elevation) / (2 * Math.PI));
 const close = (a, b, epsilon = 1e-8) => assert.ok(Math.abs(a - b) <= epsilon, `${a} differs from ${b}`);
 const cameraState = camera => ({ position: camera.position.toArray(), quaternion: camera.quaternion.toArray(),
   up: camera.up.toArray(), zoom: camera.zoom, fov: camera.fov, near: camera.near, far: camera.far,

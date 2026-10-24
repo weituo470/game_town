@@ -9,6 +9,7 @@ import { createSphereLandmark, sampleSphereWall, SPHERE_RENDER_BUDGET } from '..
 import { sphereWallVertexShader, sphereWallFragmentShader } from '../src/components/sphere/sphereWallShaders.js';
 import { SPHERE_BUBBLE_BUDGET, sampleSphereBubbleCue } from '../src/components/sphere/sphereBubbleCycle.js';
 import { sampleDayNight } from '../shared/dayNight.js';
+import { createSphereUfo } from '../src/components/sphere/createSphereUfo.js';
 
 test('sphere landmark is a bounded one-canvas local model with no downloaded assets', () => {
   const model = createSphereLandmark(), stats = model.statistics;
@@ -131,7 +132,7 @@ test('artwork uses the Canvas monotonic clock across the 180-second daylight wra
   assert.match(wrapper, /const time = clock\.elapsedTime \* 1000;/);
   assert.match(wrapper, /const lightTime = lightTimeRef\?\.current \?\? timeRef\?\.current \?\? time;/);
   assert.match(wrapper, /const night = sampleDayNight\(lightTime\)\.nightOpacity/);
-  assert.match(wrapper, /model\.current\?\.update\(wallTime, \{ mode, reducedMotion, night, bubbleExpression \}\)/);
+  assert.match(wrapper, /model\.current\?\.update\(wallTime, \{ mode, reducedMotion, night, bubbleExpression,.*\}\)/);
   assert.doesNotMatch(wrapper, /const time = timeRef/);
   const model = createSphereLandmark(), uniforms = model.group.getObjectByName('sphere-led-wall').material.uniforms;
   const before = model.update(179999), after = model.update(180000);
@@ -162,6 +163,7 @@ function mountLandmark(initialProps) {
     if (id === '@react-three/fiber') return { useFrame(callback) { frame = callback; } };
     if (id === '../../../shared/sphere-landmark.js') return { SPHERE_LANDMARK };
     if (id === '../../../shared/dayNight.js') return { sampleDayNight };
+    if (id === '../sphere/createSphereUfo.js') return { createSphereUfo };
     if (id === '../sphere/createSphereLandmark.js') return { sampleSphereWall, createSphereLandmark: () => ({
       group: {}, dispose() {}, update(time, options) { const state = sampleSphereWall(time, options); calls.wall.push({ time, options, state }); return state; },
     }) };
@@ -177,6 +179,21 @@ function mountLandmark(initialProps) {
   render(initialProps);
   return { render, calls, step(time) { frame({ clock: { elapsedTime: time / 1000 } }); } };
 }
+
+test('sphere guest follows the private programme clock, suppresses bubbles, and restores normal behaviour after exit', () => {
+  const showTimeRef = { current: 119300 }, lightTimeRef = { current: 450000 };
+  const h = mountLandmark({ mode: 'smile', lightTimeRef, showTimeRef });
+  h.step(1000);
+  assert.equal(h.calls.wall.at(-1).options.performance.phase, 'hit');
+  assert.equal(h.calls.bubble.at(-1).options.opacity, 0);
+  h.step(200000);
+  assert.equal(h.calls.wall.at(-1).options.performance.ms, 119300, 'paused private clock is not replaced with Canvas elapsed time');
+  showTimeRef.current = 128500; h.step(201000);
+  assert.equal(h.calls.wall.at(-1).options.performance.phase, 'splash');
+  h.render({ mode: 'smile', lightTimeRef, showTimeRef: null }); h.step(202000);
+  assert.equal(h.calls.wall.at(-1).options.performance, undefined);
+  assert.equal(h.calls.bubble.at(-1).options.opacity, 1);
+});
 
 test('entering auto at an arbitrary global time gives the whole bubble story before the first wall crossfade', () => {
   const lightTimeRef = { current: 179999 }, harness = mountLandmark({ mode: 'smile', lightTimeRef });
@@ -210,3 +227,4 @@ test('replaying the smile resets the face cue and bubbles together without reset
   assert.equal(wall.time, 820001); assert.equal(wall.options.night, sampleDayNight(90000).nightOpacity);
   harness.step(825001); assert.equal(harness.calls.bubble.at(-1).cue.phase, 'blowing');
 });
+

@@ -6,7 +6,7 @@ const stamp = ms => `${Math.floor(ms / 60000)}:${String(Math.floor(ms / 1000) % 
 const filename = title => `${title.replace(/[\\/:*?"<>|\u0000-\u001f]/g, '-').slice(0, 60) || 'game-town-show'}`;
 const stoppedReason = reason => ({ 'page-hidden': '页面进入后台，已自动停止并保留片段。', 'context-lost': '图形上下文中断，已停止并保留片段。', 'size-limit': '到达本机内存保护阈值，已保留片段。', 'duration-limit': '到达安全录制时长，已保留片段。' })[reason] || '已保留录制片段。';
 
-export default function DroneVideoExport({ controller, program, onBusyChange }) {
+export default function DroneVideoExport({ controller, program, onBusyChange, onPrepare }) {
   const [open, setOpen] = useState(false);
   const [capability, setCapability] = useState(null);
   const [phase, setPhase] = useState('idle');
@@ -36,7 +36,7 @@ export default function DroneVideoExport({ controller, program, onBusyChange }) 
   useEffect(() => {
     if (!open || capability) return undefined;
     let active = true;
-    import('../../lib/droneVideoRecorder.js').then(module => module.detectDroneVideoCapabilities({ width: 1280, height: 720, frameRate: 30 }))
+    import('../../lib/droneVideoRecorder.js').then(module => module.detectDroneVideoCapabilities({ width: 1280, height: 720, frameRate: 30, ...(program.mediaMaster ? { MediaRecorderClass: null } : {}) }))
       .then(value => { if (active) setCapability(value); })
       .catch(() => { if (active) setError('无法检查本机视频编码能力，请刷新重试。'); });
     return () => { active = false; };
@@ -58,17 +58,20 @@ export default function DroneVideoExport({ controller, program, onBusyChange }) 
       engine.current?.dispose();
       const { createDroneVideoRecorder } = await import('../../lib/droneVideoRecorder.js');
       if (!active()) return;
-      const recorder = createDroneVideoRecorder();
+      const source = current.current;
+      // Music uses presentation timestamps from the decoder, not wall time.
+      // A buffer stall must not stretch video while the post-muxed song keeps going.
+      const recorder = createDroneVideoRecorder(source.program.mediaMaster && format === 'mp4' ? { MediaRecorderClass: null, now: () => source.controller.timeRef.current } : undefined);
       engine.current = recorder;
       // Hold the first frame while the encoder initializes, then play at 1x.
-      const source = current.current;
+      onPrepare?.();
       let processVideo;
       if (source.program.soundtrackUrl) {
         const { addDroneSoundtrackOrSilent } = await import('../../lib/droneSoundtrackMux.js');
         if (!active()) return;
         processVideo = (blob, options) => addDroneSoundtrackOrSilent(blob, { ...options, url: source.program.soundtrackUrl });
       }
-      source.controller.start({ program: 'ai', aiRuntime: source.controller.state.aiRuntime, elapsedMs: 0, speed: 1, view: 'cinematic' });
+      source.controller.start({ program: source.program.id, aiRuntime: source.controller.state.aiRuntime, elapsedMs: 0, speed: 1, view: 'cinematic' });
       source.controller.togglePause();
       await recorder.start({ canvas, width: 1280, height: 720, format, processVideo,
         onProgress: value => { if (active() && engine.current === recorder) setProgress(value); },
@@ -91,7 +94,7 @@ export default function DroneVideoExport({ controller, program, onBusyChange }) 
           }
         },
       });
-      if (active() && engine.current === recorder && recorder.getState().phase === 'recording') current.current.controller.start({ program: 'ai', aiRuntime: source.controller.state.aiRuntime, elapsedMs: 0, speed: 1, view: 'cinematic' });
+      if (active() && engine.current === recorder && recorder.getState().phase === 'recording') current.current.controller.start({ program: source.program.id, aiRuntime: source.controller.state.aiRuntime, elapsedMs: 0, speed: 1, view: 'cinematic' });
     } catch (failure) { if (active()) { setError(failure.message || '录制未能开始。'); setPhase('error'); } }
     finally { if (operation.current === token) starting.current = false; }
   }
@@ -107,18 +110,19 @@ export default function DroneVideoExport({ controller, program, onBusyChange }) 
   return <div className="drone-video-export">
     <button type="button" className="drone-action drone-export-toggle" aria-expanded={open} aria-controls="drone-video-panel" onClick={() => setOpen(value => !value)}>{busy ? '查看录制进度' : '导出 MP4'}</button>
     {open && <section id="drone-video-panel" className="drone-video-panel" aria-label="影片导出">
-      <div className="drone-video-heading"><h2>将这片天空带走</h2><span className="drone-video-meta">720p · 目标 30 fps · {program.soundtrackUrl ? '包含原创配乐' : '纯画面无声'}</span></div>
+      <div className="drone-video-heading"><h2>将这片天空带走</h2><span className="drone-video-meta">720p · 目标 30 fps · {program.soundtrackUrl ? (program.mediaMaster ? '包含本机音轨' : '包含原创配乐') : '纯画面无声'}</span></div>
       {!busy && !result && <>
         <p>从头录下当前演出与运镜，约需 {stamp(program.duration)}。请保持页面前台。只录小镇画布，不含操作面板、桌面或麦克风，文件不上传。</p>
         {program.soundtrackUrl && <p>配乐会在录制结束后本机封装进影片；观演静音不影响影片配乐。若浏览器不支持音频编码，会明确提示并提供无声视频。</p>}
-        <div className="drone-video-actions"><label>文件格式 <select aria-label="导出文件格式" value={format} onChange={event => setFormat(event.target.value)}><option value="mp4">MP4</option><option value="webm">WebM（备选）</option></select></label><button className="drone-action drone-action-primary" type="button" onClick={() => void start()} disabled={!capability?.[format]?.supported}>{capability ? `从头录制 ${format.toUpperCase()}` : '正在检查编码能力…'}</button></div>
+        <div className="drone-video-actions"><label>文件格式 <select aria-label="导出文件格式" value={format} onChange={event => setFormat(event.target.value)}><option value="mp4">MP4</option><option value="webm" disabled={Boolean(program.mediaMaster)}>WebM（备选）</option></select></label><button className="drone-action drone-action-primary" type="button" onClick={() => void start()} disabled={!capability?.[format]?.supported}>{capability ? `从头录制 ${format.toUpperCase()}` : '正在检查编码能力…'}</button></div>
+        {program.mediaMaster && <p>音乐排练使用 H.264 时间戳编码，视频和音轨共用播放头；暂不提供可能漂移的实时 WebM 录制。</p>}
         {capability && !capability[format]?.supported && <p role="status">{format === 'mp4' ? '当前浏览器没有可用的 MP4 编码器。请用支持 H.264 的新版 Chrome / Edge，或手动选择 WebM；不会伪装文件格式。' : '当前浏览器不支持 WebM 录制，请改选 MP4 或使用其他浏览器。'}</p>}
       </>}
       {busy && <><p role="status">{phase === 'preparing' ? '正在准备本机编码器…' : phase === 'processing' ? '正在封装视频，请不要关闭页面…' : `正在录制 ${stamp(progress.durationMs || 0)} / ${stamp(program.duration)} · ${((progress.bytes || 0) / 1048576).toFixed(1)} MiB`}</p><progress aria-label="影片录制进度" max={program.duration} value={Math.min(program.duration, progress.durationMs || 0)}/><div className="drone-video-actions"><button type="button" className="drone-action" disabled={phase !== 'recording'} onClick={() => void finish('user')}>停止并保留片段</button><button type="button" className="drone-action" onClick={cancel}>取消录制</button></div><span className="drone-video-meta">录制期间锁定跳转和倍速；退出观演会取消未保存的录制。</span></>}
       {busy && <span className="drone-video-meta">已采样 {progress.frames || 0} 帧 · 实际帧率取决于设备和前台渲染，文件大小在封装后确认。</span>}
       {phase === 'recording' && progress.durationMs > 10000 && (progress.frames || 0) / (progress.durationMs / 1000) < 12 && <p className="drone-video-error" role="status">当前实际采样约 {((progress.frames || 0) / (progress.durationMs / 1000)).toFixed(1)} 帧/秒，视频可能不流畅。请把小镇浏览器窗口置于前台，关闭其他 3D 页面；也可停止后重录。</p>}
-      {result && <div className="drone-video-result"><p role="status">{result.reason === 'complete' ? '全片已完成。' : stoppedReason(result.reason)} {encodedDuration == null ? '录制用时 ' + stamp(result.durationMs) : '视频时长 ' + stamp(encodedDuration)} · {(result.bytes / 1048576).toFixed(1)} MiB · {result.extension.toUpperCase()}。点击下载后保存到你的设备。</p><video controls playsInline preload="metadata" src={result.url} onLoadedMetadata={event => { const seconds = event.currentTarget.duration; if (Number.isFinite(seconds)) setEncodedDuration(seconds * 1000); }} aria-label="已导出的无人机影片预览"/><div className="drone-video-actions"><a className="drone-action drone-action-primary" href={result.url} download={`${filename(program.title)}.${result.extension}`}>下载 {result.extension.toUpperCase()}</a><button className="drone-action" type="button" onClick={() => { engine.current?.dispose(); engine.current = null; setResult(null); setPhase('idle'); }}>重新录制</button></div></div>}
-      {result && program.soundtrackUrl && <p role="status" className={result.videoOnly ? 'drone-video-error' : ''}>{result.videoOnly ? `无声视频：${result.audioWarning || '配乐未能封装。'}` : `已包含原创配乐 · ${result.audioCodec?.toUpperCase()} 音轨`}</p>}
+      {result && <div className="drone-video-result"><p role="status">{result.reason === 'complete' ? '全片已完成。' : stoppedReason(result.reason)} {encodedDuration == null ? '录制用时 ' + stamp(result.durationMs) : '视频时长 ' + stamp(encodedDuration)} · {(result.bytes / 1048576).toFixed(1)} MiB · {result.extension.toUpperCase()}。点击下载后保存到你的设备。</p><video controls playsInline preload="metadata" src={result.url} onLoadedMetadata={event => { const seconds = event.currentTarget.duration; if (Number.isFinite(seconds)) setEncodedDuration(seconds * 1000); }} aria-label="已导出的无人机影片预览"/><div className="drone-video-actions"><a className="drone-action drone-action-primary" href={result.url} download={`${filename(program.id === 'avatar' ? '法天象地-moonstone黑客松-1024程序员节' : program.title)}.${result.extension}`}>下载 {result.extension.toUpperCase()}</a><button className="drone-action" type="button" onClick={() => { engine.current?.dispose(); engine.current = null; setResult(null); setPhase('idle'); }}>重新录制</button></div></div>}
+      {result && program.soundtrackUrl && <p role="status" className={result.videoOnly ? 'drone-video-error' : ''}>{result.videoOnly ? `无声视频：${result.audioWarning || '配乐未能封装。'}` : `已包含${program.mediaMaster ? '本机音轨' : '原创配乐'} · ${result.audioCodec?.toUpperCase()} 音轨`}</p>}
       {error && <p className="drone-video-error" role="alert">{error}</p>}
     </section>}
   </div>;

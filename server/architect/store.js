@@ -19,7 +19,7 @@ export function createArchitectStore({ dbPath = '.data/architect.sqlite', db, no
     if (dbPath !== ':memory:') mkdirSync(dirname(resolve(dbPath)), { recursive: true });
     db = new DatabaseSync(dbPath === ':memory:' ? dbPath : resolve(dbPath));
   }
-  db.exec(`PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
+  db.exec(`PRAGMA busy_timeout=5000; PRAGMA journal_mode=WAL;
     CREATE TABLE IF NOT EXISTS architect_days(day TEXT PRIMARY KEY, request_id TEXT UNIQUE NOT NULL);
     CREATE TABLE IF NOT EXISTS architect_requests(
       id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, owner TEXT NOT NULL, day TEXT NOT NULL,
@@ -112,3 +112,4 @@ export function createArchitectStore({ dbPath = '.data/architect.sqlite', db, no
   }
   return { request, projects, snapshot, reserve, complete, fail, close() { if (closed) return; closed = true; if (ownDb) db.close(); } };
 }
+

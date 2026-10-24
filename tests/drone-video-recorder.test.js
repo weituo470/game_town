@@ -134,6 +134,17 @@ test('native requestFrame absence falls back to fixed 30 fps stream', async () =
   await r.recorder.cancel(); assert.ok(r.streams.every(stream => stream.track.stopped));
 });
 
+test('WebCodecs rejects duplicate quantized PTS slots without advancing the audio clock', async () => {
+  const r = rig({ support: () => false }); await r.start();
+  // These intervals are accepted by the sampling tolerance but the second and
+  // third frames would both map to 1/30s without a presentation-slot guard.
+  for (const delta of [0, 32.9, 32.9, 34.2, 0, 0, 33.4]) { r.frame(delta); await flush(); }
+  const times = r.bunnyCalls.filter(item => item[0] === 'add').map(item => item[1]);
+  assert(times.every((time, i) => !i || time > times[i - 1]));
+  assert.deepEqual(times, [0, 1/30, .1, 4/30]);
+  await r.recorder.cancel();
+});
+
 test('WebCodecs fallback uses fragmented real MP4, no unbounded frame queue', async () => {
   let resolveFrame; const r = rig({ support: () => false, pendingAdd: () => new Promise(resolve => { resolveFrame = resolve; }) });
   await r.start({ width: 1920, height: 1080 }); assert.equal(r.recorder.getState().backend, 'webcodecs');

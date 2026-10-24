@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { DRONE_SAMPLE_PROGRAMS } from '../../../shared/droneSamplePrograms.js';
+import { DRONE_SAMPLE_PROGRAMS, FIREWORK_SAMPLE_PROGRAMS } from '../../../shared/droneSamplePrograms.js';
 
 const duration = ms => `${Math.floor(ms / 60000)}:${String(Math.round(ms / 1000) % 60).padStart(2, '0')}`;
 
@@ -23,10 +23,10 @@ export default function DroneSampleLibrary({ onPlay, disabled = false }) {
   }
   return <section className="drone-sample-library" aria-labelledby="drone-sample-title">
     <div className="ai-drone-section-heading"><h3 id="drone-sample-title">短篇试映 · 两分钟内</h3><span className="ai-drone-meta">当前会话编排 · 回放零模型调用</span></div>
-    <p>凤凰复燃、鲸群归航、逆重力星门。用独立灯点讲述天空故事，含起飞、运镜和归航；鲸群故事配有原创音乐，可随 MP4 一起带走。</p>
-    <ol className="drone-sample-list">{DRONE_SAMPLE_PROGRAMS.map((show, index) => <li key={show.id}>
+    <p>凤凰复燃、鲸群归航、逆重力星门，以及全新烟花秀《足迹 · 向光而行》。无人机与烟花各有自己的舞台；烟花脚印配有同步升空、爆响与余烬音效，可回放与导出。</p>
+    <ol className="drone-sample-list">{[...FIREWORK_SAMPLE_PROGRAMS, ...DRONE_SAMPLE_PROGRAMS].map((show, index) => <li key={show.id}>
       <div className="drone-sample-number" aria-hidden="true">0{index + 1}</div>
-      <div className="drone-sample-copy"><h4>{show.title}</h4><p>{show.description}</p><span className="ai-drone-meta">立体编舞 · 独立灯点 · {show.id === 'tidal-whale' ? '原创配乐 · 鲸群故事' : '烟花高潮 · 无配乐'}</span></div>
+      <div className="drone-sample-copy"><h4>{show.title}</h4><p>{show.description}</p><span className="ai-drone-meta">{show.id === 'footsteps-of-light' ? '水平空心足迹 · 二十九步 · 实录爆炸音效' : `立体编舞 · 独立灯点 · ${show.id === 'tidal-whale' ? '原创配乐 · 鲸群故事' : '烟花高潮 · 无配乐'}`}</span></div>
       <div className="drone-sample-action"><span className="drone-sample-duration">{duration(show.duration)}</span><button type="button" className="ai-drone-primary" disabled={disabled || Boolean(loading)} onClick={() => void play(show.id)} aria-label={`观看样板：${show.title}`}>{loading === show.id ? '正在布置天空…' : '观看短秀'}</button></div>
     </li>)}</ol>
     {error && <p className="ai-drone-error" role="alert">{error}</p>}

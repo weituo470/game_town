@@ -196,7 +196,7 @@ test('drone observation: one existing town, private show clock, night lighting a
   const watching = app.scene().props;
   assert.equal(watching.viewMode, 'drone');
   assert.equal(watching.active, false, 'held movement is disabled while watching');
-  assert.equal(watching.timeRef.current, 90000, 'night is local lighting only');
+  assert.equal(watching.timeRef.current, 450000, 'night is local lighting only');
   assert.equal(watching.npcTimeRef.current, before.npcTimeRef.current, 'NPC/shared time keeps running');
   assert.equal(watching.droneTimeRef.current, 0, 'manual show begins with launch, not the avatar shortcut');
   assert.equal(watching.destination, before.destination, 'watching never teleports the player');
@@ -209,7 +209,7 @@ test('drone observation: one existing town, private show clock, night lighting a
 
 function townHarness(mode, onReady) {
   const h = hooks();
-  const imports = ['./DuskScenery', './town/PlayerController', './town/SceneEffects', './town/SoftPenumbra', './town/characters/Residents', './town/landmarks/LandmarkFountain.jsx', './town/TownSky.jsx', './town/TownEnvironment.jsx', './town/WonderIslands.jsx', './town/GptPark.jsx', './town/DeepSeekPark.jsx', './town/GeneratedPlayerModel.jsx', './town/OutdoorScenery.jsx', './town/JetpackRig.jsx'];
+  const imports = ['./DuskScenery', './town/PlayerController', './town/SceneEffects', './town/SoftPenumbra', './town/characters/Residents', './town/landmarks/LandmarkFountain.jsx', './town/TownSky.jsx', './town/TownEnvironment.jsx', './town/WonderIslands.jsx', './town/GptPark.jsx', './town/DeepSeekPark.jsx', './town/GeneratedPlayerModel.jsx', './town/OutdoorScenery.jsx', './town/JetpackRig.jsx', './island/IslandGate.jsx', './metro/MetroGate.jsx'];
   const overrides = Object.fromEntries(imports.map(id => [id, componentNamespace(id)]));
   overrides['./drone/DroneShow.jsx'] = componentNamespace('DroneShow');
   Object.assign(overrides, { react: h.react, '@react-three/fiber': { Canvas: 'TownCanvas', useFrame: callback => h.frames.push(callback) }, '@react-three/drei': { Html: 'Html', PerspectiveCamera: 'PerspectiveCamera', RoundedBox: 'RoundedBox' } });

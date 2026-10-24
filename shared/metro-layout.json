@@ -1,0 +1,363 @@
+{
+  "schemaVersion": 1,
+  "coordinateSpace": "world-metres-xz",
+  "island": {
+    "id": "metro-island",
+    "name": "临湾都会",
+    "x": 20,
+    "z": -285,
+    "width": 280,
+    "depth": 220,
+    "cornerRadius": 16,
+    "groundY": 0,
+    "seaY": -1.28,
+    "color": "#8ba4aa",
+    "arrival": {
+      "x": 20,
+      "z": -190,
+      "yaw": 3.141592653589793
+    }
+  },
+  "roads": [
+    {
+      "id": "metro-avenue-1",
+      "name": "海西大道",
+      "x": -65,
+      "z": -285,
+      "width": 12,
+      "depth": 196,
+      "axis": "z",
+      "kind": "avenue"
+    },
+    {
+      "id": "metro-avenue-2",
+      "name": "临湾中轴",
+      "x": 20,
+      "z": -285,
+      "width": 12,
+      "depth": 196,
+      "axis": "z",
+      "kind": "avenue"
+    },
+    {
+      "id": "metro-avenue-3",
+      "name": "海东大道",
+      "x": 105,
+      "z": -285,
+      "width": 12,
+      "depth": 196,
+      "axis": "z",
+      "kind": "avenue"
+    },
+    {
+      "id": "metro-street-1",
+      "name": "云际北街",
+      "x": 20,
+      "z": -345,
+      "width": 256,
+      "depth": 12,
+      "axis": "x",
+      "kind": "street"
+    },
+    {
+      "id": "metro-street-2",
+      "name": "都会中央街",
+      "x": 20,
+      "z": -285,
+      "width": 256,
+      "depth": 12,
+      "axis": "x",
+      "kind": "street"
+    },
+    {
+      "id": "metro-street-3",
+      "name": "滨海南街",
+      "x": 20,
+      "z": -225,
+      "width": 256,
+      "depth": 12,
+      "axis": "x",
+      "kind": "street"
+    }
+  ],
+  "parks": [
+    {
+      "id": "metro-central-park",
+      "name": "临湾中央公园",
+      "x": 62,
+      "z": -255,
+      "width": 60,
+      "depth": 36
+    }
+  ],
+  "promenade": {
+    "inset": 6,
+    "width": 5
+  },
+  "buildings": [
+    {
+      "id": "metro-building-01",
+      "x": -92,
+      "z": -370,
+      "width": 24,
+      "depth": 22,
+      "height": 28,
+      "type": "residential",
+      "style": "warm-stone",
+      "floors": 8
+    },
+    {
+      "id": "metro-building-02",
+      "x": -44,
+      "z": -370,
+      "width": 18,
+      "depth": 22,
+      "height": 43,
+      "type": "office",
+      "style": "sandstone-grid",
+      "floors": 12
+    },
+    {
+      "id": "metro-building-03",
+      "x": -20,
+      "z": -370,
+      "width": 18,
+      "depth": 22,
+      "height": 34,
+      "type": "hotel",
+      "style": "warm-stone",
+      "floors": 9
+    },
+    {
+      "id": "metro-building-04",
+      "x": 3,
+      "z": -370,
+      "width": 16,
+      "depth": 22,
+      "height": 36,
+      "type": "residential",
+      "style": "bronze-grid",
+      "floors": 10
+    },
+    {
+      "id": "metro-building-05",
+      "x": 41,
+      "z": -370,
+      "width": 18,
+      "depth": 22,
+      "height": 62,
+      "type": "office",
+      "style": "silver-curtain",
+      "floors": 17
+    },
+    {
+      "id": "metro-building-06",
+      "x": 64,
+      "z": -370,
+      "width": 18,
+      "depth": 22,
+      "height": 47,
+      "type": "residential",
+      "style": "warm-stone",
+      "floors": 13
+    },
+    {
+      "id": "metro-building-07",
+      "x": 87,
+      "z": -370,
+      "width": 18,
+      "depth": 22,
+      "height": 38,
+      "type": "hotel",
+      "style": "bronze-grid",
+      "floors": 11
+    },
+    {
+      "id": "metro-building-08",
+      "x": 132,
+      "z": -370,
+      "width": 24,
+      "depth": 22,
+      "height": 42,
+      "type": "office",
+      "style": "silver-curtain",
+      "floors": 12
+    },
+    {
+      "id": "metro-building-09",
+      "x": -92,
+      "z": -315,
+      "width": 24,
+      "depth": 26,
+      "height": 54,
+      "type": "residential",
+      "style": "warm-stone",
+      "floors": 15
+    },
+    {
+      "id": "metro-building-10",
+      "x": -40,
+      "z": -315,
+      "width": 24,
+      "depth": 28,
+      "height": 112,
+      "type": "landmark",
+      "style": "setback-glass",
+      "floors": 31
+    },
+    {
+      "id": "metro-building-11",
+      "x": -6,
+      "z": -315,
+      "width": 22,
+      "depth": 26,
+      "height": 72,
+      "type": "office",
+      "style": "silver-curtain",
+      "floors": 20
+    },
+    {
+      "id": "metro-building-12",
+      "x": 48,
+      "z": -315,
+      "width": 24,
+      "depth": 28,
+      "height": 140,
+      "type": "landmark",
+      "style": "tapered-glass",
+      "floors": 39
+    },
+    {
+      "id": "metro-building-13",
+      "x": 82,
+      "z": -315,
+      "width": 22,
+      "depth": 26,
+      "height": 96,
+      "type": "landmark",
+      "style": "bronze-grid",
+      "floors": 27
+    },
+    {
+      "id": "metro-building-14",
+      "x": 132,
+      "z": -315,
+      "width": 24,
+      "depth": 26,
+      "height": 68,
+      "type": "office",
+      "style": "silver-curtain",
+      "floors": 19
+    },
+    {
+      "id": "metro-building-15",
+      "x": -92,
+      "z": -255,
+      "width": 24,
+      "depth": 27,
+      "height": 46,
+      "type": "residential",
+      "style": "warm-stone",
+      "floors": 13
+    },
+    {
+      "id": "metro-building-16",
+      "x": -40,
+      "z": -255,
+      "width": 24,
+      "depth": 28,
+      "height": 82,
+      "type": "office",
+      "style": "setback-glass",
+      "floors": 23
+    },
+    {
+      "id": "metro-building-17",
+      "x": -6,
+      "z": -255,
+      "width": 22,
+      "depth": 26,
+      "height": 56,
+      "type": "hotel",
+      "style": "bronze-grid",
+      "floors": 16
+    },
+    {
+      "id": "metro-building-18",
+      "x": 132,
+      "z": -255,
+      "width": 24,
+      "depth": 28,
+      "height": 60,
+      "type": "residential",
+      "style": "warm-stone",
+      "floors": 17
+    },
+    {
+      "id": "metro-building-19",
+      "x": -92,
+      "z": -201,
+      "width": 24,
+      "depth": 22,
+      "height": 24,
+      "type": "civic",
+      "style": "sandstone-grid",
+      "floors": 7
+    },
+    {
+      "id": "metro-building-20",
+      "x": -42,
+      "z": -201,
+      "width": 20,
+      "depth": 22,
+      "height": 38,
+      "type": "hotel",
+      "style": "bronze-grid",
+      "floors": 11
+    },
+    {
+      "id": "metro-building-21",
+      "x": -15,
+      "z": -201,
+      "width": 20,
+      "depth": 22,
+      "height": 28,
+      "type": "residential",
+      "style": "warm-stone",
+      "floors": 8
+    },
+    {
+      "id": "metro-building-22",
+      "x": 46,
+      "z": -201,
+      "width": 23,
+      "depth": 22,
+      "height": 34,
+      "type": "office",
+      "style": "silver-curtain",
+      "floors": 9
+    },
+    {
+      "id": "metro-building-23",
+      "x": 80,
+      "z": -201,
+      "width": 23,
+      "depth": 22,
+      "height": 46,
+      "type": "hotel",
+      "style": "sandstone-grid",
+      "floors": 13
+    },
+    {
+      "id": "metro-building-24",
+      "x": 132,
+      "z": -201,
+      "width": 24,
+      "depth": 22,
+      "height": 32,
+      "type": "civic",
+      "style": "warm-stone",
+      "floors": 9
+    }
+  ]
+}

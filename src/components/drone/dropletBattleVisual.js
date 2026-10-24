@@ -73,7 +73,7 @@ function instanced(geometry, material, count, name) {
 }
 
 /** A handful of batched meshes, never one React component/light per spacecraft. */
-export function createDropletBattleVisual() {
+export function createDropletBattleVisual({ backdrop = true } = {}) {
   const group = new THREE.Group(); group.name = 'MirrorDropletAndHumanFleet';
   // The stage dissolves the finite coastal ground beneath the aerial story;
   // it fades away before landing, keeping the town and its camera intact.
@@ -147,7 +147,7 @@ export function createDropletBattleVisual() {
     lastTime = timeMs; lastReduced = reducedMotion;
     const s = Math.max(0, timeMs / 1000);
     horizonMaterial.uniforms.uOpacity.value = smooth((s - 26) / 10) * (1 - smooth((s - 114) / 8));
-    horizon.visible = s >= 26 && s < 122;
+    horizon.visible = backdrop && s >= 26 && s < 122;
     sampleDropletHead(timeMs, head, { reducedMotion });
     mirror.visible = s >= 44 && s < 114;
     mirror.position.set(head[0], head[1], head[2]);

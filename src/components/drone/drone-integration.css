@@ -1,5 +1,8 @@
 /* Only this mode owns the full viewport. The original town remains mounted. */
-.town-shell.is-drone { position: fixed; inset: 0; z-index: 45; width: 100%; height: 100svh; min-height: 0; background: #050c1c; }
+.town-shell.is-drone { position: fixed; inset: 0; z-index: 45; width: 100%; height: auto; min-height: 0; background: #050c1c; }
+/* The mobile architect navigation reserves 156px for ordinary exploration.
+   A fixed, full-screen performance must not inherit that shorter height. */
+.topbar:has(.architect-nav) + .town-shell.is-drone { height: auto; min-height: 0; }
 .town-shell.is-drone > :not(.world-stage):not(.drone-show-controls):not(.loading-scene) { display: none; }
 .town-shell.is-drone .world-stage { pointer-events: none; }
 .town-shell.is-drone.is-drone-fpv .world-stage { pointer-events: auto; touch-action: none; }

@@ -104,7 +104,7 @@ export default function DroneShowControls({
   const isAi = program.id === 'ai';
   const [recording, setRecording] = useState(false);
   const programmeMenu = state.aiRuntime ? [...DRONE_PROGRAM_MENU, state.aiRuntime.program] : DRONE_PROGRAM_MENU;
-  const programmeSelector = <div className="drone-program" role="group" aria-label="选择无人机演出节目"><span>切换演出</span><div className="drone-program-buttons">{programmeMenu.map(item => <button key={item.id} type="button" className="drone-action" aria-label={item.title} aria-pressed={program.id === item.id} onClick={() => controller.setProgram(item.id)}>{item.shortTitle || item.title}</button>)}</div></div>;
+  const programmeSelector = <div className="drone-program" role="group" aria-label="选择无人机演出节目"><span>切换演出</span><div className="drone-program-buttons">{programmeMenu.map(item => <button key={item.id} type="button" className="drone-action" aria-label={item.title} aria-pressed={program.id === item.id} disabled={recording} onClick={() => controller.setProgram(item.id)}>{item.shortTitle || item.title}</button>)}</div></div>;
   const isDroplet = program.id === 'droplet';
   const isBattle = program.id === 'carrier-battle';
   const isBlackHole = program.id === 'blackhole';
@@ -132,7 +132,12 @@ export default function DroneShowControls({
   const sample = sampleDroneProgram(state.elapsedMs, program.id, state.aiRuntime);
   const currentIndex = state.ended ? performanceChapters.length - 1 : Math.max(0, performanceChapters.findIndex(item => state.elapsedMs >= item.start && state.elapsedMs < item.end));
   const chapter = performanceChapters[currentIndex];
-  const chapterLabel = motionEnabled && sample.phase === 'avatar' ? '法相 · 舒缓观演' : sample.cueLabel || chapter?.label;
+  const guestCue = program.id === 'avatar' && state.elapsedMs >= 110000 && state.elapsedMs < 140000
+    ? state.elapsedMs < 114000 ? '不速之客 · UFO 闯入' : state.elapsedMs < 117000 ? '球幕侧目 · 锁定目标'
+      : state.elapsedMs < 118500 ? '双眼蓄能' : state.elapsedMs < 119800 ? '眼神激光 · 命中'
+        : state.elapsedMs < 127800 ? '失控坠海' : state.elapsedMs < 130000 ? '海面溅落' : '球幕守卫 · 得意谢幕' : null;
+  const festivalCue = program.id === 'avatar' && state.elapsedMs >= 29000 && state.elapsedMs < 36000 ? 'moonstone 黑客松 · 群星聚光' : program.id === 'avatar' && state.elapsedMs >= 130000 && state.elapsedMs < 140000 ? '1024 程序员节快乐' : null;
+  const chapterLabel = festivalCue || guestCue || (motionEnabled && sample.phase === 'avatar' ? '法相 · 舒缓观演' : sample.cueLabel || chapter?.label);
   const fpvUnavailable = motionEnabled || !program.supportsFpv;
 
   useEffect(() => {
@@ -222,12 +227,12 @@ export default function DroneShowControls({
   const restart = () => controller.start({ speed: state.speed, view: state.view, program: program.id, aiRuntime: state.aiRuntime });
   const restartLabel = '从头观看';
   const playLabel = state.ended ? '重新演出' : state.paused ? '继续演出' : '暂停';
-  return <section className={`drone-show-controls${isAi ? ' drone-show-ai' : ''}${fpv ? ' drone-show-fpv' : ''}${isDroplet ? ' drone-show-droplet' : ''}${isBattle ? ' drone-show-battle' : ''}${isBlackHole ? ' drone-show-blackhole' : ''}${motionEnabled ? ' drone-reduced-motion' : ''}`} data-drone-program={program.id} data-drone-cue={sample.cue || sample.phase} aria-label="无人机演出观演控制">
+  return <section className={`drone-show-controls${isAi ? ' drone-show-ai' : ''}${fpv ? ' drone-show-fpv' : ''}${isDroplet ? ' drone-show-droplet' : ''}${isBattle ? ' drone-show-battle' : ''}${isBlackHole ? ' drone-show-blackhole' : ''}${motionEnabled ? ' drone-reduced-motion' : ''}`} data-drone-program={program.id} data-drone-cue={sample.cue || sample.phase} aria-label={program.sampleId === 'footsteps-of-light' ? '烟花秀观演控制' : '无人机演出观演控制'}>
     <header className="drone-masthead">
       <div className="drone-title-block">
-        <span className="drone-kicker"><span aria-hidden="true"/>{isAi ? '小镇天穹 · AI 演出导演' : isBattle ? '小镇东港 · 科幻空战' : isBlackHole ? '小镇天穹 · 深空奇观' : isDroplet ? '小镇天穹 · 镜面水滴与立方舰阵' : '小镇天穹 · 无人机史诗'}</span>
+        <span className="drone-kicker"><span aria-hidden="true"/>{program.sampleId === 'footsteps-of-light' ? '小镇天穹 · 金色足迹烟花秀' : isAi ? '小镇天穹 · AI 演出导演' : isBattle ? '小镇东港 · 科幻空战' : isBlackHole ? '小镇天穹 · 深空奇观' : isDroplet ? '小镇天穹 · 镜面水滴与立方舰阵' : '小镇天穹 · 无人机史诗'}</span>
         <h1>{fpv ? '编队第一视角' : isDroplet ? <><span>水滴</span><span className="drone-title-divider" aria-hidden="true"> · </span><span className="drone-title-subject">末日之战</span></> : program.title}</h1>
-        <div className="drone-current-chapter" aria-live="polite" aria-atomic="true"><span>{String(currentIndex + 1).padStart(2, '0')}</span>{state.ended ? (isBattle ? '空战落幕 · 母舰归港' : isBlackHole ? '奇观落幕 · 星光归寂' : isDroplet ? '演绎落幕 · 无人机已归航' : '礼成 · 万灯归航') : chapterLabel}</div>
+        <div className="drone-current-chapter" aria-live="polite" aria-atomic="true"><span>{String(currentIndex + 1).padStart(2, '0')}</span>{state.ended ? (program.sampleId === 'footsteps-of-light' ? '礼成 · 余烬归海' : isBattle ? '空战落幕 · 母舰归港' : isBlackHole ? '奇观落幕 · 星光归寂' : isDroplet ? '演绎落幕 · 无人机已归航' : '礼成 · 万灯归航') : chapterLabel}</div>
       </div>
       <button ref={exitRef} type="button" className="drone-exit" onClick={onClose} aria-label="退出观演，回到小镇"><X size={19}/><span>退出观演</span><kbd>Esc</kbd></button>
       <div className="drone-view-bar">
@@ -237,6 +242,10 @@ export default function DroneShowControls({
           <button type="button" className="drone-action" aria-pressed={fpv} disabled={fpvUnavailable} aria-describedby={fpvUnavailable ? 'drone-motion-view-note' : undefined} onClick={() => controller.setView('fpv')}>编队第一视角</button>
         </div>}
         {fpvUnavailable && <p id="drone-motion-view-note" className="drone-motion-view-note">{motionEnabled ? '减少动态 · 固定全景' : isBattle ? '红方来袭 · 青方护航 · 同地图实景' : isBlackHole ? '静默观演 · 深空全景' : program.cinematic ? '连续运镜 · 可导出 MP4' : '导演全景 · 暂不提供编队机位'}</p>}
+        {!fpv&&<details className="drone-spectator-controls" aria-label="全景视角调整"><summary>调整观演视角</summary>
+          <p>右键拖动或触屏拖动调整角度，滚轮缩放；回正可恢复导演构图。</p>
+          <div className="drone-spectator-actions">{[['left','左转'],['right','右转'],['up','抬头'],['down','俯视'],['in','拉近'],['out','拉远']].map(([action,label])=><button key={action} type="button" className="drone-action" aria-label={`全景${label}`} onClick={()=>{if(lookInputRef)lookInputRef.current={...lookInputRef.current,orbitAction:action};}}>{label}</button>)}<button type="button" className="drone-action" onClick={()=>onRecenter?.()}>回正全景镜头</button></div>
+        </details>}
         {fpv && <div className="drone-onboard">
           <div className="drone-onboard-actions">
             <label className="drone-seat"><span>机位</span><select aria-label="选择编队无人机" value={selectedId} disabled={!seats.length} onChange={event => { clearLookInput(lookInputRef); onSeatChange?.(event.target.value); }}>{seats.map(seat => <option key={seat.id} value={seat.id}>{seat.label}</option>)}</select></label>
@@ -267,7 +276,7 @@ export default function DroneShowControls({
         <span className="drone-status"><span aria-hidden="true" className={state.paused ? 'drone-status-paused' : ''}/>{state.ended ? (isBlackHole ? '演出结束 · 星光归寂' : '演出结束 · 已全部归航') : state.paused ? '演出已暂停' : '天穹正在上演'}</span>
         <output className="drone-time" aria-label={`演出进度 ${stamp(state.elapsedMs)}，总时长 ${stamp(program.duration)}`}>{stamp(state.elapsedMs)}<span> / {stamp(program.duration)}</span></output>
       </div>
-      <input className="drone-timeline" type="range" min="0" max={program.duration} step="100" value={Math.round(state.elapsedMs / 100) * 100} aria-label="调整无人机演出进度" aria-valuetext={`${chapterLabel}，${stamp(state.elapsedMs)}`} onChange={event => controller.seek(Number(event.target.value))}/>
+      <input className="drone-timeline" type="range" min="0" max={program.duration} step="100" value={Math.round(state.elapsedMs / 100) * 100} aria-label={program.sampleId === 'footsteps-of-light' ? '调整烟花秀进度' : '调整无人机演出进度'} aria-valuetext={`${chapterLabel}，${stamp(state.elapsedMs)}`} onChange={event => controller.seek(Number(event.target.value))}/>
       <div className="drone-main-actions">
         <button type="button" className="drone-action drone-action-primary" onClick={state.ended ? restart : controller.togglePause}>{state.paused ? <Play size={18}/> : <Pause size={18}/>}<span>{playLabel}</span></button>
         <button type="button" className="drone-action drone-restart" onClick={restart}><RotateCcw size={18}/><span>{restartLabel}</span></button>
@@ -282,6 +291,9 @@ export default function DroneShowControls({
           {performanceChapters.map((item, index) => <button type="button" key={item.id} className={`drone-chapter${item.id === chapter?.id ? ' drone-chapter-active' : ''}`} aria-current={item.id === chapter?.id ? 'step' : undefined} onClick={() => controller.seek(item.start)}><span>{String(index + 1).padStart(2, '0')}</span>{item.label}</button>)}
         </nav>
         <div className="drone-options">
+          {program.id === 'avatar' && <><button type="button" className="drone-action drone-highlight" onClick={() => controller.seek(31000)}>moonstone 黑客松</button><button type="button" className="drone-action drone-highlight" onClick={() => controller.seek(136000)}>1024 程序员节快乐</button></>}
+          {program.id === 'avatar' && <button type="button" className="drone-action drone-highlight" onClick={() => controller.seek(110000)}>球幕反击 · UFO 彩蛋</button>}
+          {program.id === 'avatar' && <button type="button" className="drone-action drone-highlight" onClick={() => controller.seek(119300)}>眼神激光 · 高光</button>}
           <button type="button" className="drone-action drone-mobile-restart" onClick={restart}><RotateCcw size={18}/><span>{restartLabel}</span></button>
           <button type="button" className="drone-action drone-highlight drone-mobile-highlight" onClick={() => controller.seek(program.heroTime)}><Sparkles size={18}/><span>{program.heroLabel}</span></button>
           {Number.isFinite(program.dragonTime) && <button type="button" className="drone-action drone-highlight drone-mobile-highlight" onClick={() => controller.seek(program.dragonTime)}><Sparkles size={18}/><span>{program.dragonLabel}</span></button>}
@@ -297,7 +309,7 @@ export default function DroneShowControls({
       </div>
       </fieldset>
       {program.soundtrackUrl && <Suspense fallback={<span className="drone-note">正在载入配乐…</span>}><DroneSoundtrackControl key={program.soundtrackUrl} controller={controller} program={program}/></Suspense>}
-      {isAi && <Suspense fallback={<span className="drone-note">正在载入影片导出…</span>}><DroneVideoExport key={state.aiRuntime?.program?.sampleId || state.aiRuntime?.score?.title} controller={controller} program={program} onBusyChange={setRecording}/></Suspense>}
+      {(isAi || program.id === 'avatar') && <Suspense fallback={<span className="drone-note">正在载入影片导出…</span>}><DroneVideoExport key={program.id === 'avatar' ? 'avatar-festival' : state.aiRuntime?.program?.sampleId || state.aiRuntime?.score?.title} controller={controller} program={program} onBusyChange={setRecording} onPrepare={onRecenter}/></Suspense>}
     </div>
   </section>;
 }

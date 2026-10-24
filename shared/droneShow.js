@@ -26,12 +26,12 @@ export const DRONE_HIGHLIGHTS = Object.freeze([
 export const DRONE_CHAPTERS = Object.freeze([
   { id: 'lighting', label: '万灯初醒', start: 0, end: 8000, description: '四座起降阵列依次点亮，四千零九十六颗星等待升空。' },
   { id: 'ascent', label: '群星离地', start: 8000, end: 28000, description: '机群逐列垂直抬升，在小镇上方汇成天穹。' },
-  { id: 'galaxy', label: '星河开卷', start: 28000, end: DRONE_DRAGON.start, description: '金色星河缓缓旋转，青玉光带围绕中央舞台。' },
+  { id: 'galaxy', label: '月石聚光', start: 28000, end: DRONE_DRAGON.start, description: '独立灯点织成 moonstone 黑客松，在天幕相聚后化为蓝焰翼龙。' },
   { id: 'dragon', label: '苍龙凌空', start: DRONE_DRAGON.start, end: DRONE_DRAGON.holdEnd, description: '冰蓝星光织成展翼巨龙，长尾盘卷，吐息光流穿过夜空。' },
   { id: 'forming', label: '少年成相', start: DRONE_DRAGON.holdEnd, end: 68000, description: '蓝色龙翼化作光骨，刺猬发、大圆眼、蓝道服和如意棒逐层织成幼年悟空。' },
   { id: 'avatar', label: '法天象地', start: 68000, end: 108000, description: '少年睁眼、失重坠落、贴海复燃、浴火重生，四十秒连贯高潮。' },
-  { id: 'returning', label: '众星归航', start: 108000, end: 128000, description: '巨像化作归航的流星，机群沿四条光河回到起降区。' },
-  { id: 'landing', label: '落星成阵', start: 128000, end: 148000, description: '机群逐队下降，每一架无人机回到最初的位置。' },
+  { id: 'returning', label: '众星归航', start: 108000, end: 128000, description: '少年光像化作 1024 节日祝福；球幕守卫在另一侧迎击 UFO。' },
+  { id: 'landing', label: '落星成阵', start: 128000, end: 148000, description: '1024 程序员节快乐点亮天幕，随后全部机群平滑落回原有起降阵列。' },
   { id: 'blackout', label: '余光谢幕', start: 148000, end: 150000, description: '四座阵列熄灯，整场演出完整收束。' },
   { id: 'waiting', label: '静候星起', start: 150000, end: 180000, description: '无人机已全部回收，等待下一场演出。' },
 ].map(chapter => Object.freeze(chapter)));

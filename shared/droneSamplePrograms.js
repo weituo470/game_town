@@ -1,3 +1,4 @@
+import { FOOTPRINT_PROGRAM, createFootprintRuntime } from '../src/components/drone/footprintFireworks.js';
 import { createDroneShortRuntime } from './droneShortShow.js';
 import { createDroneShortCamera } from './droneSampleCamera.js';
 import { createDroneSpectacleVisual } from '../src/components/drone/droneSpectacleVisual.js';
@@ -50,9 +51,11 @@ export const DRONE_SAMPLE_PROGRAMS = Object.freeze(DEFINITIONS.map(({ scenes, ..
   ...definition, sceneCount: scenes.length, authoredBy: '本会话 AI 直接编排', cinematic: true, supportsAudio: definition.supportsAudio === true,
   note: `两分钟内原创短秀 · ${definition.supportsAudio ? '鲸群故事与原创配乐' : '立体编舞与烟花'} · 无需生成额度 · 可运镜回放与导出`,
 })));
+export const FIREWORK_SAMPLE_PROGRAMS = Object.freeze([FOOTPRINT_PROGRAM]);
 const runtimes = new Map();
 export function createDroneSampleRuntime(id) {
   if (runtimes.has(id)) return runtimes.get(id);
+  if (id === FOOTPRINT_PROGRAM.id) { const result = createFootprintRuntime(); runtimes.set(id, result); return result; }
   const definition = DEFINITIONS.find(item => item.id === id);
   if (!definition) throw new RangeError('未找到这个样板节目。');
   const runtime = createDroneShortRuntime(definition);

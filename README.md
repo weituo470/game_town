@@ -75,3 +75,13 @@ npm run check:loading
 本仓库不包含原站服务器配置、部署凭据、用户照片、数据库或内部发布记录。运行产生的 `.data/`、本地配置及密钥不得提交。公开部署还需自行配置 HTTPS、WebSocket 反向代理、持久化数据、来源限制和费用额度。
 
 项目自有代码采用 MIT，见 [LICENSE](LICENSE)。依赖及第三方素材保留各自许可；MIT 不自动授予第三方角色、商标或素材权利。完整来源与范围见 [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md)，部署前请阅读 [安全说明](SECURITY.md)。
+
+
+## New continuous-world islands
+
+- Natural coast: open ?landmark=realistic-island or use the town map.
+- Modern metropolis: open ?landmark=metro-island; includes the original generator plus GLB, 24 buildings, collision and night windows. The editable .blend is generated locally rather than distributed with workstation metadata.
+- Space elevator and tube railway remain in the same world; four night shows and the Sphere interaction share the town clock.
+- Generic music rehearsal supports user-owned local audio/LRC and MP4 export; no commercial recordings, full lyrics or private fixture scores are shipped.
+
+See docs/REALISTIC-ISLAND.md, docs/METRO-ISLAND.md and docs/MUSIC_REHEARSAL.md.

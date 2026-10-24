@@ -1,6 +1,8 @@
 import {
   DISTRICTS, EMPTY_PLOTS, FOUNTAIN, STREETS, WORLD_BOUNDS, WORLD_LOCATIONS, WORLD_SIZE,
 } from '../../shared/world.js';
+import { METRO_ISLAND } from '../../shared/metro-island.js';
+import { REALISTIC_ISLAND } from '../../shared/realistic-island.js';
 import { GAMES } from '../lib/catalog.js';
 import { OUTDOOR_GAMES } from '../minigames/outdoor.js';
 import { RIVER, RIVER_PIER } from '../../shared/river.js';
@@ -19,9 +21,11 @@ const positionStyle = (x, z) => ({
   top: `${(z - top) / WONDER_MAP.depth * 100}%`,
 });
 
-export default function TownAtlas({ onTravel, onOutdoorStart, onGptTour, onDeepSeekTour, onSphereTour, onOffshoreTour }) {
+export default function TownAtlas({ onTravel, onOutdoorStart, onGptTour, onDeepSeekTour, onSphereTour, onOffshoreTour, onIslandTour, onMetroTour }) {
   return (
     <div className="town-atlas">
+      <section className="atlas-destinations" aria-label="临湾都会导航"><h3>临湾都会 · 现代都市岛</h3><p className="atlas-intro">约 280 × 220 米的滨海街区：玻璃塔楼、中央绿地、商业裙楼与车流。建筑由本机 Blender 原创制作，与小镇共处同一三维世界。可进入街区步行或喷气飞行。</p><div className="atlas-district-links">{onMetroTour && <button type="button" onClick={onMetroTour}>观景临湾都会 ↗</button>}<button type="button" onClick={() => onTravel(METRO_ISLAND.id)}>进入都市街区 ↗</button></div></section>
+      <section className="atlas-destinations" aria-label="雾岬岛导航"><h3>雾岬岛 · 新的写实海岸</h3><p className="atlas-intro">约 220 × 170 米的自然海岸岛：弧形沙湾、岩壁、林带与登山步道。与小镇共处同一三维世界，可直接登岛或使用喷气背包飞行抵达。</p><div className="atlas-district-links">{onIslandTour && <button type="button" onClick={onIslandTour}>观景雾岬岛 ↗</button>}<button type="button" onClick={() => onTravel(REALISTIC_ISLAND.id)}>登岛探索 ↗</button></div></section>
       {onOutdoorStart && <section className="atlas-destinations" aria-label="户外游乐导航"><h3>直接在小镇里玩</h3><div className="outdoor-atlas-links">{OUTDOOR_GAMES.map(game => <button key={game.id} onClick={() => onOutdoorStart(game.id)}><span>{game.place} · {game.name}</span><span>{game.global ? '操作说明' : '游玩 ↗'}</span></button>)}</div></section>}
       <p className="atlas-intro">
         主镇长宽各扩展 {WORLD_SIZE.scale} 倍，面积扩大至原来的 {WORLD_SIZE.scale ** 2} 倍。

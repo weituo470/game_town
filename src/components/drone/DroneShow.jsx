@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef } from 'react';
+import { lazy, Suspense, useEffect, useLayoutEffect, useRef } from 'react';
 import { useFrame, useThree } from '@react-three/fiber';
 import * as THREE from 'three';
 import { DRONE_COUNT, createDroneFleet } from '../../../shared/droneShow.js';
@@ -14,7 +14,10 @@ import { createFleetUpdateGate, getSceneRenderRatio } from './dronePerformance.j
 import { createDropletBattleVisual } from './dropletBattleVisual.js';
 import { createBlackHoleVisual } from './blackHoleVisual.js';
 import { sampleBlackHoleCamera } from './blackHoleCamera.js';
+import { sphereGuestCamera } from '../sphere/sphereUfoCamera.js';
+import { createAvatarFestival, avatarFestivalCamera } from './avatarFestival.js';
 
+const SpectatorOrbit=lazy(()=>import('./SpectatorOrbit.jsx'));
 const ZERO_TIME = { current: 0 };
 const PAD_LOCATIONS = [[-26, -24], [26, -24], [-26, 24], [26, 24]];
 const TRAIL_STRIDE = 8;
@@ -37,11 +40,12 @@ function createPadGeometry() {
 
 // Assets are allocated after commit, not during a potentially discarded React
 // render. Each StrictMode setup owns and disposes its own independent buffers.
-function createDroneVisual(count, gl, program = 'avatar', aiRuntime) {
+function createDroneVisual(count, gl, program = 'avatar', aiRuntime, ambient = false) {
   const aiParticles = program === 'ai';
   const group = new THREE.Group();
   group.name = program === 'blackhole' ? 'BlackHoleSkyApparition' : program === 'droplet' ? 'DoomsdayDroneFleet' : 'LawOfHeavenDroneFleet';
-  const fleet = createDroneFleet(count);
+  const fleet = program === 'ai' && aiRuntime?.createFleet ? aiRuntime.createFleet(count) : createDroneFleet(count);
+  const festival = program === 'avatar' ? createAvatarFestival(fleet) : null;
   const seats = selectDroneSeats(fleet);
   updateDroneProgram(fleet, 0, { program, aiRuntime });
   const geometry = new THREE.BufferGeometry();
@@ -56,7 +60,7 @@ function createDroneVisual(count, gl, program = 'avatar', aiRuntime) {
     uViewportHeight: { value: 720 },
     // V2 uses thousands of surface lights, not sparse V1 contours. A smaller
     // minimum sprite keeps gaps between beads without changing old programmes.
-    uMinPointSize: { value: aiRuntime?.score?.version === 2 ? 3.6 : AI_DRONE_LIGHT_PROFILE.minPixels },
+    uMinPointSize: { value: aiRuntime?.program?.supportsLyricDrones ? 3.8 : aiRuntime?.score?.version === 2 ? 3.6 : AI_DRONE_LIGHT_PROFILE.minPixels },
     uMaxPointSize: { value: Math.min(aiParticles ? AI_DRONE_LIGHT_PROFILE.maxPixels : 80, pointRange?.[1] || 64) },
   };
   const material = new THREE.ShaderMaterial({
@@ -66,7 +70,7 @@ function createDroneVisual(count, gl, program = 'avatar', aiRuntime) {
     depthTest: true, depthWrite: false, toneMapped: false, fog: false,
   });
   const points = new THREE.Points(geometry, material);
-  points.name = '4096IndependentLights';
+  points.name = '4096IndependentLights'; // Keep legacy integration name; actual count lives on the geometry.
   points.frustumCulled = false;
   points.renderOrder = 4;
   group.add(points);
@@ -112,7 +116,8 @@ function createDroneVisual(count, gl, program = 'avatar', aiRuntime) {
   pads.renderOrder = 2;
   group.add(pads);
 
-  const battle = program === 'droplet' ? createDropletBattleVisual() : null;
+  // Free exploration must never receive the cinematic space floor over town.
+  const battle = program === 'droplet' ? createDropletBattleVisual({ backdrop: !ambient }) : null;
   if (battle) group.add(battle.group);
   const spectacle = program === 'ai' && aiRuntime?.program?.sampleVisual === 'spectacle-v2' ? aiRuntime.visualFactory?.(count) : null;
   if (spectacle) group.add(spectacle.group);
@@ -134,12 +139,18 @@ function createDroneVisual(count, gl, program = 'avatar', aiRuntime) {
       // The composer may render below device DPR. Match its actual pixel
       // buffer so adaptive resolution does not enlarge the aircraft lights.
       uniforms.uViewportHeight.value = viewportHeight;
+      if (aiRuntime?.program?.supportsLyricDrones) {
+        // A desktop-sized core would merge an entire small-screen glyph into
+        // a solid white tube. Preserve gaps in the actual phone pixel grid.
+        uniforms.uMinPointSize.value = gl.domElement.clientWidth < 700 ? 2.8 : 3.8;
+      }
       spectacle?.update(safeTime, reducedMotion, viewportHeight);
-      if (!needsFleetUpdate(safeTime, reducedMotion, firstPersonSeatId)) {
+      if (!needsFleetUpdate(safeTime, reducedMotion, firstPersonSeatId, aiRuntime?.layoutRevision ?? 0)) {
         trails.visible = false;
         return false;
       }
       updateDroneProgram(fleet, safeTime, { reducedMotion, program, aiRuntime });
+      const festivalActive = festival?.update(safeTime) ?? false;
       battle?.update(safeTime, reducedMotion);
       if (blackHole) {
         blackHole.update(safeTime, reducedMotion);
@@ -160,7 +171,7 @@ function createDroneVisual(count, gl, program = 'avatar', aiRuntime) {
 
       const elapsed = safeTime - previousTime;
       const hasContinuousFrame = elapsed > 0 && elapsed < 220 && !reducedMotion;
-      trails.visible = !aiParticles && hasContinuousFrame && state.active;
+      trails.visible = !aiParticles && !festivalActive && hasContinuousFrame && state.active;
       const trailLength = hasContinuousFrame ? Math.min(7, 160 / elapsed) : 0;
       for (let i = 0; i < trailCount; i++) {
         const source = Math.min(count - 1, i * TRAIL_STRIDE) * 3;
@@ -199,17 +210,17 @@ function createDroneVisual(count, gl, program = 'avatar', aiRuntime) {
 }
 
 /** A deterministic world-space show. It never moves the player's camera. */
-export default function DroneShow({ timeRef = ZERO_TIME, reducedMotion = false, quality = 'high', fleetRef, onSeatsReady, firstPersonSeatId = null, program = 'avatar', aiRuntime }) {
+export default function DroneShow({ timeRef = ZERO_TIME, reducedMotion = false, quality = 'high', fleetRef, onSeatsReady, firstPersonSeatId = null, program = 'avatar', aiRuntime, ambient = false }) {
   const host = useRef();
   const visual = useRef();
   const telemetryFrame = useRef(0);
   const gl = useThree(state => state.gl);
   // Keep permanent identities and the legacy quality tiers. The AI compiler's
   // spacing mask, not a second count reduction, determines which lamps are lit.
-  const count = quality === 'low' ? Math.min(2048, DRONE_COUNT) : DRONE_COUNT;
+  const count = program === 'ai' && aiRuntime?.fleetCount ? aiRuntime.fleetCount(quality) : quality === 'low' ? Math.min(2048, DRONE_COUNT) : DRONE_COUNT;
   useLayoutEffect(() => {
     const parent = host.current;
-    const asset = createDroneVisual(count, gl, program, aiRuntime);
+    const asset = createDroneVisual(count, gl, program, aiRuntime, ambient);
     visual.current = asset;
     if(fleetRef)fleetRef.current=asset.fleet;
     onSeatsReady?.(asset.seats);
@@ -220,7 +231,7 @@ export default function DroneShow({ timeRef = ZERO_TIME, reducedMotion = false, 
       if (visual.current === asset) visual.current = null;
       if (fleetRef?.current===asset.fleet) fleetRef.current=null;
     };
-  }, [count, gl, fleetRef, onSeatsReady, program, aiRuntime]);
+  }, [count, gl, fleetRef, onSeatsReady, program, aiRuntime, ambient]);
   useFrame(state => {
     const measure = Boolean(state.gl.domElement?.dataset) && typeof performance !== 'undefined' && telemetryFrame.current++ % 90 === 0;
     const start = measure ? performance.now() : 0;
@@ -230,6 +241,13 @@ export default function DroneShow({ timeRef = ZERO_TIME, reducedMotion = false, 
       state.gl.domElement.dataset.droneCpuMs = (performance.now() - start).toFixed(3);
       state.gl.domElement.dataset.droneFleetUpdate = updated ? 'sampled' : 'cached';
       state.gl.domElement.dataset.droneProgram = program;
+      state.gl.domElement.dataset.droneCount = String(count);
+      if (visual.current?.fleet?.musicStats) {
+        const stats = visual.current.fleet.musicStats;
+        state.gl.domElement.dataset.lyricLamps = String(stats.lyricLamps);
+        state.gl.domElement.dataset.lyricRequired = String(stats.lyricRequired);
+        state.gl.domElement.dataset.musicStoryLamps = String(stats.storyLamps);
+      }
     }
   }, -.2);
   return <group ref={host} name="DroneShow" dispose={null} />;
@@ -238,6 +256,7 @@ export default function DroneShow({ timeRef = ZERO_TIME, reducedMotion = false, 
 /** Only mount while player camera control is explicitly disabled by the host. */
 export function DroneCamera({ timeRef = ZERO_TIME, reducedMotion = false, view = 'cinematic', fleetRef, seatId = '', lookInputRef, recenterRef, telemetryRef, onLookStatus, program = 'avatar', aiRuntime }) {
   const camera = useThree(state => state.camera);
+  const directorPose=useRef(null);
   const look=useRef({yaw:0,pitch:0}),keys=useRef({}),seatsCache=useRef(null);
   const recentered=useRef(recenterRef?.current??0);
   const fpv=view==='fpv'&&!reducedMotion&&getDroneProgram(program,aiRuntime).supportsFpv;
@@ -285,10 +304,13 @@ export function DroneCamera({ timeRef = ZERO_TIME, reducedMotion = false, view =
       if(telemetryRef&&pose)Object.assign(telemetryRef.current,{altitude:pose.altitude,identity:pose.identity,seatId:seat.id});
     }else pose=program==='ai'&&aiRuntime?aiRuntime.camera(timeRef.current,aspect,reducedMotion):program==='carrier-battle'?sampleCarrierBattleCamera(timeRef.current,aspect,reducedMotion):program==='blackhole'?sampleBlackHoleCamera(timeRef.current,aspect,reducedMotion):program==='droplet'?sampleDropletCamera(timeRef.current,aspect,reducedMotion):sampleDroneCamera(timeRef.current,aspect,reducedMotion);
     if(!pose)return;
+    if (program === 'avatar' && !fpv) pose = sphereGuestCamera(pose, timeRef.current, aspect, reducedMotion);
+    if (program === 'avatar' && !fpv) pose = avatarFestivalCamera(pose, timeRef.current, aspect, reducedMotion);
+    directorPose.current=pose;
     if(state.camera.fov!==pose.fov||state.camera.far!==pose.far||state.camera.near!==pose.near){state.camera.fov=pose.fov;state.camera.far=pose.far;state.camera.near=pose.near;state.camera.updateProjectionMatrix();}
     state.camera.position.set(...pose.position);
     state.camera.lookAt(...pose.target);
     state.camera.updateMatrixWorld();
   }, -0.1);
-  return fpv ? <FirstPersonLook enabled active lookRef={look} onStatus={onLookStatus} onStop={stopLook}/> : null;
+  return fpv ? <FirstPersonLook enabled active lookRef={look} onStatus={onLookStatus} onStop={stopLook}/> : <Suspense fallback={null}><SpectatorOrbit poseRef={directorPose} inputRef={lookInputRef} recenterRef={recenterRef} onStatus={onLookStatus} program={program}/></Suspense>;
 }

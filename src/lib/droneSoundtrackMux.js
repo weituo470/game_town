@@ -1,4 +1,4 @@
-import { appUrl } from './appUrl.js';
+import { droneAudioUrl } from './droneAudioUrl.js';
 
 const cancelled = () => Object.assign(new Error('配乐封装已取消。'), { code: 'CANCELLED' });
 const check = signal => { if (signal?.aborted) throw cancelled(); };
@@ -31,7 +31,7 @@ export async function muxDroneSoundtrack(blob, { url, format = 'mp4', signal, lo
     throw error('AUDIO_CODEC_UNSUPPORTED', `此浏览器不能编码 ${codec.toUpperCase()} 配乐音轨。请用最新版 Chrome / Edge 重试；当前可保留无声视频。`);
   }
   check(signal);
-  const response = await fetchAudio(appUrl(url), { signal, credentials: 'same-origin' });
+  const response = await fetchAudio(droneAudioUrl(url), { signal, credentials: 'same-origin' });
   if (!response.ok) throw error('AUDIO_FETCH_FAILED', '配乐文件未能载入，当前可保留无声视频。');
   const bytes = await response.arrayBuffer(); check(signal);
   const decode = decodeAudio || (data => {

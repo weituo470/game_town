@@ -211,7 +211,7 @@ test('original placeholder black hole mounts in the same scene with hidden aircr
     h.clock.start({ program: 'blackhole', elapsedMs: 50000 }); h.clock.togglePause();
     h.render({ program: 'blackhole', view: 'fpv' }); h.frame();
     assert.equal(h.parent.children.length, 1);
-    assert.equal(h.child, null, 'entity mode never mounts first-person aircraft input');
+    assert.equal(h.child.type, React.Suspense, 'entity mode retains lazy spectator orbit, never aircraft input');
     assert.equal(h.parent.getObjectByName('4096IndependentLights').visible, false);
     assert.equal(h.parent.getObjectByName('SubtleFlightTrails').visible, false);
     const apparition = h.parent.getObjectByName('game-town-black-hole');
@@ -381,7 +381,7 @@ test('FPV, panorama, portrait and reduced-motion lens transitions use their own 
     h.render({ view: 'fpv', reducedMotion: true }); h.frame();
     const fixed = directorMath.sampleDroneCamera(h.clock.timeRef.current, 390 / 844, true);
     assert.deepEqual(h.state.camera.position.toArray(), fixed.position);
-    assert.equal(h.child, null, 'fixed panorama does not mount a canvas look binding');
+    assert.equal(h.child.type, React.Suspense, 'reduced motion retains user-initiated spectator adjustment');
     h.advance(500); h.frame(); assert.deepEqual(h.state.camera.position.toArray(), fixed.position);
   } finally { h.dispose(); }
   assert.deepEqual(lens(), original);
@@ -391,7 +391,7 @@ test('arrow look only activates in FPV, ignores edits and modifiers, and clears 
   const h = sceneHarness({ view: 'cinematic' });
   try {
     assert.equal(h.dom.win.count('keydown'), 0);
-    assert.equal(h.child, null, 'panorama does not mount a canvas look binding');
+    assert.equal(h.child.type, React.Suspense, 'panorama mounts isolated lazy spectator controls');
     h.render({ view: 'fpv' }); h.clock.togglePause(); h.frame();
     assert.equal(h.dom.win.count('keydown'), 1);
     assert.equal(h.child.props.enabled, true);
@@ -548,7 +548,7 @@ test('visible programme buttons switch all three real scores and reselecting the
 
 test('one programme catalogue retains all three public scores alongside existing wonders, excluding ambient sky events', () => {
   const hooks = hookRuntime(), calls = [];
-  const Invitation = evaluate('src/components/drone/DroneInvitation.jsx', {}).default;
+  const Invitation = evaluate('src/components/drone/DroneInvitation.jsx', { react: hooks.react }).default;
   const Schedule = evaluate('src/components/WonderSchedule.jsx', {
     react: hooks.react,
     './drone/DroneInvitation.jsx': { __esModule: true, default: Invitation },
@@ -559,7 +559,8 @@ test('one programme catalogue retains all three public scores alongside existing
   assert.ok(invitation);
   const droneNodes = elements(Invitation(invitation.props));
   const cards = droneNodes.filter(node => node.type === 'article');
-  assert.equal(cards.length, programs.DRONE_PROGRAM_MENU.length);
+  assert.equal(cards.length, programs.DRONE_PROGRAM_MENU.length + 1);
+  assert.ok(droneNodes.some(node => node.type === 'button' && elementText(node) === '观看足迹 · 向光而行'));
   assert.doesNotMatch(elementText(Invitation(invitation.props)), /黑洞|片尾|彩蛋|自动接续/);
   for (const program of programs.DRONE_PROGRAM_MENU) {
     const card = cards.find(node => node.props['aria-labelledby'] === `drone-programme-${program.id}`);
@@ -620,7 +621,7 @@ test('App FPV selection, seat changes, seek and look never change the parked ava
   assert.equal(town().props.viewMode, 'first-person', 'opening the programme list does not force a show camera');
   assert.equal(clock.snapshot().active, false, 'opening the programme list must not autoplay a score');
   assert.equal(controls(), undefined);
-  const Invitation = evaluate('src/components/drone/DroneInvitation.jsx', {}).default;
+  const Invitation = evaluate('src/components/drone/DroneInvitation.jsx', { react: hooks.react }).default;
   for (const program of ['droplet', 'avatar']) {
     const schedule = nodes.find(node => node.type === 'WonderSchedule');
     assert.ok(schedule, 'town entry opens the common show catalogue');
@@ -661,8 +662,8 @@ test('App FPV selection, seat changes, seek and look never change the parked ava
 test('Town wires the same fleet and private clock into one camera without replacing the town, player, or shared environment', () => {
   for (const reducedMotion of [false, true]) {
     const hooks = hookRuntime();
-    hooks.react.lazy = loader => ({ $$typeof: Symbol.for('react.lazy'), modulePath: loader.toString().match(/\bimport\(\s*["']([^"']+)["']\s*\)/)?.[1] });
-    const imports = ['./DuskScenery', './town/PlayerController', './town/SceneEffects', './town/SoftPenumbra', './town/characters/Residents', './town/landmarks/LandmarkFountain.jsx', './town/TownSky.jsx', './town/TownEnvironment.jsx', './town/WonderIslands.jsx', './town/GptPark.jsx', './town/DeepSeekPark.jsx', './town/GeneratedPlayerModel.jsx', './town/OutdoorScenery.jsx', './town/JetpackRig.jsx'];
+    hooks.react.lazy = loader => { const source = loader.toString(); if (source.includes('./drone/DroneShow.jsx')) return source.includes('.DroneCamera') ? 'DroneCamera' : 'DroneShow'; return { $$typeof: Symbol.for('react.lazy'), modulePath: source.match(/\bimport\(\s*["']([^"']+)["']\s*\)/)?.[1] }; };
+    const imports = ['./DuskScenery', './town/PlayerController', './town/SceneEffects', './town/SoftPenumbra', './town/characters/Residents', './town/landmarks/LandmarkFountain.jsx', './town/TownSky.jsx', './town/TownEnvironment.jsx', './town/WonderIslands.jsx', './town/GptPark.jsx', './town/DeepSeekPark.jsx', './town/GeneratedPlayerModel.jsx', './town/OutdoorScenery.jsx', './town/JetpackRig.jsx', './island/IslandGate.jsx', './metro/MetroGate.jsx'];
     const overrides = Object.fromEntries(imports.map(id => [id, componentNamespace(id)]));
     Object.assign(overrides, { react: hooks.react,
       './drone/DroneShow.jsx': { __esModule: true, default: 'DroneShow', DroneCamera: 'DroneCamera' },
@@ -707,6 +708,24 @@ test('Town wires the same fleet and private clock into one camera without replac
     assert.equal(wonders.props.battleTimeRef, null, 'normal show does not lift the port ship');
     assert.equal(battleScene.filter(node => node.type === 'PerspectiveCamera').length, 1);
     assert.equal(battleScene.find(node => node.type?.modulePath === './town/PlayerController.jsx').props.destination, destination);
+    for (const program of ['avatar', 'droplet', 'carrier-battle', 'ai']) {
+      const ambient = elements(sceneElement.type({ ...sceneElement.props, active: true, viewMode: 'follow', nightShow: { active: true }, droneFpv: { program, aiRuntime: { marker: 'night-runtime' } } }));
+      assert.equal(ambient.some(node => node.type === 'DroneCamera'), false, 'night staging never takes over the player camera');
+      const ambientWonders = ambient.find(node => node.type === './town/WonderIslands.jsx');
+      const sphereGuest = ambient.find(node => node.type?.modulePath === './town/SphereLandmark.jsx');
+      assert.equal(sphereGuest.props.showTimeRef, program === 'avatar' ? showClock : null);
+      assert.equal(ambientWonders.props.battleTimeRef, program === 'carrier-battle' ? showClock : null);
+      assert.equal(ambient.filter(node => node.type === 'DroneShow').length, program === 'carrier-battle' ? 0 : 1);
+      const actor = ambient.find(node => node.type?.modulePath === './town/PlayerController.jsx');
+      assert.equal(actor.props.active, true); assert.equal(actor.props.destination, destination);
+      if (program !== 'carrier-battle') {
+        const lamps = ambient.find(node => node.type === 'DroneShow');
+        assert.equal(lamps.props.program, program); assert.equal(lamps.props.aiRuntime.marker, 'night-runtime');
+        assert.equal(lamps.props.timeRef, showClock);
+      }
+    }
+    const daylight = elements(sceneElement.type({ ...sceneElement.props, viewMode: 'follow', nightShow: { active: false }, droneFpv: { program: 'avatar' } }));
+    assert.equal(daylight.some(node => node.type === 'DroneShow' || node.type === 'DroneCamera' || node.type?.modulePath === './drone/CarrierBattleScene.jsx'), false);
   }
 });
 
@@ -748,3 +767,4 @@ test('the real inactive PlayerController cannot move the avatar or overwrite the
     } finally { hooks.dispose(); h.dispose(); }
   }
 });
+

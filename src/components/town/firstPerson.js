@@ -64,7 +64,7 @@ export function closeThirdPersonCamera(pose, yaw, pitch, options = {}) {
   // Narrow screens keep the whole character between the controls rather than
   // magnifying the torso. Desktop retains the original intimate 4.4m boom.
   const distance = Math.max(.75, finite(options.distance, closeThirdPersonLens(options.aspect).distance));
-  const blocked = options.blocked || ((cx, cy, cz) => !isWalkable(cx, cz) && flightFloor(cx, cz) > cy - CLOSE_THIRD_PERSON.clearance);
+  const blocked = options.blocked || ((cx, cy, cz) => flightFloor(cx, cz) > cy - CLOSE_THIRD_PERSON.clearance);
   const obstructed = (cx, cy, cz) => [[0,0],[.2,0],[-.2,0],[0,.2],[0,-.2]].some(([dx,dz]) => blocked(cx+dx,cy,cz+dz));
   let safeDistance = distance, clipped = false;
   // Sweep the whole camera boom, not just its endpoint. A wall between the

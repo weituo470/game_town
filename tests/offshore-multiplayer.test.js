@@ -15,7 +15,7 @@ async function until(check, message, timeout = 4000) {
 }
 
 test('real SDK peers share voyage, walk on deck, reconnect at their local pose and safely leave', async () => {
-  assert.equal(PROTOCOL_VERSION, 9); assert.equal(RECONNECT_SECONDS, 15);
+  assert.equal(PROTOCOL_VERSION, 12); assert.equal(RECONNECT_SECONDS, 15);
   const server = await createTownServer({ port: 0, secret: 'offshore-tests-only-secret-minimum-32-bytes', npcConfig: { enabled: false }, npcSpeechConfig: { enabled: false }, aiDroneConfig: { enabled: false }, gameImageConfig: { enabled: false }, gameCharacterConfig: { enabled: false } });
   const peers = new Set(); let code;
   const post = async (path, body) => { const response = await fetch(`${server.url}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }); assert.equal(response.status, 200, await response.clone().text()); return response.json(); };

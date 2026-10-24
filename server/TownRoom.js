@@ -1,8 +1,11 @@
+import {advanceRailSchedule,nearRailStation,sampleRail,canBoardRail,railLocal,railPassenger,stepRail,railExit} from '../shared/space-rail.js';
+import { canAscend, canDescend, validSpaceAction, advanceElevator, orbitState, placeInOrbit } from '../shared/space-elevator.js';
+import { stepAvatar as stepOrbitAvatar, startAvatarJump as startOrbitJump, stoppedVertical as stopOrbit } from '../src/orbit/shared/jetpack.js';
 import { Room, ServerError } from '@colyseus/core';
 import { schema, t } from '@colyseus/schema';
 import { cleanName } from './identity.js';
 import { createReconnectDiagnostics } from './reconnectDiagnostics.js';
-import { SPAWN, movePlayer, getDestination } from '../shared/world.js';
+import { SPAWN, movePlayer, getDestination, groundHeight } from '../shared/world.js';
 import { startAvatarJump, stepAvatar, stoppedVertical, safeLanding } from '../shared/jetpack.js';
 import { OFFSHORE_ACTIONS, OFFSHORE_ARRIVAL, OFFSHORE_SEATS, offshorePlan, sampleOffshoreVoyage, sampleOffshorePassenger, canBoardOffshore } from '../shared/offshore-island.js';
 import { stepOffshoreDeck } from '../shared/offshore-deck.js';
@@ -13,11 +16,13 @@ export const PlayerState = schema({
   x: t.number(), y: t.number(), z: t.number(), vy: t.number(), yaw: t.number(), moving: t.boolean(), jetpack: t.boolean(), thrusting: t.boolean(), hovering: t.boolean(),
   color: t.string(), connected: t.boolean(), seq: t.number(), aboard: t.boolean(), offshoreSeat: t.number(), offshoreSeq: t.number(),
   deckX: t.number(), deckZ: t.number(), deckYaw: t.number(),
+  railX:t.number(),railZ:t.number(),railYaw:t.number(),
+  spaceMode:t.string(), spaceStartAt:t.number(), spaceSeq:t.number(), orbitX:t.number(), orbitY:t.number(), orbitZ:t.number(),
 }, 'PlayerState');
 
 export const TownState = schema({
   code: t.string(), protocolVersion: t.number(), tick: t.number(), serverTime: t.number(),
-  offshoreStartAt: t.number(), offshoreReturnAt: t.number(),
+  offshoreStartAt: t.number(), offshoreReturnAt: t.number(), railEpoch:t.number(),railFrom:t.number(),
   players: t.map(PlayerState),
 }, 'TownState');
 
@@ -72,12 +77,14 @@ export function makeTownRoom({ identity, roomCodes, reconnectSeconds = RECONNECT
       this.state.protocolVersion = PROTOCOL_VERSION;
       this.state.tick = 0;
       this.state.serverTime = now();
+      Object.assign(this.state,advanceRailSchedule(0,now()));
       this.state.offshoreStartAt = 0;
       this.state.offshoreReturnAt = 0;
       this.seatReservationTimeout = 10;
       roomCodes.set(options.code, this.roomId);
       this.onMessage(MESSAGE.INPUT, (client, input) => this.receiveInput(client, input));
       this.onMessage(MESSAGE.TRAVEL, (client, payload) => this.receiveTravel(client, payload));
+      this.onMessage(MESSAGE.SPACE, (client,payload)=>this.receiveSpace(client,payload));
       this.onMessage(MESSAGE.OFFSHORE, (client, payload) => this.receiveOffshore(client, payload));
       this.onMessage('*', client => this.rejectMessage(client, 'UNKNOWN_MESSAGE', '不支持的操作。'));
       this.setSimulationInterval(delta => this.step(Math.min(delta, 100)), SERVER_TICK_MS);
@@ -92,6 +99,7 @@ export function makeTownRoom({ identity, roomCodes, reconnectSeconds = RECONNECT
       const offset = this.state.players.size * 0.75 - 2.625;
       this.state.players.set(client.sessionId, new PlayerState({
         id: client.sessionId, guestId: auth.guestId, name: auth.name,
+        railX:0,railZ:0,railYaw:0,spaceMode:"ground", spaceStartAt:0, spaceSeq:-1, orbitX:0, orbitY:0, orbitZ:0,
         ...SPAWN, x: offset, y: 0, vy: 0, moving: false, jetpack: false, thrusting: false, hovering: false, color, connected: true, seq: -1, aboard: false, offshoreSeat: -1, offshoreSeq: -1, deckX: 0, deckZ: 0, deckYaw: 0,
       }));
       this.controls.set(client.sessionId, { seq: -1, travelAt: -Infinity, noticesAt: -Infinity, invalid: 0, offshoreSeq: -1, offshoreAt: -Infinity });
@@ -118,6 +126,15 @@ export function makeTownRoom({ identity, roomCodes, reconnectSeconds = RECONNECT
       controls.seq = input.seq;
       const player = this.state.players.get(client.sessionId);
       player.seq = input.seq;
+      if (player.spaceMode && player.spaceMode !== 'ground') {
+        if (player.spaceMode === 'rail') {this.inputs.set(client.sessionId,{x:input.x,z:input.z,at:now()});return;}
+        if (player.spaceMode === 'orbit') {
+          if(input.stop) Object.assign(player,placeInOrbit(player,{...orbitState(player),...stopOrbit(orbitState(player))}));
+          else if(input.jump){const jump=startOrbitJump(orbitState(player));if(jump)Object.assign(player,placeInOrbit(player,{...orbitState(player),...jump}));}
+          this.inputs.set(client.sessionId,{x:input.x,z:input.z,thrust:input.thrust===true,hover:input.hover===true,at:now()});
+        }
+        return;
+      }
       if (player.aboard) {
         // The same bounded direction packet is ship-local while aboard. Flight
         // flags never permit jumping, hovering, changing height or leaving deck.
@@ -146,9 +163,10 @@ export function makeTownRoom({ identity, roomCodes, reconnectSeconds = RECONNECT
       if (now() - controls.travelAt < 500) { this.rejectMessage(client, 'TRAVEL_COOLDOWN', '请稍后再前往。'); return; }
       controls.travelAt = now();
       const player = this.state.players.get(client.sessionId);
+      if (player.spaceMode && player.spaceMode !== 'ground') { this.rejectMessage(client,'SPACE_TRAVEL','请乘电梯返回地面后再前往其他地点。');return;}
       if (player.aboard) { this.rejectMessage(client, 'OFFSHORE_ABOARD', '请先靠港离船，再前往其他地点。'); return; }
       if (hasSequence) { controls.seq = payload.seq; player.seq = payload.seq; }
-      Object.assign(player, destination, { y: 0, vy: 0, moving: false, jetpack: false, thrusting: false, hovering: false });
+      Object.assign(player, destination, { y: groundHeight(destination.x, destination.z), vy: 0, moving: false, jetpack: false, thrusting: false, hovering: false });
       this.inputs.delete(client.sessionId);
     }
 
@@ -162,6 +180,7 @@ export function makeTownRoom({ identity, roomCodes, reconnectSeconds = RECONNECT
       if (!player.connected) return;
       if (time - controls.offshoreAt < 300) { this.rejectMessage(client, 'OFFSHORE_COOLDOWN', '请稍候再操作船只。'); return; }
       controls.offshoreAt = time;
+      if (player.spaceMode && player.spaceMode !== 'ground') { this.rejectMessage(client,'SPACE_TRAVEL','请先返回地面。');return;}
       if (payload.action === 'board') {
         if (player.aboard) return;
         if (!canBoardOffshore(player, plan, time)) { this.rejectMessage(client, 'OFFSHORE_BOARD', ship.docked ? '请先来到南岸码头的登船点。' : '船只正在海上，请等待靠港后登船。'); return; }
@@ -184,13 +203,36 @@ export function makeTownRoom({ identity, roomCodes, reconnectSeconds = RECONNECT
       this.inputs.delete(client.sessionId);
     }
 
+    receiveSpace(client,payload) {
+      const player=this.state.players.get(client.sessionId);
+      if(!player||!validSpaceAction(payload,player.spaceSeq)){this.rejectMessage(client,'SPACE_INVALID','电梯操作无效或已过期。');return;}
+      player.spaceSeq=payload.seq;
+      if(payload.action.startsWith('rail-')){
+        const train=sampleRail(this.state.railEpoch,now(),this.state.railFrom);
+        if(!player.connected)return;
+        if(payload.action==='rail-board'&&canBoardRail(player,train))Object.assign(player,railPassenger({...player,...railLocal(player,train),railYaw:player.yaw-train.yaw},train));
+        else if(payload.action==='rail-exit'&&player.spaceMode==='rail'&&train.docked)Object.assign(player,railExit(player,train));
+        else if(payload.action==='rail-depart'&&player.spaceMode==='rail'&&train.docked){this.state.railFrom=train.station;this.state.railEpoch=now();}
+        else if(payload.action==='rail-call'&&player.spaceMode==='ground'&&!player.aboard&&train.docked&&train.station!==nearRailStation(player)&&![...this.state.players.values()].some(p=>p.spaceMode==='rail')&&nearRailStation(player)>=0){this.state.railFrom=train.station;this.state.railEpoch=now();}
+        else {this.rejectMessage(client,'RAIL_STATION','列车停稳后，请从站台车门处登乘或下车。');return;}
+        this.inputs.delete(client.sessionId);return;
+      }
+      if(!player.connected||(payload.action==='ascend'?!canAscend(player):!canDescend(player))){this.rejectMessage(client,'SPACE_TERMINAL','请先走到实体电梯站内，再登梯。');return;}
+      Object.assign(player,{spaceMode:payload.action==='ascend'?'ascent':'descent',spaceStartAt:now(),moving:false,jetpack:false,thrusting:false,hovering:false,vy:0});
+      Object.assign(player,advanceElevator(player,now())); this.inputs.delete(client.sessionId);
+    }
+
     step(deltaMs) {
       this.state.tick += 1;
       const time = now();
       this.state.serverTime = time;
+      Object.assign(this.state,advanceRailSchedule(this.state.railEpoch,time,this.state.railFrom));
       for (const [sessionId, player] of this.state.players) {
         const input = this.inputs.get(sessionId);
         const direction = player.connected && input && time - input.at <= INPUT_TIMEOUT_MS ? input : { x: 0, z: 0 };
+        if(player.spaceMode==='rail'){Object.assign(player,railPassenger(stepRail(player,direction,deltaMs/1000),sampleRail(this.state.railEpoch,time,this.state.railFrom)));continue;}
+        if (player.spaceMode === 'ascent' || player.spaceMode === 'descent') { Object.assign(player,advanceElevator(player,time));continue; }
+        if (player.spaceMode === 'orbit') { Object.assign(player,placeInOrbit(player,stepOrbitAvatar(orbitState(player),direction,deltaMs/1000)));continue; }
         if (player.aboard) {
           const local = stepOffshoreDeck(player, direction, deltaMs / 1000);
           Object.assign(player, sampleOffshorePassenger(offshorePlan(this.state), time, player.offshoreSeat, local));
@@ -204,8 +246,9 @@ export function makeTownRoom({ identity, roomCodes, reconnectSeconds = RECONNECT
     onDrop(client, code) {
       this.trace('onDrop', client, { closeCode: code });
       const player = this.state.players.get(client.sessionId);
-      if (player?.aboard) { player.connected = false; player.moving = false; }
-      else if (player) { Object.assign(player, safeLanding(player.x, player.z), { connected: false, moving: false, y: 0, vy: 0, jetpack: false, thrusting: false, hovering: false }); }
+      if(player?.spaceMode && player.spaceMode!=='ground'){player.connected=false;player.moving=false;player.thrusting=false;player.hovering=false;}
+      else if (player?.aboard) { player.connected = false; player.moving = false; }
+      else if (player) { const landing = safeLanding(player.x, player.z); Object.assign(player, landing, { connected: false, moving: false, y: groundHeight(landing.x, landing.z), vy: 0, jetpack: false, thrusting: false, hovering: false }); }
       this.inputs.delete(client.sessionId);
       // Oversized payloads and policy violations do not reserve a reusable seat.
       if (player && ![1008, 1009].includes(code)) {
@@ -221,8 +264,9 @@ export function makeTownRoom({ identity, roomCodes, reconnectSeconds = RECONNECT
     onReconnect(client) {
       this.trace('onReconnect', client);
       const player = this.state.players.get(client.sessionId);
-      if (player?.aboard) { Object.assign(player, sampleOffshorePassenger(offshorePlan(this.state), now(), player.offshoreSeat, { deckX: player.deckX, deckZ: player.deckZ, deckYaw: player.deckYaw, moving: false }), { connected: true }); }
-      else if (player) { Object.assign(player, safeLanding(player.x, player.z), { connected: true, moving: false, y: 0, vy: 0, jetpack: false, thrusting: false, hovering: false }); }
+      if(player?.spaceMode && player.spaceMode!=='ground'){player.connected=true;player.moving=false;}
+      else if (player?.aboard) { Object.assign(player, sampleOffshorePassenger(offshorePlan(this.state), now(), player.offshoreSeat, { deckX: player.deckX, deckZ: player.deckZ, deckYaw: player.deckYaw, moving: false }), { connected: true }); }
+      else if (player) { const landing = safeLanding(player.x, player.z); Object.assign(player, landing, { connected: true, moving: false, y: groundHeight(landing.x, landing.z), vy: 0, jetpack: false, thrusting: false, hovering: false }); }
       this.inputs.delete(client.sessionId);
     }
 

@@ -1,3 +1,4 @@
+import {inRailStation} from '../shared/space-layout.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SPHERE_LANDMARK as S, SPHERE_BRIDGE as B, SPHERE_ARRIVAL, SPHERE_MODES, inSphereGround, sphereSolid, sphereFlightFloor, sphereDestination } from '../shared/sphere-landmark.js';
@@ -107,5 +108,5 @@ test('the pre-existing map, streets and walkability outside new real ground are 
     if (WORLD_LOCATIONS.some(place => Math.abs(x - place.x) < 3.22 && Math.abs(z - place.z) < 2.8)) return false;
     return !TREE_POSITIONS.some(([tx, tz, scale]) => Math.hypot(x - tx, z - tz) < .5 * scale);
   };
-  for (let x = -138; x <= 77; x += 1.1) for (let z = -133; z <= 40.3; z += 1.1) if (!inSphereGround(x, z)) assert.equal(isWalkable(x, z), legacy(x, z), `old geometry changed at ${x},${z}`);
+  for (let x = -138; x <= 77; x += 1.1) for (let z = -133; z <= 40.3; z += 1.1) if (!inSphereGround(x, z) && !inRailStation(x,z)) assert.equal(isWalkable(x, z), legacy(x, z), `old geometry changed at ${x},${z}`);
 });

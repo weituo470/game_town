@@ -168,5 +168,5 @@ test('soundtrack is lazy, same-origin only and never captures microphone, deskto
   assert.match(controls, /!program.soundtrackUrl && <button/);
   const source = fs.readFileSync(new URL('../src/lib/droneSoundtrackMux.js', import.meta.url), 'utf8');
   assert.doesNotMatch(source, /getUserMedia|getDisplayMedia|method:\s*['"]POST/);
-  assert.match(source, /fetchAudio\(appUrl\(url\)/); assert.match(source, /OfflineAudioContext/);
+  assert.match(source, /fetchAudio\(droneAudioUrl\(url\)/); assert.match(source, /OfflineAudioContext/);
 });

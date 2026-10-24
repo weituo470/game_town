@@ -2,7 +2,7 @@ import * as THREE from 'three';
 
 /**
  * Faithful procedural extraction from the user's deepseek-park.html.
- * Source: project-owned standalone deepseek-park.html scene
+ * Source: <project-root>
  * SHA-256: 5069415aa261e862fe882d6b522bed0f63e42d828792019089ad81a8a17aba64
  * Original custom scene: lines 4323-5083; geometry and animation only.
  * The embedded r186 engine, standalone renderer/camera, sky/lights/fog,

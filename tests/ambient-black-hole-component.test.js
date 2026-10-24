@@ -1,3 +1,4 @@
+import { MIDNIGHT_MS } from '../shared/dayNight.js';
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
@@ -70,7 +71,7 @@ async function harness({ strict = false, props = {} } = {}) {
     root = Fiber.createRoot(canvas);
   } finally { Fiber.reconciler.createContainer = createContainer; }
   await root.configure({ gl, frameloop: 'never', dpr: 1, size: { width: 1280, height: 720, top: 0, left: 0 } });
-  let currentProps = { timeRef: { current: 90000 }, enabled: true, reducedMotion: false, onAppearance: id => appearances.push(id), ...props };
+  let currentProps = { timeRef: { current: MIDNIGHT_MS }, enabled: true, reducedMotion: false, onAppearance: id => appearances.push(id), ...props };
   let timestamp = 0;
   const render = async next => {
     currentProps = { ...currentProps, ...next };
@@ -173,7 +174,7 @@ test('real callback refs use the latest prop and unmount frees the active visual
 
 
 test('actual sky timeRef controls night eligibility across frames without remounting the runtime', async () => {
-  const timeRef = { current: 90000 };
+  const timeRef = { current: MIDNIGHT_MS };
   const h = await harness({ props: { timeRef } });
   try {
     h.frame(0);
@@ -186,7 +187,7 @@ test('actual sky timeRef controls night eligibility across frames without remoun
     assert.equal(day.state.active, false);
     assert.equal(h.canvas.dataset.skyBlackhole, 'daylight');
     assert.equal(h.visuals[0].disposals, 1);
-    timeRef.current = 90000;
+    timeRef.current = MIDNIGHT_MS;
     assert.equal(h.frame(.016).state.phase, 'waiting');
     assert.equal(h.instances.length, 1);
   } finally { await h.unmount(); }

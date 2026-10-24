@@ -58,10 +58,10 @@ export function sampleFrameBudget(state, delta, hidden = false) {
 /** A paused fleet is immutable, except for reduced-motion or FPV-seat changes.
  * Cache only the last sample; seeking backwards always recomputes exact data. */
 export function createFleetUpdateGate() {
-  let time = NaN, reduced = null, seat = undefined;
-  return (nextTime, nextReduced, nextSeat) => {
-    if (time === nextTime && reduced === nextReduced && seat === nextSeat) return false;
-    time = nextTime; reduced = nextReduced; seat = nextSeat;
+  let time = NaN, reduced = null, seat = undefined, revision = 0;
+  return (nextTime, nextReduced, nextSeat, nextRevision = 0) => {
+    if (time === nextTime && reduced === nextReduced && seat === nextSeat && revision === nextRevision) return false;
+    time = nextTime; reduced = nextReduced; seat = nextSeat; revision = nextRevision;
     return true;
   };
 }

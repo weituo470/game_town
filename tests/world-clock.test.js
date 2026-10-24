@@ -3,22 +3,22 @@ import assert from 'node:assert/strict';
 import { createWorldClock, cycleTime, sampleWorldTime } from '../src/lib/useWorldClock.js';
 import { DAY_NIGHT_CYCLE_MS, sampleDayNight } from '../shared/dayNight.js';
 
-test('world clock: the 180 second cycle wraps finite positive and negative times', () => {
-  assert.equal(DAY_NIGHT_CYCLE_MS, 180000);
-  assert.equal(cycleTime(180100), 100);
-  assert.equal(cycleTime(-100), 179900);
+test('world clock: the 900 second cycle wraps finite positive and negative times', () => {
+  assert.equal(DAY_NIGHT_CYCLE_MS, 900000);
+  assert.equal(cycleTime(900100), 100);
+  assert.equal(cycleTime(-100), 899900);
   assert.equal(cycleTime(0), 0);
   for (const value of [NaN, Infinity, -Infinity, undefined, null, '100']) assert.equal(cycleTime(value), 0);
 });
 
 test('world clock: the server receipt anchor interpolates with monotonic time', () => {
-  const snapshot = { serverTime: 180050, receivedAtPerf: 1000 };
+  const snapshot = { serverTime: 900050, receivedAtPerf: 1000 };
   assert.equal(sampleWorldTime({ snapshot, nowPerf: 1250, fallbackEpoch: 40000, fallbackPerf: 1000 }), 300);
-  assert.equal(sampleWorldTime({ snapshot, nowPerf: 181250 }), 300);
+  assert.equal(sampleWorldTime({ snapshot, nowPerf: 901250 }), 300);
 });
 
 test('world clock: clients with different wall clocks share the same server phase', () => {
-  const snapshot = { serverTime: 271000, receivedAtPerf: 2300 };
+  const snapshot = { serverTime: 991000, receivedAtPerf: 2300 };
   const a = sampleWorldTime({ snapshot, nowPerf: 2400, fallbackEpoch: 50000 });
   const b = sampleWorldTime({ snapshot: { ...snapshot, receivedAtPerf: 9300 }, nowPerf: 9400, fallbackEpoch: 900000000000 });
   assert.equal(a, 91100);
@@ -53,12 +53,12 @@ test('world clock: bad fallback and performance times remain finite and bounded'
 test('world clock: local previews are fixed and automatic time keeps advancing underneath', () => {
   let perf = 1000;
   let mode = 'auto';
-  const snapshot = { serverTime: 180050, receivedAtPerf: 1000 };
+  const snapshot = { serverTime: 900050, receivedAtPerf: 1000 };
   const original = { ...snapshot };
   const clock = createWorldClock({ now: () => perf, wallNow: () => 99999, getSnapshot: () => snapshot, getMode: () => mode });
   assert.equal(clock.current, 50);
   mode = 'night'; perf += 30000;
-  assert.equal(clock.current, 90000);
+  assert.equal(clock.current, 450000);
   mode = 'day'; perf += 30000;
   assert.equal(clock.current, 0);
   mode = 'auto';
@@ -90,7 +90,7 @@ test('world clock: hidden-tab time is not clamped to one frame or one timer inte
   const clock = createWorldClock({ now: () => perf, wallNow: () => 10000 });
   perf += 90000;
   assert.equal(clock.current, 100000);
-  perf += 180000 * 4 + 1234;
+  perf += 900000 * 4 + 1234;
   assert.equal(clock.current, 101234);
 });
 

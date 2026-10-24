@@ -1,0 +1,120 @@
+游戏小镇 · 管道解谜 / 花园水路
+交付日期：2026-10-18（北京时间）
+项目：<project-root>
+终端命名：游戏小镇 / 管道解谜开发 / <project-root>
+
+状态
+- 已交付可玩版，index.jsx 已发布，MiniGame.jsx 的既有 glob 自动接入 puzzle。
+- 两道固定 3×3 短题；每关初始未解，独立验证解可连通；标准局完成两关。
+- 不倒计时，不因思考慢扣分。每关 3 次提示，提示不阻止完成。
+- 支持蓝色通水反馈、逐关引导、撤销、重置本关、重玩本局、暂停、退出。
+- 键盘 Tab/方向键选择管道，Enter/空格旋转；鼠标点击与触屏点按同一逻辑。
+- 本模块没有画像存储、人格推断、音频、账号、数据库或外部素材。
+
+接入接口
+  export default function Game({ onComplete, onExit })
+  入口：<project-root>
+  实现：同目录 Game.jsx / logic.js / puzzle.css
+
+结算
+- 第二关解出后，点击“完成本局”才调用 onComplete。
+- completionGate 的 ref 每局锁定一次，重复点击不会重复回调；重玩创建新局。
+- 退出、Esc、关闭宿主弹窗、未解出时不交失败零分，仅走 onExit/宿主关闭流程。
+- 通关后可先看水路，再“完成本局”或“重玩本局”。
+- 回调字段：gameId:'puzzle', completed:true, score:0..100 的有限数值，
+  durationSeconds:有效秒数（保留 1 位小数），
+  inputDevice:'keyboard-mouse'或'touch', difficulty:'standard'。
+- score = max(70, 100 - hintsUsed*3 - min(18, max(0, rotations-28)))。
+  不含用时惩罚；仅描述当前两道连接题的操作记录，不是智力/普遍策略能力分数。
+
+metrics（全部扁平）
+- summary：中文本局摘要。
+- puzzleSolved：两关都完成时 true。
+- levelsSolved / levelsTotal：已解题数 / 题目总数（2）。
+- rotations：有效游玩期间执行的顺时针旋转次数；包含后来撤销/重置的操作，
+  不包含暂停/通关后的无效点击，不表示“正确旋转次数”。
+- hintsUsed：整局消耗的提示数；上限 6。
+- undos：成功撤销次数；没有历史时按钮禁用，不计空操作。
+- resets：本关重置次数；保留累计操作和已用提示数，不可刷回提示。
+- connectedTiles：最后一关从水源可达的通水块数。
+- 主观喜欢程度/体验强度/重玩意愿完全由宿主 Feedback 询问，本模块不替玩家决定。
+
+计时与生命周期
+- activeClock 使用 performance.now；只在 playing 且未暂停时累计。
+- window blur / document hidden 立即停表并要求手动继续，不会自动吃掉后台时间。
+- 关间成功画面、介绍页、手动暂停不计时。
+- 重玩清空时间、计数、历史、提示和结算锁；计时器与监听器有卸载清理。
+- React StrictMode 预览已实际验证，无重复旋转/重复结算/页面错误。
+- 不拦截宿主 Tab/Esc；方向键仅在管道格内阻止外部移动。
+
+文件边界
+仅新增/修改：
+  game-town/src/minigames/puzzle/
+  tests/puzzle-game.test.js
+  tests/puzzle-game-readability.test.js
+  qa-artifacts/puzzle-game/
+没有修改 App.jsx、Town.jsx、MiniGame.jsx、profile.js、推荐逻辑、
+minigameLogic.js、package.json、全局 CSS 或其他游戏目录。
+
+复现命令（PowerShell，项目根目录执行）
+  Set-Location -LiteralPath '<project-root>'
+  node --test tests/puzzle-game*.test.js
+  npm run check:readability --prefix game-town
+  npm run build --prefix game-town -- --outDir ../qa-artifacts/puzzle-game/build
+
+独立预览（使用现有 Vite 也可；不要终止别人的服务）
+  Set-Location -LiteralPath '<project-root>'
+  node node_modules/vite/bin/vite.js --host 127.0.0.1 --port 5381 --strictPort
+  http://127.0.0.1:5381/src/minigames/puzzle/preview.html
+- 本会话启动的 5381 独立 Vite 仍可用；未停止或重启 5173/5279/2567。
+- preview.html / preview.jsx / preview.css 只供验收，宿主不导入，不保存数据。
+- preview 开启 StrictMode，保留回调记录，方便观察重复提交和退出。
+
+浏览器回归（项目根目录，需本机 Chrome 与已打包的 Playwright）
+  node qa-artifacts/puzzle-game/browser-qa.mjs
+  node qa-artifacts/puzzle-game/host-qa.mjs
+- 使用 bundled runtime 的 Playwright，channel:'chrome'，没有安装新依赖。
+- browser-qa 使用独立 Chrome 窗口；焦点测试关闭两个标签的 Playwright
+  FocusEmulation 后真实切标签，已观察 document.hasFocus() 为 false，游戏暂停。
+- 默认 Playwright browser binary 不存在，已改用本机 Chrome；不是未验证通过。
+
+验证结果
+1. node:test 13/13：两关初始未解、解可达、直管对称、断水不算解出、
+   旋转/撤销/重置一致、有限提示不补充/不阻止解题、每关 100 个确定性扰动盘面
+   均可由提示方案解出、一次结算、重玩、暂停/失焦时钟、字号回归与反例。
+   根目录没有 module 类型声明，Node 会打印无害 MODULE_TYPELESS_PACKAGE_JSON 警告；
+   为守文件边界没有修改任何 package.json。
+2. 静态字号检查通过；自有回归覆盖 font-size、font 简写、变量、局部覆盖、
+   inline 字号、工具类与媒体查询，不把静态通过当成实屏验收。
+3. 独立真实 Chrome：1280×900 与 390×844 均实际完成两关并产生正确回调。
+   15 组浏览器检查通过：键盘/触屏、撤销/提示/重置、手动暂停、真实 tab blur、
+   重玩计时、StrictMode 双击只结算一次、退出无失败记录、无 pageerror。
+   正文 18px、控件 16px、元信息 14px；默认根字号 16px、100% 缩放。
+   主要可见文字对比度 >=4.5；触控目标 >=44px，无横向溢出。
+   已查看介绍/游玩/暂停/完成截图，手机采用换行、堆叠和纵向滚动，不缩小字号。
+4. 宿主真实 Chrome：1280 与 390 都通过自动发现模块 -> 实际进入 -> 两关通关
+   -> 宿主 Feedback 接收；Tab 焦点循环与管道格上 Esc 退出通过，无 pageerror。
+   手机真实入口为“街区导览 -> 前往机关工坊 -> 进入体验”；桌面从探索清单直接体验。
+   手机宿主内管道格 94px、正文18px、控件16px，无模块横向溢出。
+5. 宿主完整 Vite 构建成功，输出仅写自己的 qa-artifacts/puzzle-game/build。
+   有约1.60MB 主包体积警告，非错误；没有擅改共享拆包配置。
+
+证据目录
+  <project-root>
+  logic-tests.log / readability.log / build.log
+  browser-report.json / browser-qa.log
+  host-report.json / host-qa.log
+  playing-desktop.png / solved-desktop.png
+  intro-mobile.png / playing-mobile.png / paused-mobile.png / solved-mobile.png
+  host-playing-1280.png / host-playing-390.png
+  host-feedback-1280.png / host-feedback-390.png
+
+已知限制/未验证
+- 仅两道固定题，不含关卡编辑器、随机无尽关卡或存档，符合先交短局范围。
+- 390px 是 Chrome 真实浏览器触屏模拟，不是物理手机；iOS Safari、Android 真机、
+  屏幕阅读器与长期跨日稳定性未验证。不声称生产公网验收。
+- 宿主原有“前往机关工坊”Toast 约4.5秒内可能遮住手机底部内容，等待后消失。
+- 宿主游戏转 Feedback 时沿用弹窗滚动位置，可能需向上滑查看分数；
+  host-report 记录 inheritedFeedbackScroll，QA 通过实际滚动检查了 100 分。
+  这两项属于共享宿主体验，未越界改 App/CSS。
+- 仅验证本游戏在当时宿主版本的接入，不代表节奏/鬼屋/多人联机或整个项目全部验收。

@@ -1,3 +1,4 @@
+import {aiDroneChoiceCorrection} from './aiDroneRepair.js';
 import { createHash, randomInt, randomUUID } from 'node:crypto';
 import { loadNpcLlmConfig } from './npcLlmConfig.js';
 import { AiDroneAccessError, createAiDroneAccess, isAiDroneAccessHash } from './aiDroneAccess.js';
@@ -129,7 +130,7 @@ export function createAiDroneDirector({ config = loadAiDroneConfig(), fetchImpl 
   let closed = false;
   const getStore = () => store ||= createAiDroneStore({ dbPath: config.dbPath, now, limits });
   const safeUsage = guestId => { try { return getStore().usage(guestId); } catch { return undefined; } };
-  function status() { return { enabled: enabled && !closed, provider: 'DeepSeek', model: 'deepseek-flash', limit: limits.daily === 0 ? null : limits.daily, ...(limits.daily === 0 ? { unlimited: true } : {}), development: true, ...(access.required ? { accessRequired: true } : {}), limits: { ...AI_DRONE_LIMITS, ...limits, timeoutMs }, ...(!enabled ? { reason: !access.configured ? 'access-not-configured' : config.reason || 'not-configured' } : {}) }; }
+  function status() { return { enabled: enabled && !closed, provider: 'DeepSeek', model: 'deepseek-flash', limit: limits.daily === 0 ? null : limits.daily, ...(limits.daily === 0 ? { unlimited: true } : {}), development: true, maxModelCalls:2, formatCorrection:true, ...(access.required ? { accessRequired: true } : {}), limits: { ...AI_DRONE_LIMITS, ...limits, timeoutMs }, ...(!enabled ? { reason: !access.configured ? 'access-not-configured' : config.reason || 'not-configured' } : {}) }; }
   function usage(guestId) {
     if (typeof guestId !== 'string' || !UUID.test(guestId)) throw problem(401, 'INVALID_GUEST', '游客身份已过期，请重新连接。');
     if (!enabled || closed) throw problem(503, 'AI_DRONE_DISABLED', 'AI 编导暂未开启，请先欣赏精选演出。');
@@ -179,10 +180,14 @@ export function createAiDroneDirector({ config = loadAiDroneConfig(), fetchImpl 
     flights.set(`${input.guestId}:${input.requestId}`, flight);
     const operation = async () => {
       const seed = randomInt(1, 2147483648);
+      let messages=buildAiDroneMessages({ ...input, seed });
+      for(let attempt=0;attempt<2;attempt++){
+      if(controller.signal.aborted)throw abortError||upstream();
+      phase='provider_request';
       const response = await fetchImpl(`${config.baseURL.replace(/\/+$/, '')}/chat/completions`, {
         method: 'POST', redirect: 'error', signal: controller.signal,
         headers: { 'content-type': 'application/json', authorization: `Bearer ${config.apiKey}` },
-        body: JSON.stringify({ model: config.model, messages: buildAiDroneMessages({ ...input, seed }), stream: false, thinking: { type: 'disabled' }, response_format: { type: 'json_object' }, max_tokens: 4000, temperature: 0.95 }),
+        body: JSON.stringify({ model: config.model, messages, stream: false, thinking: { type: 'disabled' }, response_format: { type: 'json_object' }, max_tokens: 4000, temperature: attempt===0?0.8:0.2 }),
       });
       if (!response?.ok) { response?.body?.cancel?.().catch(() => {}); throw upstream('provider_request', 'provider_http'); }
       phase = 'provider_body';
@@ -207,13 +212,16 @@ export function createAiDroneDirector({ config = loadAiDroneConfig(), fetchImpl 
         score = validateAiDroneScore({ ...parsed, seed });
       }
       catch (error) {
+        const correction=attempt===0?aiDroneChoiceCorrection(parsed,error):null;
+        if(correction&&!controller.signal.aborted){messages=[...messages,correction];continue;}
         const safe = error?.code === 'AI_SCORE_QUALITY'
           ? problem(502, 'AI_DRONE_QUALITY_FAILED', '本次编排缺少足够的场景层次或故事连续性，尚未达到舞台质量门槛；未启动演出，不会自动重试。', { reason: 'AI_SCORE_QUALITY', phase })
           : invalidScore(AI_DRONE_FAILURE_REASONS.includes(error?.code) ? error.code : 'schema_invalid', phase);
         Object.assign(safe, sanitizeAiDroneFailureMetadata({ ...safe, field: error?.field, sceneIndex: error?.sceneIndex }));
         throw safe;
       }
-      return { id: randomUUID(), createdAt: now(), mode: input.mode, prompt: input.prompt, provider: 'DeepSeek', model: config.model, score };
+      return { id: randomUUID(), createdAt: now(), mode: input.mode, prompt: input.prompt, provider: 'DeepSeek', model: config.model, modelCalls:attempt+1, score };
+      }
     };
     flight.promise = (async () => {
       try {

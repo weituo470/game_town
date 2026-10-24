@@ -23,3 +23,6 @@ interior-lab/
 .DS_Store
 Thumbs.db
 
+
+# Editable Blender projects carry author workstation metadata; regenerate locally.
+public/metro-island/*.blend*

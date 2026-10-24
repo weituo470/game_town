@@ -91,7 +91,7 @@ test('drone sprite projection uses actual effect-buffer DPR and restores native 
 test('the actual renderer wires cache, seek-safe trails, FPV seats, telemetry and mode-scoped effects', () => {
   const drone = fs.readFileSync(new URL('../src/components/drone/DroneShow.jsx', import.meta.url), 'utf8');
   const effects = fs.readFileSync(new URL('../src/components/town/SceneEffects.jsx', import.meta.url), 'utf8');
-  assert.match(drone, /if \(!needsFleetUpdate\(safeTime, reducedMotion, firstPersonSeatId\)\)\s*\{\s*trails.visible = false;\s*return false;/);
+  assert.match(drone, /if \(!needsFleetUpdate\(safeTime, reducedMotion, firstPersonSeatId, aiRuntime\?\.layoutRevision \?\? 0\)\)\s*\{\s*trails.visible = false;\s*return false;/);
   assert.match(drone, /getSceneRenderRatio\(state\.gl\)/);
   assert.match(drone, /elapsed > 0 && elapsed < 220/);
   assert.match(drone, /if \(hiddenIndex>=0\) fleet.sizes\[hiddenIndex\]=0/);

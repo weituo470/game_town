@@ -1,0 +1,87 @@
+游戏小镇 / rhythm 节奏游戏交接
+项目根目录：<project-root>
+宿主目录：<project-root>
+状态：可玩版完成，index.jsx 已发布，已在真实宿主弹窗看到“钟楼节拍”。
+
+一、接入与文件边界
+默认导出 Game({ onComplete, onExit })，index.jsx 仅转导出 Game.jsx。
+宿主 MiniGame.jsx 的 import.meta.glob 自动发现，无需修改共享文件。
+仅新增本模块目录、game-town/tests/rhythm-game.test.js、game-town/qa-artifacts/rhythm-game/。
+未修改 App.jsx、Town.jsx、MiniGame.jsx、profile.js、共享逻辑、package.json 或全局 CSS。
+preview.html / preview.jsx / preview.css 是隔离 QA 入口，宿主不导入，不会带入 preview 的页面样式。
+
+二、玩法
+原创“钟楼节拍”，120 BPM，36 秒旋律 + 3 秒倒计时，共 39 秒有效流程。
+预先编写的 60 音符单音谱面，最小音符间隔 500ms；无长按、双押或随机谱面。
+D/F/J/K 或四个大按键，音符中心与亮线对齐时点按。
+精准 ±70ms / 合拍 ±140ms / 接住 ±200ms，边界包含等号。
+静音、暂停、Esc 暂停、暂停后恢复、重新开始、退出、结束反馈均已提供。
+结束先显示本局记录，点击“领取本局印章”才调用 onComplete（同步 ref 防双击）。
+重新开始丢弃未领取的旧局；退出仅 onExit，不交失败零分。
+喜欢程度与体验强度全部留给宿主反馈，不保存 localStorage，不推断人格、天赋、智力或胆量。
+
+三、时基与资源
+WebAudio 可用时以 AudioContext.currentTime 为唯一演奏时基，画面、输入判定、lookahead 调度均从同一 transport 取时。
+不可用时退为 performance.now 纯视觉模式，界面明确提示。
+暂停同步冻结 transport，立即停止/断开已调度振荡器；恢复从冻结位置重新调度，不追赶暂停期间节拍。
+visibilitychange(hidden) 和 window.blur 自动暂停，不自动恢复；暂停秒数不计入 durationSeconds。
+durationSeconds 包含有效的 3 秒倒计时和 36 秒旋律，不包含暂停/失焦时间；正常完成为 39。
+卸载/退出/重玩清理 RAF、键盘/失焦/可见性监听、振荡器、Gain 和 AudioContext；异步启动有 token 取消保护。
+音色由本地 oscillator/gain 原创合成，无商业歌曲、外链资源、数据库或新依赖。
+
+四、结果接口与指标
+onComplete({ gameId:'rhythm', score:0..100, completed:true, metrics, durationSeconds, inputDevice, difficulty:'standard' })
+inputDevice 为 keyboard-mouse / touch；演奏按键收到 touch pointer 会记录 touch。
+metrics 为扁平字段：
+notesTotal=60；hits=命中数；missedNotes=漏拍数；strayPresses=空按/错轨次数；perfectHits=精准数。
+maxCombo=最高连续命中；空按与漏拍都会断连。
+accuracy=hits/(hits+strayPresses)*100，是按键有效率，不是全谱完成率；全谱完成情况看 hits/notesTotal。
+meanTimingErrorMs=仅有效命中的绝对时机误差均值；meanSignedTimingErrorMs=带符号均值（负早正晚）。
+timingSamples=有效命中误差样本数；0 样本时均值字段为 0，界面显示“暂无样本”。
+audioAvailable=WebAudio 调度路径可用，不代表用户未静音；latencyCalibrated=false。
+summary=中文本局摘要，并明确设备与音画延迟会影响表现。
+score=每音符判定分总和/60，再乘 (0.7+0.3*按键有效率)，四舍五入并限制 0..100。
+每音符最多记一次；空按只断连/影响有效率，不能增加分数。
+
+五、可复现验证
+在宿主目录运行：
+node --test tests/rhythm-game.test.js
+npm test
+npm run check:readability
+npm run build
+
+局部 14 项测试通过：谱面有效性、对称判定窗口边界、重复输入、漏拍边界、空按防刷、倒数/终点忽略输入、满分演奏、全漏与重复完结、连击与空按惩罚、暂停计时、音频调度/清理、字号回归、监听/结算守卫、文字配色 >=4.5:1。
+字号回归覆盖变量、font-size、font 简写、局部覆盖和媒体查询；全项目扫描另覆盖工具类。
+最终全量测试/构建/字号扫描以 qa-artifacts/rhythm-game/*.log 为准（共享项目仍有其他会话并行工作）。
+2026-10-18 收尾快照：局部14/14；全量323/323；check:readability通过；生产build通过（仅大包警告）。
+
+真实 Chrome 验证：
+1. 桌面独立预览，完成 39 秒整局：命中5/60、精准1、最高连击3，score=7；不是高分验收，是输入/结算路径验收。
+2. 双击“领取本局印章”，QA 回调记录只有一条 completed=true；durationSeconds=39，metrics 扁平。
+3. 重玩清零；暂停前后进度与音符相同；恢复继续；静音按钮切换；Esc 触发暂停。
+4. 390x844：正文18px、普通按钮16px、四个按键24px字，按键约69.75x64px，其余按钮至少44px高，无横向溢出；纵向滚动正常。
+5. 390px 鼠标/指针点击演奏键进入空按判定路径（2次空按），不宣称物理手指触屏已验证。
+6. 退出完成但未领取的局、退出未完成局，都只多出 exit 回调，没有额外 completed 零分。
+7. StrictMode 隔离预览运行；浏览器捕获无 error/warn。
+8. 真实宿主：小镇地图 -> 前往节奏舞台 -> E 进入，看到增强模块；1280x900 与390x844计算字号/溢出通过；宿主中 Esc 暂停不关闭游戏，退出返回小镇。宿主浏览器无 error/warn。
+
+证据目录：<project-root>
+desktop-result.json / desktop-result.jpg：桌面结果与单次回调。
+mobile-audit.json / mobile-paused.jpg：390px 计算字号和暂停画面。
+host-audit.json / host-mobile.jpg：宿主双断点与手机弹窗画面。
+exit-events.json：1条 completed + 2条 exit，未出现退出零分。
+
+六、限制与未验证
+未做音频输出/输入延迟校准；蓝牙耳机、iOS Safari、Android 物理触摸、后台系统挂起恢复未真机验证。
+自动化打开辅助标签页没有可靠触发真实 blur/hidden，因此不宣称真实切出标签页自动暂停已实屏验收；事件处理和暂停时间计算已实现，transport 冻结已测试。
+已运行合成与调度并确认 audioAvailable=true；未由人工试听音量/耳机音画同步。
+宿主自动发现/进入/退出已验收；宿主反馈表保存到护照的完整链路未在本支线写入测试记录。
+全页截图曾超时，后改用正常视口截图成功；没有将失败截图或静态检查当成实屏通过。
+生产构建有宿主大包超过1500kB警告，不属于本模块新增重依赖；不越界调整共享构建配置。
+
+七、本地预览
+本会话另起 Vite 5191（未重启或终止5173/5279/2567等原服务），仅绑定127.0.0.1：
+宿主：http://127.0.0.1:5191/
+隔离预览：http://127.0.0.1:5191/src/minigames/rhythm/preview.html
+重开命令（仅在5191空闲时）：npm exec vite -- --host 127.0.0.1 --port 5191 --strictPort
+没有公网发布，没有向其他会话发消息。

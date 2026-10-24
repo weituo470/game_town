@@ -15,14 +15,14 @@ test('offshore adds only a connected solid pier, not a walkable ocean or moving 
   assert.deepEqual(OFFSHORE_ARRIVAL, { x: 16, z: 61, yaw: 0 });
   assert.deepEqual(getDestination('offshore'), OFFSHORE_ARRIVAL);
   for (let z = 37; z <= 63.5; z += .2) assert.equal(isWalkable(16, z), true, `bridge continuity ${z}`);
-  for (const point of [[6, 58], [26, 58], [16, 67], [16, 85], [0, 180]]) assert.equal(isWalkable(...point), false);
+  for (const point of [[6, 58], [26, 74], [16, 67], [16, 85], [0, 180]]) assert.equal(isWalkable(...point), false);
   assert.equal(inOffshoreGround(NaN, 58), false);
   assert.equal(inOffshoreGround(16, Infinity), false);
   let pose = { x: 16, z: 37, yaw: 0 };
   for (let i = 0; i < 100; i++) pose = movePlayer(pose, { x: 0, z: 1 }, .1);
   assert.ok(pose.z >= 63 && pose.z <= 63.8);
   assert.deepEqual(WORLD_BOUNDS, { minX: -42.9, maxX: 42.9, minZ: -38.9, maxZ: 40.3 });
-  assert.deepEqual(EXPLORATION_BOUNDS, { minX: -138, maxX: 77, minZ: -133, maxZ: 270 });
+  assert.deepEqual(EXPLORATION_BOUNDS, { minX: -138, maxX: 455, minZ: -415, maxZ: 270 });
   assert.deepEqual(WONDER_MAP, { width: 230, depth: 264, centerX: -31, centerZ: -8 });
   assert.ok(OFFSHORE_DOCK.z + OFFSHORE_DOCK.depth / 2 <= 64);
   assert.ok(OFFSHORE_BRIDGE.z - OFFSHORE_BRIDGE.depth / 2 <= WORLD_BOUNDS.maxZ);
@@ -177,3 +177,4 @@ test('plain snapshots include vessel plan/seats and roster reacts only to member
   assert.equal(rosterSignature([s]), rosterSignature([{ ...s, x: 77, offshoreSeq: 999 }]));
   assert.equal(canBoardOffshore({ ...OFFSHORE_ARRIVAL, y: 10 }, {}, h.time()), false);
 });
+

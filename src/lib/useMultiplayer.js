@@ -79,6 +79,7 @@ export function snapshotFromState(state, selfId) {
     if (!Number.isFinite(player.x) || !Number.isFinite(player.z)) return;
     players.push({
       id: String(id), guestId: player.guestId, name: player.name,
+      railX:player.railX||0,railZ:player.railZ||0,railYaw:player.railYaw||0,spaceMode:player.spaceMode||"ground", spaceStartAt:player.spaceStartAt||0,spaceSeq:player.spaceSeq??-1,orbitX:player.orbitX||0,orbitY:player.orbitY||0,orbitZ:player.orbitZ||0,
       x: player.x, z: player.z, yaw: Number.isFinite(player.yaw) ? player.yaw : 0,
       y: Number.isFinite(player.y) ? Math.max(0, player.y) : 0,
       vy: Number.isFinite(player.vy) ? player.vy : 0,
@@ -93,7 +94,7 @@ export function snapshotFromState(state, selfId) {
       serverTick: Number.isFinite(state.tick) ? state.tick : 0,
     });
   });
-  return { players, selfId, tick: Number.isFinite(state?.tick) ? state.tick : 0,
+  return { players, selfId, railEpoch:state?.railEpoch||0,railFrom:state?.railFrom||0, tick: Number.isFinite(state?.tick) ? state.tick : 0,
     offshoreStartAt: Number.isFinite(state?.offshoreStartAt) ? state.offshoreStartAt : 0,
     offshoreReturnAt: Number.isFinite(state?.offshoreReturnAt) ? state.offshoreReturnAt : 0,
     serverTime: Number.isFinite(state?.serverTime) ? state.serverTime : 0,
@@ -453,6 +454,13 @@ export default function useMultiplayer() {
     return true;
   }, []);
 
+  const spaceSequence=useRef(-1);
+  const sendSpace=useCallback(action=>{
+    if(statusRef.current!=='connected'||!roomRef.current?.connection?.isOpen||!['ascend','descend','rail-board','rail-exit','rail-depart','rail-call'].includes(action))return false;
+    const self=snapshotRef.current.players.find(p=>p.id===roomRef.current.sessionId);
+    const seq=Math.max(spaceSequence.current,self?.spaceSeq??-1)+1;spaceSequence.current=seq;
+    roomRef.current.send(MESSAGE.SPACE,{action,seq});return true;
+  },[]);
   const sendOffshore = useCallback(action => {
     if (statusRef.current !== 'connected' || !roomRef.current?.connection?.isOpen || !OFFSHORE_ACTIONS.includes(action)) return false;
     const self = snapshotRef.current.players.find(p => p.id === roomRef.current.sessionId);
@@ -514,6 +522,6 @@ export default function useMultiplayer() {
     status, error, code, players, selfId, snapshotRef, initialNickname, inviteCode,
     createRoom: useCallback(name => connect('create', name), [connect]),
     joinRoom: useCallback((roomCode, name) => connect('join', name, roomCode), [connect]),
-    leaveRoom, sendInput, travel, sendOffshore, offshoreNoticeRef,
+    leaveRoom, sendInput, travel, sendSpace, sendOffshore, offshoreNoticeRef,
   };
 }

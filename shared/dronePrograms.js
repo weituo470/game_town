@@ -7,8 +7,8 @@ import { BLACK_HOLE_CHAPTERS, BLACK_HOLE_DURATION, sampleBlackHoleShow, updateBl
 // and a reflective probe after the same 4096 lamps have formed a cube.
 export const DRONE_PROGRAMS = Object.freeze([
   Object.freeze({ id: 'avatar', title: '法天象地', chapters: DRONE_CHAPTERS, duration: DRONE_DURATION,
-    subtitle: '幼年悟空 · 如意凌空 · 四阶失重',
-    description: '蓝焰翼龙化作幼年孙悟空：刺猬头、蓝色武道服与红色如意棒由星光织成。四批机群依次失重、同拍复燃，最后完整归航。支持编队第一视角。',
+    subtitle: '幼年悟空 · 四阶失重 · 球幕守卫',
+    description: '蓝焰翼龙化作幼年孙悟空，四批机群依次失重、同拍复燃。球幕小人全程变色追望；归航时 UFO 闯入，被它锁定、双眼蓄能击落到远海。支持编队第一视角。',
     heroTime: 76000, highlightTime: DRONE_STUNT.fallStart - 2000, recoveryTime: DRONE_STUNT.brakeStart,
     dragonTime: DRONE_DRAGON.formed + 4000, dragonLabel: '蓝焰翼龙',
     heroLabel: '直达法相', highlightLabel: '直达失重', recoveryLabel: '贴海复燃', supportsFpv: true,
@@ -30,7 +30,7 @@ export const DRONE_PROGRAMS = Object.freeze([
     description: '日常漫游时偶尔浮现在小镇天际的黑洞与吸积盘，片刻后消散。不会进入专门观演或改变玩家操作。',
     heroTime: 35000, highlightTime: 50000, recoveryTime: 70000,
     heroLabel: '黑洞成形', highlightLabel: '光环盛景', recoveryLabel: '凝望深空', supportsFpv: false, supportsAudio: false,
-    note: '环境天象，不由无人机组成。开源版采用原创暗核与光环效果，静默出现并消散；这是实时艺术化可视化，并非精确天体物理模拟。' }),
+    note: '环境天象，不由无人机组成。沿用官网黑洞视觉，静默出现并消散；引力透镜与吸积盘为实时艺术化可视化，并非精确天体物理模拟。' }),
 ]);
 
 // Internal score compatibility is separate from the public programme menu.

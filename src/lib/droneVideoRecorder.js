@@ -134,6 +134,11 @@ export function createDroneVideoRecorder(options = {}) {
     const elapsed = Math.max(0, now() - run.startedAt);
     if (elapsed >= maxDurationMs) { void stop('duration-limit').catch(() => {}); return; }
     if (elapsed - run.lastFrameAt < 1000 / 30 - .5) return;
+    const presentationTick = run.frames === 0 ? 0 : Math.max(1, Math.floor(elapsed * 30 / 1000));
+    // Clock jitter can pass the 32.83ms sampling tolerance twice within one
+    // quantized 30fps slot. Drop that duplicate slot; do NOT increment a clock
+    // or stretch the music just to make the timestamps unique.
+    if (run.backend === 'webcodecs' && presentationTick <= run.lastPresentationTick) return;
     if (!run.canvas?.width || !run.canvas?.height) return;
     try {
       const scale = Math.min(run.width / run.canvas.width, run.height / run.canvas.height);
@@ -145,7 +150,8 @@ export function createDroneVideoRecorder(options = {}) {
       else {
         // Capture synchronously, before Three clears its drawing buffer; await
         // encoder backpressure before accepting another frame. Never queue frames.
-        const timestamp = run.frames === 1 ? 0 : Math.max(1 / 30, Math.floor(elapsed * 30 / 1000) / 30);
+        const timestamp = presentationTick / 30;
+        run.lastPresentationTick = presentationTick;
         run.encoding = Promise.resolve(run.source.add(timestamp, 1 / 30));
         run.encoding.then(() => { run.encoding = null; }, error => { run.encoding = null; fail(run, videoError('ENCODER_ERROR', `MP4 编码失败：${error?.message || '浏览器编码器不可用'}`)); });
       }
@@ -190,7 +196,7 @@ export function createDroneVideoRecorder(options = {}) {
     revokeResult();
     const { width, height } = droneVideoDimensions(input.width, input.height);
     const run = { ...input, width, height, generation: ++generation, format: input.format || 'mp4', bitrate: width > 1280 ? 6000000 : 4000000,
-      frames: 0, bytes: 0, parts: [], listeners: [], lastFrameAt: -Infinity, encoding: null, startedAt: null, cancelled: false, error: null, result: null, abort: new AbortController() };
+      frames: 0, bytes: 0, parts: [], listeners: [], lastFrameAt: -Infinity, lastPresentationTick: -1, encoding: null, startedAt: null, cancelled: false, error: null, result: null, abort: new AbortController() };
     current = run; announce(run, 'preparing', { result: null });
     run.startPromise = (async () => {
       try {

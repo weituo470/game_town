@@ -6,13 +6,18 @@ import { RenderPass } from 'three/addons/postprocessing/RenderPass.js';
 import { SAOPass } from 'three/addons/postprocessing/SAOPass.js';
 import { UnrealBloomPass } from 'three/addons/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/addons/postprocessing/OutputPass.js';
-import { sampleDayNight } from '../../../shared/dayNight.js';
 import { notifyDroneVideoFrame } from '../../lib/droneVideoFrame.js';
 import { createFrameBudget, sampleFrameBudget, sceneRenderProfile, setSceneRenderRatio } from '../drone/dronePerformance.js';
 
 // All effects use the installed Three renderer. No second canvas, remote assets,
 // replacement game loop, or changes to the authoritative simulation are needed.
 export class HalfResolutionAO extends SAOPass {
+  constructor(...args){
+    super(...args);
+    // HDR AO must never multiply scene colour by a negative number. Limit
+    // contact darkening rather than creating black/cyan silhouette halos.
+    this.saoMaterial.fragmentShader=this.saoMaterial.fragmentShader.replace('1.0 - ambientOcclusion','1.0 - clamp(ambientOcclusion, 0.0, 0.35)');
+  }
   setSize(width, height) { super.setSize(Math.ceil(width / 2), Math.ceil(height / 2)); }
   render(renderer, writeBuffer, readBuffer, ...rest) {
     // SAOPass updates near/far on every render, but snapshots the inverse
@@ -27,55 +32,22 @@ export class HalfResolutionAO extends SAOPass {
         object.visible = false;
       }
     });
+    // SAO distances are normalized to camera.far. Keep their physical scale
+    // at the original town's 420 m range when the space camera sees farther.
+    const {saoScale,saoMinResolution,saoBlurDepthCutoff}=this.params;
+    const ratio=this.camera.far/420;
+    this.params.saoScale=saoScale*ratio;
+    this.params.saoMinResolution=saoMinResolution/ratio;
+    this.params.saoBlurDepthCutoff=saoBlurDepthCutoff*(420-this.camera.near)/(this.camera.far-this.camera.near);
     try { super.render(renderer, writeBuffer, readBuffer, ...rest); }
-    finally { hidden.forEach(object => { object.visible = true; }); }
+    finally {
+      Object.assign(this.params,{saoScale,saoMinResolution,saoBlurDepthCutoff});
+      hidden.forEach(object => { object.visible = true; });
+    }
   }
 }
 
-export function GardenFireflies({ reducedMotion, timeRef }) {
-  const material = useRef();
-  const points = useRef();
-  const positions = useMemo(() => {
-    const result = [];
-    for (let i = 0; i < 28; i++) {
-      const side = i % 2 ? 1 : -1;
-      result.push(side * (10.8 + Math.sin(i * 6.3) * 2.3), 0.9 + (i % 7) * 0.43, Math.sin(i * 2.4) * 11.8);
-    }
-    return new Float32Array(result);
-  }, []);
-  const uniforms = useMemo(() => ({ time: { value: 0 }, pixelRatio: { value: 1 }, nightOpacity: { value: 0 } }), []);
-  useFrame(({ clock, gl }) => {
-    if (!material.current) return;
-    material.current.uniforms.time.value = reducedMotion ? 0 : clock.elapsedTime;
-    material.current.uniforms.pixelRatio.value = gl.getPixelRatio();
-    material.current.uniforms.nightOpacity.value = sampleDayNight(timeRef?.current ?? 0).nightOpacity;
-    if (points.current) points.current.visible = material.current.uniforms.nightOpacity.value > 0.01;
-  });
-  return <points ref={points} frustumCulled={false}>
-    <bufferGeometry><bufferAttribute attach="attributes-position" args={[positions, 3]} /></bufferGeometry>
-    <shaderMaterial ref={material} uniforms={uniforms} transparent depthWrite={false} blending={THREE.AdditiveBlending}
-      vertexShader={`
-        uniform float time; uniform float pixelRatio; varying float glow;
-        void main() {
-          vec3 p = position;
-          float phase = position.x * 1.7 + position.z;
-          p.x += sin(time * .23 + phase) * .3;
-          p.y += sin(time * .42 + phase) * .24;
-          glow = .45 + .35 * sin(time * .7 + phase);
-          gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.);
-          gl_PointSize = (3. + glow * 3.) * pixelRatio;
-        }`}
-      fragmentShader={`
-        varying float glow; uniform float nightOpacity;
-        void main() {
-          float d = length(gl_PointCoord - .5) * 2.;
-          float alpha = pow(max(0., 1. - d), 2.) * glow * nightOpacity;
-          gl_FragColor = vec4(2.2, 1.65, .65, alpha);
-        }`} />
-  </points>;
-}
-
-export default function SceneEffects({ performanceMode = 'town', faithfulBlackHole = false }) {
+export default function SceneEffects({ spaceRuntime, performanceMode = 'town', faithfulBlackHole = false }) {
   const { gl, scene, camera, size, invalidate } = useThree();
   const pipeline = useRef(null);
   const shadowElapsed = useRef(0);
@@ -146,6 +118,7 @@ export default function SceneEffects({ performanceMode = 'town', faithfulBlackHo
       composer.setPixelRatio(profile.pixelRatio);
       composer.setSize(dimensions.width, dimensions.height);
       setSceneRenderRatio(gl, profile.pixelRatio);
+      state.aoAllowed = profile.ao;
       if (ao) ao.enabled = profile.ao;
       gl.domElement.dataset.visualQuality = profile.quality;
       gl.domElement.dataset.effectsDpr = String(profile.pixelRatio);
@@ -179,6 +152,7 @@ export default function SceneEffects({ performanceMode = 'town', faithfulBlackHo
     const state = pipeline.current;
     gl.info.reset();
     if (!state) { gl.render(scene, camera); notifyDroneVideoFrame(gl.domElement); return; }
+    if(state.ao){state.ao.enabled=state.aoAllowed&&(!spaceRuntime?.current?.mode||spaceRuntime.current.mode==='ground');gl.domElement.dataset.ambientOcclusion=state.ao.enabled?'on':'off-space';}
     state.composer.render(delta);
     notifyDroneVideoFrame(gl.domElement);
     // The budget changes only after sustained slow frames, never on a single

@@ -1,6 +1,9 @@
 import { useMemo, useRef } from 'react';
 import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
+import { REALISTIC_ISLAND, inRealisticIsland } from '../../../shared/realistic-island.js';
+import { METRO_ISLAND, inMetroIsland } from '../../../shared/metro-island.js';
+import { groundHeight } from '../../../shared/world.js';
 import { sampleDayNight } from '../../../shared/dayNight.js';
 
 // Extend aerial exploration visibility without changing the established
@@ -129,7 +132,7 @@ export function updateSkyMaterial(material, { camera, size, clock }, state, redu
 }
 
 /** All atmospheric work uses refs/uniforms, never per-frame React updates. */
-export default function TownSky({ timeRef, reducedMotion = false, viewMode = 'overview', playerPoseRef, outdoorSelected = null }) {
+export default function TownSky({ spaceRuntime, timeRef, reducedMotion = false, viewMode = 'overview', playerPoseRef, outdoorSelected = null }) {
   const ambient = useRef();
   const hemisphere = useRef();
   const sun = useRef();
@@ -145,7 +148,8 @@ export default function TownSky({ timeRef, reducedMotion = false, viewMode = 'ov
   }), []);
   useFrame(frame => {
     const state = sampleDayNight(timeRef?.current ?? 0);
-    updateSkyMaterial(material.current, frame, state, reducedMotion);
+    const space=spaceRuntime?.current.mode && spaceRuntime.current.mode!=="ground" ? THREE.MathUtils.smoothstep(frame.camera.position.y,700,2800):0;
+    updateSkyMaterial(material.current, frame, {...state,daylight:state.daylight*(1-space),nightOpacity:Math.max(state.nightOpacity,space)}, reducedMotion);
     if (ambient.current) ambient.current.intensity = state.ambientIntensity;
     if (hemisphere.current) {
       hemisphere.current.intensity = state.hemisphereIntensity;
@@ -153,7 +157,16 @@ export default function TownSky({ timeRef, reducedMotion = false, viewMode = 'ov
       hemisphere.current.groundColor.copy(colors.nightGround).lerp(colors.dayGround, state.daylight);
     }
     if (sun.current) {
-      sun.current.position.set(...state.sunDirection).multiplyScalar(160);
+      const p = playerPoseRef?.current;
+      const islandFocus = viewMode === 'island' || (['follow', 'first-person'].includes(viewMode) && p && inRealisticIsland(p.x, p.z));
+      const metroFocus = viewMode === 'metro' || (['follow', 'first-person'].includes(viewMode) && p && inMetroIsland(p.x, p.z));
+      const fx = metroFocus ? (viewMode === 'metro' ? METRO_ISLAND.x : p.x) : islandFocus ? (viewMode === 'island' ? REALISTIC_ISLAND.x : p.x) : 0;
+      const fz = metroFocus ? (viewMode === 'metro' ? METRO_ISLAND.z : p.z) : islandFocus ? (viewMode === 'island' ? REALISTIC_ISLAND.z : p.z) : 0;
+      const fy = metroFocus ? 35 : islandFocus ? (viewMode === 'island' ? 12 : groundHeight(p.x, p.z)) : 0;
+      sun.current.target.position.set(fx, fy, fz); sun.current.target.updateMatrixWorld();
+      sun.current.position.set(...state.sunDirection).multiplyScalar(metroFocus ? 300 : 160).add(sun.current.target.position);
+      const shadow = sun.current.shadow.camera, extent = metroFocus ? 190 : 105, far = metroFocus ? 520 : 360;
+      if (shadow.right !== extent || shadow.far !== far) { shadow.left = -extent; shadow.right = extent; shadow.top = extent; shadow.bottom = -extent; shadow.far = far; shadow.updateProjectionMatrix(); sun.current.shadow.needsUpdate = true; }
       sun.current.intensity = state.sunIntensity;
       sun.current.color.copy(colors.duskSun).lerp(colors.daySun, state.daylight);
       sun.current.castShadow = state.sunIntensity > 0.01;
@@ -164,7 +177,7 @@ export default function TownSky({ timeRef, reducedMotion = false, viewMode = 'ov
     }
     if (fog.current) {
       fog.current.color.copy(colors.nightFog).lerp(colors.dayFog, state.daylight);
-      const offset = explorationFogOffset(viewMode, frame.camera.position.y, playerPoseRef?.current?.y, !!outdoorSelected, frame.camera.isPerspectiveCamera === true);
+      const offset = viewMode === 'metro' ? 850 : viewMode === 'island' ? 300 : explorationFogOffset(viewMode, frame.camera.position.y, playerPoseRef?.current?.y, !!outdoorSelected, frame.camera.isPerspectiveCamera === true);
       fog.current.near = 175 + offset;
       fog.current.far = 340 + offset;
     }

@@ -1,3 +1,4 @@
+import { MIDNIGHT_MS } from '../shared/dayNight.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
@@ -39,7 +40,7 @@ function harness({ clock = createAmbientBlackHoleClock({ random: () => 0 }) } = 
     visuals.push(visual); return visual;
   }
   const runtime = createAmbientBlackHoleRuntime({ scene, gl, clock, createVisual, onAppearance: id => appearances.push(id) });
-  const frame = (delta = 0, options = {}) => runtime.frame({ delta, camera, size, enabled: true, worldTimeMs: 90000, ...options });
+  const frame = (delta = 0, options = {}) => runtime.frame({ delta, camera, size, enabled: true, worldTimeMs: MIDNIGHT_MS, ...options });
   const advance = seconds => { let state; for (let i = 0; i < seconds; i += 1) state = frame(1); return state; };
   return { runtime, scene, gl, camera, clock, visuals, appearances, frame, advance };
 }

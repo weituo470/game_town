@@ -2,9 +2,12 @@ import { Suspense, lazy, createContext, useCallback, useContext, useEffect, useM
 import { Canvas, useFrame } from '@react-three/fiber';
 import { Html, PerspectiveCamera, RoundedBox } from '@react-three/drei';
 import DuskScenery from './DuskScenery';
+const SpaceWorld = lazy(()=>import('./space/SpaceWorld.jsx'));
+const SpaceHUD = lazy(()=>import('./space/SpaceHUD.jsx'));
 const PlayerController = lazy(() => import('./town/PlayerController.jsx'));
 const ArchitectWorld = lazy(() => import('./architect/ArchitectWorld.jsx'));
-import SceneEffects, { GardenFireflies } from './town/SceneEffects';
+import SceneEffects from './town/SceneEffects';
+const GardenFireflies=lazy(()=>import('./town/GardenFireflies.jsx')); 
 import SoftPenumbra from './town/SoftPenumbra';
 import TownResidents from './town/characters/Residents';
 import LandmarkFountain from './town/landmarks/LandmarkFountain.jsx';
@@ -15,9 +18,15 @@ import GptPark from './town/GptPark.jsx';
 import GeneratedPlayerModel from './town/GeneratedPlayerModel.jsx';
 import OutdoorScenery from './town/OutdoorScenery.jsx';
 import JetpackRig from './town/JetpackRig.jsx';
-import DroneShow, { DroneCamera } from './drone/DroneShow.jsx';
+// Festival glyphs and spectator-only geometry do not delay the playable town.
+const DroneShow = lazy(() => import('./drone/DroneShow.jsx'));
+const DroneCamera = lazy(() => import('./drone/DroneShow.jsx').then(module => ({ default: module.DroneCamera })));
 import AmbientBlackHole from './town/AmbientBlackHole.jsx';
-import { FOUNTAIN } from '../../shared/world.js';
+import { FOUNTAIN, groundHeight } from '../../shared/world.js';
+import IslandGate from './island/IslandGate.jsx';
+import MetroGate from './metro/MetroGate.jsx';
+const MetroCamera = lazy(() => import('./metro/MetroCamera.jsx'));
+const IslandCamera = lazy(() => import('./island/IslandCamera.jsx'));
 import './town.css';
 const CarrierBattleScene = lazy(() => import('./drone/CarrierBattleScene.jsx'));
 // The distant island must not block the first playable town frame or inflate
@@ -52,15 +61,17 @@ function AvatarVisual({ poseRef, reducedMotion, name = '', color = '#ec815d', se
   const groundRing = useRef();
   const walkTime = useRef(0);
 
-  useFrame((_, frameDelta) => {
+  useFrame((frame, frameDelta) => {
     const pose = poseRef.current;
     const moving = !!pose.moving;
     const height = Number.isFinite(pose.y) ? Math.max(0, pose.y) : 0;
-    const airborne = height > 0.015 && !pose.aboard;
+    const terrainHeight = groundHeight(pose.x, pose.z);
+    if (self) frame.gl.domElement.dataset.islandExplorer = JSON.stringify({ x: pose.x, y: height, z: pose.z, ground: terrainHeight, moving, thrusting: !!pose.thrusting, hovering: !!pose.hovering });
+    const airborne = pose.spaceMode==='orbit' ? (pose.orbitY||0)>.015 : height - terrainHeight > 0.015 && !pose.aboard && pose.spaceMode!=='rail';
     if (moving) walkTime.current += Math.min(frameDelta, 0.04) * 12;
     if (player.current) {
       player.current.position.set(pose.x, height, pose.z);
-      player.current.rotation.y = pose.yaw;
+      if(pose.spaceMode&&pose.spaceMode!=='ground'&&Array.isArray(pose.orientation))player.current.quaternion.fromArray(pose.orientation);else player.current.rotation.set(0,pose.yaw||0,0);
     }
     const swing = moving && !airborne && !reducedMotion ? Math.sin(walkTime.current) * 0.52 : 0;
     if (leftLeg.current) leftLeg.current.rotation.x = airborne ? -0.28 : swing;
@@ -69,9 +80,9 @@ function AvatarVisual({ poseRef, reducedMotion, name = '', color = '#ec815d', se
     if (rightArm.current) rightArm.current.rotation.x = pose.activity === 'fishing' ? pose.fishingPhase === 'casting' ? -0.5-Math.sin(Math.min(1,pose.fishingTime/0.65)*Math.PI)*0.8 : -0.85 : airborne ? -0.7 : swing * 0.8;
     if (body.current) body.current.position.y = moving && !airborne && !reducedMotion ? Math.abs(Math.sin(walkTime.current)) * 0.045 : 0;
     if (groundRing.current) {
-      groundRing.current.visible = !pose.aboard;
-      groundRing.current.position.y = 0.09 - height;
-      groundRing.current.material.opacity = Math.max(0.4, 0.85 - height * 0.2);
+      groundRing.current.visible = !pose.aboard && (!pose.spaceMode || pose.spaceMode === "ground");
+      groundRing.current.position.y = 0.09 + terrainHeight - height;
+      groundRing.current.material.opacity = Math.max(0.4, 0.85 - Math.max(0, height - terrainHeight) * 0.2);
     }
   });
 
@@ -145,46 +156,53 @@ function Scene({ onReady, ...props }) {
   const readyFrames = useRef(0);
   const playerPoseRef = useRef(null);
   const droneFleetRef = useRef(null);
-  const carrierBattle = props.viewMode === 'drone' && props.droneFpv?.program === 'carrier-battle';
+  const stageActive = props.viewMode === 'drone' || (props.nightShow ? props.nightShow.active : true);
+  const carrierBattle = stageActive && props.droneFpv?.program === 'carrier-battle';
   // A deep-linked show starts after a real scene frame, not while materials
   // are compiling. Slow first loads must not silently skip the opening beat.
   useFrame(() => { if (++readyFrames.current === 2) ready.current?.(); });
   return <>
-    {!props.outdoorSelected && ['follow', 'first-person', 'wonder', 'drone', 'sphere', 'offshore'].includes(props.viewMode) && <PerspectiveCamera makeDefault fov={58} near={0.08} far={420} position={[0, 2.3, 15.1]} />}
-    <TownSky timeRef={props.timeRef} reducedMotion={props.reducedMotion} viewMode={props.viewMode} playerPoseRef={playerPoseRef} outdoorSelected={props.outdoorSelected} />
+    {!props.outdoorSelected && ['follow', 'first-person', 'wonder', 'drone', 'sphere', 'offshore', 'island', 'metro'].includes(props.viewMode) && <PerspectiveCamera makeDefault fov={58} near={0.08} far={420} position={[0, 2.3, 15.1]} />}
+    <TownSky spaceRuntime={props.spaceRuntime} timeRef={props.timeRef} reducedMotion={props.reducedMotion} viewMode={props.viewMode} playerPoseRef={playerPoseRef} outdoorSelected={props.outdoorSelected} />
     <Suspense fallback={null}><TownEnvironment timeRef={props.timeRef}/></Suspense>
     <DuskScenery timeRef={props.timeRef} reducedMotion={props.reducedMotion} completedIds={props.completedIds} overview={props.viewMode !== 'follow'} />
     <LandmarkFountain position={[FOUNTAIN.x, 0, FOUNTAIN.z]} reducedMotion={props.reducedMotion} />
     <WonderIslands timeRef={props.npcTimeRef} battleTimeRef={carrierBattle ? props.droneTimeRef : null} lightTimeRef={props.timeRef} reducedMotion={props.reducedMotion} playerPoseRef={playerPoseRef} onNearestWonder={props.onNearestWonder} viewMode={props.viewMode}/>
     <GptPark timeRef={props.npcTimeRef} reducedMotion={props.reducedMotion} viewMode={props.viewMode} onSelect={props.active?props.onGptSelect:undefined}/>
     <Suspense fallback={null}><DeepSeekPark timeRef={props.npcTimeRef} reducedMotion={props.reducedMotion} onSelect={props.active ? props.onDeepSeekSelect : undefined}/></Suspense>
-    <Suspense fallback={null}><SphereLandmark timeRef={props.npcTimeRef} lightTimeRef={props.timeRef} reducedMotion={props.reducedMotion} mode={props.sphereMode} bubbleCue={props.sphereBubbleCue} onSelect={props.active ? props.onSphereSelect : undefined}/></Suspense>
+    <Suspense fallback={null}><SphereLandmark showTimeRef={stageActive && (props.droneFpv?.program || 'avatar') === 'avatar' ? props.droneTimeRef : null} timeRef={props.npcTimeRef} lightTimeRef={props.timeRef} reducedMotion={props.reducedMotion} mode={props.sphereMode} bubbleCue={props.sphereBubbleCue} onSelect={props.active ? props.onSphereSelect : undefined}/></Suspense>
     <Suspense fallback={null}><OffshoreIsland offshoreRef={props.offshoreRef} lightTimeRef={props.timeRef} reducedMotion={props.reducedMotion} onSelect={props.active ? props.onOffshoreSelect : undefined}/></Suspense>
+    <Suspense fallback={null}><SpaceWorld runtime={props.spaceRuntime} playerPoseRef={playerPoseRef} network={props.network} viewMode={props.viewMode} active={props.active} timeRef={props.timeRef} reducedMotion={props.reducedMotion}/></Suspense>
+    <MetroGate viewMode={props.viewMode} playerPoseRef={playerPoseRef} reducedMotion={props.reducedMotion} timeRef={props.timeRef} motionTimeRef={props.npcTimeRef} onStatus={props.onMetroStatus} revision={props.metroRevision}/>
+    <IslandGate viewMode={props.viewMode} playerPoseRef={playerPoseRef} reducedMotion={props.reducedMotion} timeRef={props.npcTimeRef}/>
     <SoftPenumbra size={18} samples={8} focus={0.4} />
     <GardenFireflies timeRef={props.timeRef} reducedMotion={props.reducedMotion} />
     <OutdoorScenery runtimeRef={props.outdoorRef} onStart={props.onOutdoorStart} playing={props.outdoorSelected} active={props.active} reducedMotion={props.reducedMotion}/>
     <TownResidents reducedMotion={props.reducedMotion} onInspect={props.onInspectResidents} timeRef={props.npcTimeRef} playerPoseRef={playerPoseRef} onNearestNpc={props.onNearestNpc} nearestNpcId={props.nearestNpcId} viewMode={props.viewMode} active={props.active && !props.outdoorSelected} />
     <Suspense fallback={null}><ArchitectWorld projects={props.architectProjects} onInspect={props.onArchitectSelect} reducedMotion={props.reducedMotion} viewMode={props.viewMode}/><PlayerController Model={PlayerModel} {...props} playerPoseRef={playerPoseRef} /></Suspense>
-    {carrierBattle ? <Suspense fallback={null}><CarrierBattleScene timeRef={props.droneTimeRef} reducedMotion={props.reducedMotion}/></Suspense> : <DroneShow aiRuntime={props.viewMode === 'drone' ? props.droneFpv?.aiRuntime : undefined} program={props.viewMode === 'drone' ? props.droneFpv?.program || 'avatar' : 'avatar'} timeRef={props.droneTimeRef || props.npcTimeRef} reducedMotion={props.reducedMotion} fleetRef={droneFleetRef} onSeatsReady={props.droneFpv?.onSeatsReady} firstPersonSeatId={props.viewMode==='drone'&&props.droneFpv?.view==='fpv'&&!props.reducedMotion?props.droneFpv?.seatId??'':null}/>}
+    {stageActive && (carrierBattle ? <Suspense fallback={null}><CarrierBattleScene timeRef={props.droneTimeRef} reducedMotion={props.reducedMotion}/></Suspense> : <Suspense fallback={null}><DroneShow aiRuntime={props.droneFpv?.aiRuntime} program={props.droneFpv?.program || 'avatar'} ambient={props.viewMode !== 'drone'} timeRef={props.droneTimeRef || props.npcTimeRef} reducedMotion={props.reducedMotion} fleetRef={droneFleetRef} onSeatsReady={props.droneFpv?.onSeatsReady} firstPersonSeatId={props.viewMode==='drone'&&props.droneFpv?.view==='fpv'&&!props.reducedMotion?props.droneFpv?.seatId??'':null}/></Suspense>)}
     {props.viewMode === 'offshore' && <Suspense fallback={null}><OffshoreCamera runtimeRef={props.offshoreRef} view={props.offshoreView} reducedMotion={props.reducedMotion}/></Suspense>}
     {props.viewMode === 'sphere' && <Suspense fallback={null}><SphereCamera timeRef={props.npcTimeRef} reducedMotion={props.reducedMotion} orbit={props.sphereOrbit}/></Suspense>}
-    {props.viewMode === 'drone' && <DroneCamera timeRef={props.droneTimeRef} reducedMotion={props.reducedMotion} fleetRef={droneFleetRef} {...props.droneFpv}/>}
+    {props.viewMode === 'drone' && <Suspense fallback={null}><DroneCamera timeRef={props.droneTimeRef} reducedMotion={props.reducedMotion} fleetRef={droneFleetRef} {...props.droneFpv}/></Suspense>}
+    {props.viewMode === 'metro' && <Suspense fallback={null}><MetroCamera shot={props.metroShot}/></Suspense>}
+    {props.viewMode === 'island' && <Suspense fallback={null}><IslandCamera shot={props.islandShot}/></Suspense>}
     <AmbientBlackHole enabled={props.active && !props.outdoorSelected && ['overview', 'follow', 'first-person'].includes(props.viewMode)} timeRef={props.timeRef} reducedMotion={props.reducedMotion} onAppearance={props.onSkyAppearance} />
-    <SceneEffects performanceMode={props.viewMode === 'drone' ? 'drone' : 'town'} faithfulBlackHole={props.viewMode === 'drone' && props.droneFpv?.program === 'blackhole'} />
+    <SceneEffects spaceRuntime={props.spaceRuntime} performanceMode={props.viewMode === 'drone' ? 'drone' : 'town'} faithfulBlackHole={props.viewMode === 'drone' && props.droneFpv?.program === 'blackhole'} />
   </>;
 }
 
-export default function Town({ architectProjects, onArchitectSelect, suspended = false, active = true, inputRef, destination = null, onNearest, onReady, reducedMotion = false, completedIds = [], network = null, onInspectResidents, viewMode = 'overview', onStartExploring, onLookStatus, timeRef, npcTimeRef, droneTimeRef, droneFpv, onNearestNpc, nearestNpcId, characterAsset = null, onNearestWonder, outdoorRef, outdoorSelected, onOutdoorStart, onNearestOutdoor, flightRef, onFlyingChange, onGptSelect, onDeepSeekSelect, onSkyAppearance, sphereMode = 'smile', sphereBubbleCue = 0, onNearestOffshoreDock, sphereOrbit = false, onSphereSelect, offshoreRef, offshoreView = 'director', offshoreAboard = false, onOffshoreSelect }) {
+export default function Town({ onSpaceEnter, onSpaceExit, onSpaceStatus, architectProjects, onArchitectSelect, suspended = false, active = true, inputRef, destination = null, onNearest, onReady, reducedMotion = false, completedIds = [], network = null, onInspectResidents, viewMode = 'overview', onStartExploring, onLookStatus, timeRef, npcTimeRef, nightShow, droneTimeRef, droneFpv, onNearestNpc, nearestNpcId, characterAsset = null, onNearestWonder, outdoorRef, outdoorSelected, onOutdoorStart, onNearestOutdoor, flightRef, onFlyingChange, onGptSelect, onDeepSeekSelect, onSkyAppearance, sphereMode = 'smile', sphereBubbleCue = 0, onNearestOffshoreDock, sphereOrbit = false, onSphereSelect, offshoreRef, offshoreView = 'director', offshoreAboard = false, onOffshoreSelect, islandShot = 'aerial', metroShot = 'skyline', metroRevision = 0, onMetroStatus }) {
+  const spaceRuntime=useRef({mode:"ground",loaded:false,input:{x:0,z:0}});
   const [characterStatus, setCharacterStatus] = useState(null);
   const characterKey = characterAsset ? `${characterAsset.modelUrl}|${characterAsset.walkingUrl}|${characterAsset.facing}` : '';
   const localCharacter = useMemo(() => ({ asset: characterAsset, key: characterKey, onStatus: status => setCharacterStatus({ ...status, key: characterKey }) }), [characterAsset, characterKey]);
   const modelState = characterStatus?.key === characterKey ? characterStatus.state : 'loading';
   const showCharacterStatus = characterAsset && ['loading', 'error'].includes(modelState);
-  return <><div className="town-canvas" role="img" aria-label="可探索的 3D 游戏小镇，地图长宽扩大三倍。十字主街连接中央大喷泉，环街和支路通往四个新区、待建空地及气球靶场、鬼屋探险、节奏舞台和机关工坊。西侧虎鲸湾、东侧航母港与北侧火箭发射场用步桥连接，可从奇观时刻表前往。西北方 DeepSeek 蓝鲸岛与东北方 GPT 园区同样可步行和飞行到达。西侧球幕剧场与虎鲸湾步桥相连，外墙播放表情、眼球、星球和篮球，黄色小人会吹出泡泡，升空变成白云。南岸科考码头连接远海浮动岛，可登船自动巡航返港。16 位居民会在街区活动，靠近按 F 交流。使用方向键开始跟随探索，或查看全镇总览。">
-    <Canvas orthographic shadows frameloop={!suspended && (active || ['drone', 'sphere', 'offshore'].includes(viewMode) || offshoreAboard || network?.status === 'connected') ? 'always' : 'demand'} dpr={[1, 1.5]} camera={{ position: [72, 90, 102], zoom: 6, near: 0.1, far: 420 }} gl={{ antialias: true, powerPreference: 'high-performance' }}>
+  return <><div className="town-canvas" role="img" aria-label="可探索的 3D 游戏小镇：九倍地图、中央喷泉、小游戏街区、NPC、GPT 与 DeepSeek 园区、球幕、无人机夜场和科考船。WASD 移动，空格跳跃或长按喷气，H 悬停，靠近居民按 F 对话。远海电梯站连接真实星环城与农业园；雾岬岛可步行和飞行探索自然山坡。临湾都会有可探索的现代街区和玻璃楼群。所有岛屿与太空共处同一连续世界。">
+    <Canvas orthographic shadows frameloop={!suspended && (active || ['drone', 'sphere', 'offshore', 'island', 'metro'].includes(viewMode) || offshoreAboard || network?.status === 'connected') ? 'always' : 'demand'} dpr={[1, 1.5]} camera={{ position: [72, 90, 102], zoom: 6, near: 0.1, far: 420 }} gl={{ antialias: true, powerPreference: 'high-performance' }}>
       <LocalCharacterContext.Provider value={localCharacter}>
-      <Scene architectProjects={architectProjects} onArchitectSelect={onArchitectSelect} offshoreRef={offshoreRef} offshoreView={offshoreView} onOffshoreSelect={onOffshoreSelect} sphereMode={sphereMode} sphereBubbleCue={sphereBubbleCue} onNearestOffshoreDock={onNearestOffshoreDock} sphereOrbit={sphereOrbit} onSphereSelect={onSphereSelect} active={active} inputRef={inputRef} destination={destination} onNearest={onNearest} onReady={onReady} reducedMotion={reducedMotion} completedIds={completedIds} network={network} onInspectResidents={onInspectResidents} viewMode={viewMode} onStartExploring={onStartExploring} onLookStatus={onLookStatus} timeRef={timeRef} npcTimeRef={npcTimeRef} droneTimeRef={droneTimeRef} droneFpv={droneFpv} onNearestNpc={onNearestNpc} nearestNpcId={nearestNpcId} onNearestWonder={onNearestWonder} outdoorRef={outdoorRef} outdoorSelected={outdoorSelected} onOutdoorStart={onOutdoorStart} onNearestOutdoor={onNearestOutdoor} flightRef={flightRef} onFlyingChange={onFlyingChange} onGptSelect={onGptSelect} onDeepSeekSelect={onDeepSeekSelect} onSkyAppearance={onSkyAppearance}/>
+      <Scene metroShot={metroShot} metroRevision={metroRevision} onMetroStatus={onMetroStatus} islandShot={islandShot} spaceRuntime={spaceRuntime} architectProjects={architectProjects} onArchitectSelect={onArchitectSelect} offshoreRef={offshoreRef} offshoreView={offshoreView} onOffshoreSelect={onOffshoreSelect} sphereMode={sphereMode} sphereBubbleCue={sphereBubbleCue} onNearestOffshoreDock={onNearestOffshoreDock} sphereOrbit={sphereOrbit} onSphereSelect={onSphereSelect} active={active} inputRef={inputRef} destination={destination} onNearest={onNearest} onReady={onReady} reducedMotion={reducedMotion} completedIds={completedIds} network={network} onInspectResidents={onInspectResidents} viewMode={viewMode} onStartExploring={onStartExploring} onLookStatus={onLookStatus} timeRef={timeRef} npcTimeRef={npcTimeRef} nightShow={nightShow} droneTimeRef={droneTimeRef} droneFpv={droneFpv} onNearestNpc={onNearestNpc} nearestNpcId={nearestNpcId} onNearestWonder={onNearestWonder} outdoorRef={outdoorRef} outdoorSelected={outdoorSelected} onOutdoorStart={onOutdoorStart} onNearestOutdoor={onNearestOutdoor} flightRef={flightRef} onFlyingChange={onFlyingChange} onGptSelect={onGptSelect} onDeepSeekSelect={onDeepSeekSelect} onSkyAppearance={onSkyAppearance}/>
       </LocalCharacterContext.Provider>
     </Canvas>
-  </div>{showCharacterStatus && <p className={`generated-character-status ${modelState === 'error' ? 'is-error' : ''}`} role="status">{modelState === 'error' ? '3D 角色未能加载，暂用默认人物。请在“我的角色”中重新预览。' : '正在加载 3D 角色，暂用默认人物…'}</p>}</>;
+  </div><Suspense fallback={null}><SpaceHUD runtime={spaceRuntime} onEnter={onSpaceEnter} onExit={onSpaceExit} onStatus={onSpaceStatus}/></Suspense>{showCharacterStatus && <p className={`generated-character-status ${modelState === 'error' ? 'is-error' : ''}`} role="status">{modelState === 'error' ? '3D 角色未能加载，暂用默认人物。请在“我的角色”中重新预览。' : '正在加载 3D 角色，暂用默认人物…'}</p>}</>;
 }

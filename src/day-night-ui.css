@@ -8,6 +8,19 @@
 .keyboard-hint { flex-wrap: wrap; }
 .map-scale-note { width: max-content; max-width: 100%; margin-left: auto; padding: 4px 7px; border-radius: 5px; background: #202c40ed; }
 .local-note { padding: 3px 7px; border-radius: 5px; background: #202c40ed; }
+.night-programme { margin-bottom: 28px; padding-bottom: 24px; border-bottom: 1px solid #cabc9d; }
+.night-programme h3 { margin: 10px 0; font-size: var(--text-heading, 1.5rem); }
+.night-programme p { font-size: var(--text-body); line-height: 1.8; color: #39463f; }
+.night-programme ol { padding: 0; list-style: none; }
+.night-programme li { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 20px; padding: 12px 0; border-bottom: 1px solid #d7cebc; font-size: var(--text-body); line-height: 1.8; }
+.night-programme li[aria-current="true"] { color: #755019; border-color: #aa7429; }
+.night-programme li span { font-size: var(--text-control); }
+.drone-town-entry { max-width: min(420px, calc(100% - 64px)); text-align: left; }
+@media (max-width: 760px) {
+  .drone-town-entry { max-width: none; }
+  .day-night-controls select { max-width: calc(100% - 68px); }
+  .night-programme li { flex-direction: column; }
+}
 @media (min-width: 761px) and (max-height: 700px) {
   .map-camera-controls { top: 88px; }
 }

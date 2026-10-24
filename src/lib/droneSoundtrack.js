@@ -1,4 +1,4 @@
-import { appUrl } from './appUrl.js';
+import { droneAudioUrl } from './droneAudioUrl.js';
 
 /** One media element, driven by the show's absolute clock; never its own timer. */
 export function createDroneSoundtrack({ url, timeRef, getState, onStatus = () => {},
@@ -8,7 +8,7 @@ export function createDroneSoundtrack({ url, timeRef, getState, onStatus = () =>
 }) {
   const audio = createAudio();
   audio.preload = 'auto'; audio.loop = false; audio.volume = .78;
-  const sourceUrl = appUrl(url);
+  const sourceUrl = droneAudioUrl(url);
   let disposed = false, enabled = true, blocked = false, atEnd = false, frame = null, pending = null, generation = 0, status = '';
   let objectUrl = null, loading = null, download = null;
   const report = (next, message = '') => { if (!disposed && status !== `${next}:${message}`) { status = `${next}:${message}`; onStatus({ status: next, message }); } };

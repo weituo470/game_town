@@ -145,12 +145,12 @@ test('HTTP health/auth/origin/version gates and static traversal', async () => {
   }
 });
 
-test('old map and fixed-passenger protocols cannot create or join a protocol 9 town', async () => {
-  assert.equal(PROTOCOL_VERSION, 9);
+test('old map and fixed-passenger protocols cannot create or join a protocol 11 town', async () => {
+  assert.equal(PROTOCOL_VERSION, 12);
   const host = await connect(await guest('新版地图房主'));
   const identity = await guest('旧版地图客户端');
   const roomsBefore = (await request('/api/health')).body.rooms;
-  for (const protocolVersion of [1, 2, 3, 4, 5, 6, 7, 8]) for (const path of ['/api/towns', '/api/towns/join']) {
+  for (const protocolVersion of [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]) for (const path of ['/api/towns', '/api/towns/join']) {
     const response = await request(path, { ...identity, code: host.code, protocolVersion });
     assert.equal(response.status, 400);
     assert.equal(response.body.code, 'PROTOCOL_MISMATCH');

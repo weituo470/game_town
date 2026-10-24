@@ -77,24 +77,45 @@ async function exportHarness(settings = {}) {
     importCalls++; return importCalls > 1 && settings.importGate?.[importCalls - 2] ? settings.importGate[importCalls - 2].promise : Promise.resolve(module);
   } });
   const controller = () => ({ ...clock, state: clock.snapshot(), start(options) { startCalls++; return clock.start(options); } });
-  function render() { let passes = 0; do { assert.ok(++passes < 12); stateHooks.begin(); tree = Component({ controller: controller(), program: runtime.program, onBusyChange: busyChange }); stateHooks.commit(); } while (stateHooks.dirty); return tree; }
+  function render() { let passes = 0; do { assert.ok(++passes < 12); stateHooks.begin(); tree = Component({ controller: controller(), program: settings.program || runtime.program, onBusyChange: busyChange }); stateHooks.commit(); } while (stateHooks.dirty); return tree; }
   function click(label) { const node = elements(tree).find(item => item.type === 'button' && text(item) === label); assert.ok(node, label); node.props.onClick(); render(); }
   render(); click('导出 MP4'); await flush(); render();
   return { clock, module, recorders, busy, render, click, advance: ms => { time += ms; }, dispose: () => stateHooks.dispose(),
     get tree() { return tree; }, get startCalls() { return startCalls; }, async settle() { await flush(); render(); } };
 }
 
-test('sample library renders three under-two-minute shows and discards late playback after close', async () => {
+test('sample library renders three drone shows plus an original short fireworks show and discards late playback after close', async () => {
   const Static = await component('DroneSampleLibrary');
   const html = renderToStaticMarkup(React.createElement(Static, { onPlay() {} }));
-  for (const value of ['1:48', '1:58', '1:40', '当前会话编排', '无配乐', '原创配乐', '回放零模型调用']) assert.ok(html.includes(value));
-  assert.equal((html.match(/aria-label="观看样板：/g) || []).length, 3);
+  for (const value of ['1:44', '足迹 · 向光而行', '实录爆炸音效', '1:48', '1:58', '1:40', '当前会话编排', '无配乐', '原创配乐', '回放零模型调用']) assert.ok(html.includes(value));
+  assert.equal((html.match(/aria-label="观看样板：/g) || []).length, 4);
   const stateHooks = hooks(), gate = deferred(), played = [];
   const Component = await component('DroneSampleLibrary', { react: stateHooks.react }, { __loadSamples: () => gate.promise });
   stateHooks.begin(); const tree = Component({ onPlay: value => played.push(value) }); stateHooks.commit();
   const buttons = elements(tree).filter(item => item.type === 'button'); buttons[0].props.onClick(); buttons[1].props.onClick();
   stateHooks.dispose(); gate.resolve(samples); await flush();
   assert.equal(played.length, 0, 'an unmounted studio cannot reopen observation');
+});
+
+test('fireworks catalogue shows pending feedback, deduplicates and ignores a late load after close', async () => {
+  const h=hooks(),gate=deferred(),calls=[];let imports=0;
+  const C=await component('DroneInvitation',{react:h.react},{__loadSamples:()=>{imports++;return gate.promise;}});
+  const render=()=>{h.begin();const t=C({onStart:(...args)=>calls.push(args)});h.commit();return t;};
+  let tree=render();const b=elements(tree).find(e=>e.type==='button'&&text(e)==='观看足迹 · 向光而行');
+  b.props.onClick();b.props.onClick();tree=render();assert.equal(imports,1);assert(text(tree).includes('正在准备烟花…'));
+  h.dispose();gate.resolve(samples);await flush();assert.equal(calls.length,0);
+});
+test('fireworks catalogue opens the original runtime without a generation request', async () => {
+  const h=hooks(),calls=[];
+  const C=await component('DroneInvitation',{react:h.react},{__loadSamples:()=>Promise.resolve(samples)});
+  h.begin();const t=C({onStart:(...args)=>calls.push(args)});h.commit();elements(t).find(e=>e.type==='button'&&text(e)==='观看足迹 · 向光而行').props.onClick();await flush();
+  assert.equal(calls.length,1);assert.equal(calls[0][0],'ai');assert.equal(calls[0][1],samples.createDroneSampleRuntime('footsteps-of-light'));h.dispose();
+});
+test('fireworks catalogue reports a failed lazy load and re-enables retry', async () => {
+  const h=hooks();const C=await component('DroneInvitation',{react:h.react},{__loadSamples:()=>Promise.reject(new Error('offline'))});
+  const render=()=>{h.begin();const t=C({onStart(){assert.fail('must not open on failure');}});h.commit();return t;};
+  let t=render();elements(t).find(e=>e.type==='button'&&text(e)==='观看足迹 · 向光而行').props.onClick();await flush();t=render();
+  assert(elements(t).some(e=>e.props.role==='alert'&&text(e).includes('没有调用模型')));assert.equal(elements(t).find(e=>e.type==='button'&&text(e)==='观看足迹 · 向光而行').props.disabled,false);h.dispose();
 });
 
 test('cancel during module loading prevents late encoder allocation and any playback restart', async () => {
@@ -181,4 +202,15 @@ test('real sample HUD exposes the 108-second timeline and locks scrubbing while 
   assert.equal(nodes.find(item => item.type === 'fieldset' && item.props.className === 'drone-playback-lock').props.disabled, true);
   assert.equal(nodes.find(item => item.type === ExportChild).props.program.sampleId, 'phoenix-rebirth');
   stateHooks.dispose();
+});
+
+
+test('avatar MP4 records the selected legacy programme, never switches it into AI', async () => {
+  const program = { id: 'avatar', title: '法天象地', duration: 150000 };
+  const h = await exportHarness({ program });
+  h.click('从头录制 MP4'); await h.settle();
+  assert.equal(h.clock.snapshot().program, 'avatar');
+  assert.equal(h.clock.snapshot().speed, 1);
+  assert.equal(h.recorders.length, 1);
+  h.click('取消录制'); h.dispose();
 });

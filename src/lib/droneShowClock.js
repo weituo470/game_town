@@ -24,10 +24,25 @@ export function createDroneShowClock({ now = defaultNow, duration, allowEncore =
   let reducedMotion = false;
   let program = 'avatar';
   let aiRuntime = null;
+  let mediaMaster = null;
+  const playMedia = () => { try { Promise.resolve(mediaMaster?.play()).catch(() => {}); } catch { /* UI reports the paused media state. */ } };
+  const selectMedia = () => {
+    mediaMaster?.pause();
+    const media = program === 'ai' ? aiRuntime?.mediaMaster : null;
+    mediaMaster = media && typeof media.play === 'function' && typeof media.pause === 'function' && Number.isFinite(media.currentTime) ? media : null;
+    if (mediaMaster) { mediaMaster.currentTime = anchorElapsed / 1000; mediaMaster.playbackRate = speed; if (active && !paused) playMedia(); }
+  };
   const metadata = () => getDroneProgram(program, aiRuntime);
   let encoreFrom = null;
   let pendingEncore = false;
   const current = () => {
+    // Local music rehearsals read the actual decoder playhead. Buffer stalls,
+    // OS scheduling, pauses and backward seeks never advance a second clock.
+    if (mediaMaster && active) {
+      anchorElapsed = clampTime(mediaMaster.currentTime * 1000, length);
+      paused = Boolean(mediaMaster.paused || mediaMaster.ended || anchorElapsed >= length);
+      return anchorElapsed;
+    }
     const time = readNow();
     const wasPlaying = active && !paused && anchorElapsed < length;
     const elapsed = clampTime(anchorElapsed + (active && !paused ? (time - anchorNow) * speed : 0), length);
@@ -79,6 +94,7 @@ export function createDroneShowClock({ now = defaultNow, duration, allowEncore =
     start(options = {}) {
       // Invalid new AI scores must not replace the last working performance.
       if (options.program === 'ai' && !isAiDroneRuntime(options.aiRuntime || aiRuntime)) return snapshot();
+      if (aiRuntime?.mediaMaster && options.aiRuntime && options.aiRuntime !== aiRuntime) aiRuntime.dispose?.();
       pendingEncore = false;
       encoreFrom = null;
       if (options.program === 'ai') { aiRuntime = options.aiRuntime || aiRuntime; program = 'ai'; }
@@ -91,10 +107,13 @@ export function createDroneShowClock({ now = defaultNow, duration, allowEncore =
       if (!metadata().supportsFpv) view = 'cinematic';
       active = true;
       paused = anchorElapsed >= length;
+      selectMedia();
       return snapshot();
     },
     close() {
       freeze();
+      mediaMaster?.pause(); mediaMaster = null;
+      if (aiRuntime?.mediaMaster) { aiRuntime.dispose?.(); aiRuntime = null; }
       pendingEncore = false;
       active = false;
       paused = true;
@@ -103,6 +122,7 @@ export function createDroneShowClock({ now = defaultNow, duration, allowEncore =
     togglePause() {
       freeze();
       pendingEncore = false;
+      if (mediaMaster) { if (anchorElapsed < length) { if (mediaMaster.paused) playMedia(); else mediaMaster.pause(); } return snapshot(); }
       if (active && anchorElapsed < length) paused = !paused;
       return snapshot();
     },
@@ -111,6 +131,7 @@ export function createDroneShowClock({ now = defaultNow, duration, allowEncore =
       const wasEnded = anchorElapsed >= length;
       anchorElapsed = clampTime(value, length);
       anchorNow = readNow();
+      if (mediaMaster) { mediaMaster.currentTime = anchorElapsed / 1000; if (active && wasEnded && anchorElapsed < length) playMedia(); return snapshot(); }
       // Seeking back from a completed show starts the chosen chapter; an
       // explicitly paused show otherwise remains paused while scrubbing.
       if (active && wasEnded && anchorElapsed < length) paused = false;
@@ -120,6 +141,7 @@ export function createDroneShowClock({ now = defaultNow, duration, allowEncore =
     setSpeed(value) {
       freeze();
       if (value === 1 || value === 2) speed = value;
+      if (mediaMaster) mediaMaster.playbackRate = speed;
       return snapshot();
     },
     setView(value) {
@@ -143,6 +165,7 @@ export function createDroneShowClock({ now = defaultNow, duration, allowEncore =
       anchorNow = readNow();
       paused = !active;
       view = 'cinematic';
+      selectMedia();
       return snapshot();
     },
     setReducedMotion(value) {

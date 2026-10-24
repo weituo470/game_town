@@ -10,7 +10,7 @@ import { auditSources } from '../scripts/check-readability.mjs';
 
 test('three islands have unique approved arrivals and deterministic schedules', () => {
   assert.equal(WONDER_CYCLE_MS, 180000);
-  assert.equal(WONDER_CYCLE_MS, DAY_NIGHT_CYCLE_MS, 'wrapped shared clock and show cycle remain compatible');
+  assert.equal(DAY_NIGHT_CYCLE_MS % WONDER_CYCLE_MS, 0, 'five unchanged wonder loops fit one theatre day without a wrap jump');
   assert.deepEqual(WONDERS.map(w => w.id), ['orca', 'carrier', 'rocket']);
   for (const w of WONDERS) {
     const dest = getDestination(w.id);

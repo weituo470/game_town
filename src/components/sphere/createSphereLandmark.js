@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { SPHERE_LANDMARK, SPHERE_BRIDGE, SPHERE_MODES } from '../../../shared/sphere-landmark.js';
 import { sphereWallVertexShader, sphereWallFragmentShader } from './sphereWallShaders.js';
+import { sampleSphereFace } from './sphereFacePerformance.js';
 
 const TAU = Math.PI * 2;
 const clamp = value => Math.max(0, Math.min(1, value));
@@ -96,6 +97,11 @@ export function createSphereLandmark() {
   const wallUniforms = THREE.UniformsUtils.merge([THREE.UniformsLib.fog, {
     uTime: { value: 0 }, uMode: { value: 0 }, uNextMode: { value: 1 }, uBlend: { value: 0 }, uNight: { value: 0 }, uReduced: { value: 0 },
     uBlow: { value: 0 }, uPuff: { value: 0 }, uLookUp: { value: 0 },
+    uFaceEyes: { value: new THREE.Vector4(1, 1, 0, -.018) },
+    uFaceBrows: { value: new THREE.Vector4() },
+    uFaceMouth: { value: new THREE.Vector4(.158, .023, .72, .08) },
+    uFaceMood: { value: new THREE.Vector4(0, .1, 0, 0) },
+    uShowTint: { value: new THREE.Vector4(1, .69, .018, 0) }, uEyePower: { value: 0 },
   }]);
   const wallMaterial = material(new THREE.ShaderMaterial({ name: 'sphere-led-artwork', uniforms: wallUniforms, vertexShader: sphereWallVertexShader,
     fragmentShader: sphereWallFragmentShader, fog: true, toneMapped: true }));
@@ -127,18 +133,29 @@ export function createSphereLandmark() {
   }
   batch('sphere-town-bridge-rails', box, champagne, rails);
   let disposed = false;
+  const facePose = {};
   const statistics = Object.freeze({ drawCalls: objects.length, triangles: objects.reduce((sum, mesh) => sum + (mesh.geometry.index?.count ?? mesh.geometry.attributes.position.count) / 3 * (mesh.isInstancedMesh ? mesh.count : 1), 0),
     geometries: geometries.size, materials: materials.size });
   group.userData.sphereStatistics = statistics;
   const update = (timeMs = 0, options = {}) => {
     if (disposed) return null;
-    const state = sampleSphereWall(timeMs, options);
+    const performance = options.performance?.active ? options.performance : null;
+    const state = sampleSphereWall(timeMs, performance ? { ...options, mode: 'smile' } : options);
     wallUniforms.uTime.value = state.timeSeconds; wallUniforms.uMode.value = state.modeIndex; wallUniforms.uNextMode.value = state.nextModeIndex;
     wallUniforms.uBlend.value = state.blend; wallUniforms.uNight.value = state.night; wallUniforms.uReduced.value = state.reducedMotion ? 1 : 0;
     const expression = options.bubbleExpression;
     wallUniforms.uBlow.value = clamp(Number.isFinite(expression?.blow) ? expression.blow : 0);
     wallUniforms.uPuff.value = clamp(Number.isFinite(expression?.cheek) ? expression.cheek : 0);
     wallUniforms.uLookUp.value = clamp(Number.isFinite(expression?.lookUp) ? expression.lookUp : 0);
+    sampleSphereFace(timeMs, { reducedMotion: state.reducedMotion, bubbleExpression: expression }, facePose);
+    if (performance) Object.assign(facePose, performance.face);
+    wall.rotation.y = performance?.yaw ?? spec.faceYaw;
+    wallUniforms.uShowTint.value.set(...(performance?.tint || [1, .69, .018]), performance ? 1 : 0);
+    wallUniforms.uEyePower.value = performance?.charge || 0;
+    wallUniforms.uFaceEyes.value.set(facePose.leftOpen, facePose.rightOpen, facePose.gazeX, facePose.gazeY);
+    wallUniforms.uFaceBrows.value.set(facePose.leftBrowLift, facePose.rightBrowLift, facePose.leftBrowTilt, facePose.rightBrowTilt);
+    wallUniforms.uFaceMouth.value.set(facePose.mouthWidth, facePose.mouthHeight, facePose.smile, facePose.roundness);
+    wallUniforms.uFaceMood.value.set(facePose.laugh, facePose.blush, facePose.sleepy, facePose.cheeky);
     glass.emissiveIntensity = .05 + state.night * .15; lamp.emissiveIntensity = .35 + state.night * .8;
     return state;
   };

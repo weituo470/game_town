@@ -19,7 +19,7 @@ try {
 if (!files.length) files = walk(root);
 const problems = [];
 for (const file of files) {
-  if (/(^|\/)(node_modules|dist|\.data|\.openai|qa|qa-artifacts|deployment)\//.test(file) || /(^|\/)\.env(\.|$)/.test(file) && !file.endsWith('.env.example') || /\.local(?:\.|$)|\.(pem|key|p12|pfx)$/.test(file)) {
+  if (/(^|\/)(node_modules|dist|\.data|\.openai|qa|qa-artifacts|deployment)\//.test(file) || /(^|\/)\.env(\.|$)/.test(file) && !file.endsWith('.env.example') || /\.local(?:\.|$)|\.(pem|key|p12|pfx|blend[0-9]*)$/.test(file)) {
     problems.push(`${file}: private or generated file`);
   }
   if (!/\.(?:js|jsx|mjs|json|md|txt|yml|yaml|html|css|svg)$/.test(file) && !['.env.example', 'LICENSE'].includes(file)) continue;

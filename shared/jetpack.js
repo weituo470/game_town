@@ -1,14 +1,20 @@
-import { isWalkable, movePlayer, WORLD_LOCATIONS, TREE_POSITIONS, FOUNTAIN, SPAWN } from './world.js';
+import { isWalkable, movePlayer, groundHeight, WORLD_LOCATIONS, TREE_POSITIONS, FOUNTAIN, SPAWN } from './world.js';
 import { EXPLORATION_BOUNDS, wonderSolid } from './wonders.js';
 import { startJump, stepJump } from './jump.js';
 import { parkFlightFloor } from './deepseek-park.js';
 import { sphereFlightFloor } from './sphere-landmark.js';
+import { inRealisticIsland, islandHeight } from './realistic-island.js';
+import { inMetroIsland, metroFlightFloor } from './metro-island.js';
 
 export const JETPACK = Object.freeze({ holdSeconds: 0.22, climbSpeed: 7, acceleration: 22, gravity: 12, fallSpeed: 8, travelSpeed: 8 });
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const valid = (value, fallback = 0) => Number.isFinite(value) ? value : fallback;
 
 export function flightFloor(x, z) {
+  // Modern facade envelopes come from the exact layout used by Blender.
+  if (inMetroIsland(x, z)) return metroFlightFloor(x, z);
+  // The heightfield is also a flight collision surface, including steep cliffs.
+  if (inRealisticIsland(x, z)) return Math.max(0, islandHeight(x, z));
   const sphereFloor = sphereFlightFloor(x, z);
   if (sphereFloor > 0) return sphereFloor;
   const parkFloor = parkFlightFloor(x, z);
@@ -35,7 +41,7 @@ export function safeLanding(x, z) {
 
 export function stoppedVertical(state) {
   // Menus, lost focus and stale input cut the engine; they never freeze flight.
-  return state?.jetpack ? { jetpack: true, thrusting: false, hovering: false, vy: Math.min(0, valid(state.vy)), moving: false } : { y: 0, vy: 0, jetpack: false, thrusting: false, hovering: false, moving: false };
+  return state?.jetpack ? { jetpack: true, thrusting: false, hovering: false, vy: Math.min(0, valid(state.vy)), moving: false } : { y: groundHeight(state?.x, state?.z), vy: 0, jetpack: false, thrusting: false, hovering: false, moving: false };
 }
 
 export function stepFlightVertical(state, thrust, seconds, floor = 0, hover = false) {
@@ -65,7 +71,17 @@ export function startAvatarJump(state) {
 export function stepAvatar(state, input, seconds) {
   const dt = clamp(valid(seconds), 0, 0.1), thrust = input?.thrust === true, hover = input?.hover === true;
   const canHover = hover && valid(state.y) > flightFloor(state.x, state.z) + 0.001;
-  if (!state.jetpack && !thrust && !canHover) return { ...movePlayer(state, input, dt), ...stepJump(state, dt), jetpack: false, thrusting: false, hovering: false };
+  if (!state.jetpack && !thrust && !canHover) {
+    const moved = movePlayer(state, input, dt);
+    if (inRealisticIsland(state.x, state.z) || inRealisticIsland(moved.x, moved.z)) {
+      const oldFloor = groundHeight(state.x, state.z), floor = groundHeight(moved.x, moved.z);
+      const grounded = valid(state.y) <= oldFloor + .001 && valid(state.vy) <= 0;
+      const jump = grounded ? { y: 0, vy: 0 } : stepJump({ y: Math.max(0, valid(state.y) - floor), vy: state.vy }, dt);
+      return { ...moved, y: floor + jump.y, vy: jump.vy, jetpack: false, thrusting: false, hovering: false };
+    }
+    // Keep the established flat-world jump/roof behaviour exactly unchanged.
+    return { ...moved, ...stepJump(state, dt), jetpack: false, thrusting: false, hovering: false };
+  }
   let x = valid(state.x, SPAWN.x), z = valid(state.z, SPAWN.z), yaw = valid(state.yaw);
   const vertical = stepFlightVertical(state, thrust, dt, flightFloor(x, z), hover);
   let dx = valid(input?.x), dz = valid(input?.z);
@@ -82,7 +98,13 @@ export function stepAvatar(state, input, seconds) {
   const floor = flightFloor(x, z);
   if (vertical.y < floor) { vertical.y = floor; vertical.vy = 0; }
   if (vertical.y <= floor + 0.001) vertical.hovering = false;
+  if (!thrust && vertical.y <= floor + .001 && inRealisticIsland(x, z) && isWalkable(x, z)) vertical.jetpack = false;
   let rescued = false;
-  if (vertical.y <= 0.001 && !isWalkable(x, z)) { ({ x, z } = safeLanding(x, z)); rescued = true; }
+  if (vertical.y <= 0.001 && !isWalkable(x, z)) {
+    ({ x, z } = safeLanding(x, z));
+    vertical.y = groundHeight(x, z);
+    if (inRealisticIsland(x, z)) vertical.jetpack = false;
+    rescued = true;
+  }
   return { x, z, yaw, ...vertical, moving: Math.hypot(x - startX, z - startZ) > 0.0001 && !rescued, rescued };
 }

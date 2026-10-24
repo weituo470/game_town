@@ -5,6 +5,8 @@ import { inGptGround } from '../../../shared/gpt-park.js';
 import { inParkGround } from '../../../shared/deepseek-park.js';
 import { inSphereGround } from '../../../shared/sphere-landmark.js';
 import { inOffshoreGround } from '../../../shared/offshore-island.js';
+import { inRealisticIsland } from '../../../shared/realistic-island.js';
+import { inMetroIsland } from '../../../shared/metro-island.js';
 import { closeThirdPersonCamera } from './firstPerson.js';
 
 // Both views keep the same heading, so switching cameras never changes WASD.
@@ -28,7 +30,7 @@ export function followOrbitCamera(pose, yaw, pitch, options = {}) {
 // precision and the independent cinematic/drone lens remain unchanged.
 export function flightCameraFar(height) {
   const altitude = Number.isFinite(height) ? Math.max(0, height) : 0;
-  return Math.max(420, Math.ceil((altitude + 360) / 420) * 420);
+  return Math.max(1800, Math.ceil((altitude + 360) / 420) * 420);
 }
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
@@ -62,7 +64,7 @@ export function followTarget(pose, width) {
   const x = Number.isFinite(pose?.x) ? pose.x : SPAWN.x;
   const z = Number.isFinite(pose?.z) ? pose.z : SPAWN.z;
   const outsideTown = x < WORLD_BOUNDS.minX || x > WORLD_BOUNDS.maxX || z < WORLD_BOUNDS.minZ || z > WORLD_BOUNDS.maxZ;
-  const bounds = outsideTown && (inWonderGround(x, z) || inGptGround(x, z) || inParkGround(x, z) || inSphereGround(x, z) || inOffshoreGround(x, z) || pose?.aboard || onRiverPier(x, z) || pose?.jetpack) ? EXPLORATION_BOUNDS : WORLD_BOUNDS;
+  const bounds = outsideTown && (inMetroIsland(x, z) || inRealisticIsland(x, z) || inWonderGround(x, z) || inGptGround(x, z) || inParkGround(x, z) || inSphereGround(x, z) || inOffshoreGround(x, z) || pose?.aboard || onRiverPier(x, z) || pose?.jetpack) ? EXPLORATION_BOUNDS : WORLD_BOUNDS;
   return {
     x: clamp(x, bounds.minX, bounds.maxX),
     y: 1.2 + (Number.isFinite(pose?.y) ? Math.max(0, pose.y) : 0),

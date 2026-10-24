@@ -11,6 +11,8 @@ import * as park from '../shared/deepseek-park.js';
 import * as gpt from '../shared/gpt-park.js';
 import * as sphere from '../shared/sphere-landmark.js';
 import * as offshore from '../shared/offshore-island.js';
+import * as island from '../shared/realistic-island.js';
+import * as metro from '../shared/metro-island.js';
 import * as world from '../shared/world.js';
 import * as catalog from '../src/lib/catalog.js';
 import { auditSources } from '../scripts/check-readability.mjs';
@@ -30,6 +32,8 @@ vm.runInNewContext(transformed.code, {
     if (id === '../../shared/gpt-park.js') return gpt;
     if (id === '../../shared/sphere-landmark.js') return sphere;
     if (id === '../../shared/offshore-island.js') return offshore;
+    if (id === '../../shared/realistic-island.js') return island;
+    if (id === '../../shared/metro-island.js') return metro;
     if (id === '../../shared/world.js') return world;
     if (id === '../lib/catalog.js') return catalog;
     if (id === './atlas.css') return {};
@@ -63,7 +67,7 @@ test('atlas: renders shared streets, reserved plots and all existing buildings',
 test('atlas: every navigation button calls exactly one server-approved destination', () => {
   const calls = [];
   const buttons = elements(TownAtlas({ onTravel: id => calls.push(id) })).filter(node => node.type === 'button');
-  const destinations = [offshore.OFFSHORE_ISLAND.id, sphere.SPHERE_LANDMARK.id, park.DEEPSEEK_PARK.id, gpt.GPT_PARK.id, ...wonders.WONDERS.map(w => w.id), 'center', ...world.DISTRICTS.map(item => item.id), ...catalog.GAMES.map(item => item.id)];
+  const destinations = [metro.METRO_ISLAND.id, island.REALISTIC_ISLAND.id, offshore.OFFSHORE_ISLAND.id, sphere.SPHERE_LANDMARK.id, park.DEEPSEEK_PARK.id, gpt.GPT_PARK.id, ...wonders.WONDERS.map(w => w.id), 'center', ...world.DISTRICTS.map(item => item.id), ...catalog.GAMES.map(item => item.id)];
   assert.equal(buttons.length, destinations.length);
   for (const button of buttons) {
     assert.equal(button.props.type, 'button');

@@ -1,10 +1,12 @@
-import { useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { AI_DRONE_MAX_PROMPT, AI_DRONE_MAX_ACCESS_PASSWORD, createAiDroneClient, createAiDroneRequest, validateAiDroneAccessPassword } from '../../lib/aiDroneClient.js';
 import { AI_DRONE_LIBRARY_LIMIT, createAiDroneLibrary } from '../../lib/aiDroneLibrary.js';
 import { AI_DRONE_FEEDBACK_STEPS, aiDroneElapsedSeconds, aiDroneQuotaExhausted, aiDroneQuotaFeedback, aiDroneStageFeedback, aiDroneUnlimited, runAiDronePreparation } from '../../lib/aiDroneFeedback.js';
 import { validateAiDroneScore } from '../../../shared/aiDroneScore.js';
 import './ai-drone-studio.css';
 import DroneSampleLibrary from './DroneSampleLibrary.jsx';
+const MusicRehearsal = lazy(() => import('./MusicRehearsal.jsx'));
+
 
 const EXAMPLES = [
   { label: '鲸群远航', prompt: '母鲸带着小鲸穿过星海，从互相呼唤到并肩游动，遇到漩涡后重聚，最终一起跃向星球。让角色持续存在，高潮后留下安静的余韵。' },
@@ -213,6 +215,7 @@ export default function AiDroneStudio({ onPlay, onClose }) {
   }
 
   return <div className="ai-drone-studio">
+    <details className="music-rehearsal-entry" open={new URLSearchParams(window.location.search).get('rehearsal') === 'music'}><summary>音乐节目排练 · 本机节目单</summary><Suspense fallback={<p role="status">正在打开本地音乐排练台…</p>}><MusicRehearsal onPlay={onPlay}/></Suspense></details>
     <DroneSampleLibrary onPlay={onPlay} disabled={busy}/>
     {development && <aside className="ai-drone-development" aria-label="AI 演出测试状态"><strong>开发中 · 仅供测试</strong><p>AI 即兴与命题编排仍在完善，效果与稳定性尚未定型。{accessRequired ? '输入测试密码后才能生成；本机已保存的节目仍可直接回放。' : '请将生成结果作为测试预览。'}</p></aside>}
     <p className="ai-drone-intro">写下故事，让 AI 编排立体角色、群体动作、镜头与烟花。新节目控制在两分钟内，包含完整起飞与归航。</p>
@@ -243,7 +246,7 @@ export default function AiDroneStudio({ onPlay, onClose }) {
       <div className="ai-drone-field-heading"><label htmlFor="ai-drone-prompt">{mode === 'prompt' ? '演出主题' : '灵感方向（可留空）'}</label><span className="ai-drone-meta">{prompt.length} / {AI_DRONE_MAX_PROMPT}</span></div>
       <textarea id="ai-drone-prompt" rows={4} maxLength={AI_DRONE_MAX_PROMPT} value={prompt} onChange={event => setPrompt(event.target.value)} disabled={busy} required={mode === 'prompt'} aria-describedby="ai-drone-privacy" placeholder={mode === 'prompt' ? '例如：母鲸与小鲸失散后重聚，一起跃向星海…' : '留空交给 AI 即兴，也可以写下颜色、情绪或故事方向。'}/>
       <div className="ai-drone-examples" aria-label="填写示例主题"><span className="ai-drone-meta">试一个主题</span>{EXAMPLES.map(example => <button type="button" key={example.label} disabled={busy} onClick={() => { setMode('prompt'); setPrompt(example.prompt); }}>{example.label}</button>)}</div>
-      <p id="ai-drone-privacy" className="ai-drone-policy">主题会发送至 DeepSeek，请勿填写隐私。{unlimited ? '不限制生成次数；仍有短时间请求频率与同时生成数量限制，请勿连续快速点击。' : service?.limit ? `当前服务每日生成上限为 ${service.limit} 次，另有短时间请求频率与同时生成数量限制。` : '生成规则以服务当前状态为准，请勿连续快速点击。'}</p>
+      <p id="ai-drone-privacy" className="ai-drone-policy">主题会发送至 DeepSeek，请勿填写隐私。{unlimited ? '不限制生成次数；仍有短时间请求频率与同时生成数量限制，请勿连续快速点击。' : service?.limit ? `当前服务每日生成上限为 ${service.limit} 次，另有短时间请求频率与同时生成数量限制。` : '生成规则以服务当前状态为准，请勿连续快速点击。'}编排选项不合规时，最多定向补编一次，单次生成最多调用模型两次；网络失败、取消或最终校验失败不会继续重试。</p>
       <div className="ai-drone-request-bar">
         <button className="ai-drone-primary" type="submit" disabled={busy || checking || !service?.enabled || (mode === 'prompt' && !prompt.trim()) || aiDroneQuotaExhausted(usage, service)}>{stageFeedback?.button || (accessRequired ? '验证密码并生成' : mode === 'improv' ? '即兴生成一场' : '生成演出')}</button>
         <span className="ai-drone-meta">{aiDroneQuotaFeedback(usage, stage, service)}</span>

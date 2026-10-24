@@ -28,7 +28,7 @@ async function clientModule(name) {
 
 test('application URLs default to root in Node and retain an explicit deployment directory', () => {
   assert.equal(appUrl('/api/health'), '/api/health');
-  assert.equal(appUrl('/npc/ali.svg', './'), '/npc/ali.svg');
+  assert.equal(appUrl('/npc/ali.jpg', './'), '/npc/ali.jpg');
   for (const path of ['/api/health', '/audio/npcs/cat-meow.mp3', '/wonders/coastal-sky.hdr', '/api/npc/speech/status?npcId=npc-ali']) {
     assert.equal(appUrl(path, BASE), `/game-town${path}`);
   }
@@ -51,7 +51,7 @@ test('Vite base substitution works without a window or document global', async (
   });
   const module = { exports: {} };
   vm.runInNewContext(compiled.code, { module, exports: module.exports });
-  assert.equal(module.exports.appUrl('/npc/ali.svg'), '/game-town/npc/ali.svg');
+  assert.equal(module.exports.appUrl('/npc/ali.jpg'), '/game-town/npc/ali.jpg');
 });
 
 test('NPC API and catalog URLs stay under the deployment directory', async () => {
@@ -101,7 +101,7 @@ test('image and character API calls are prefixed without relaxing private GLB va
 });
 
 test('installed Colyseus SDK keeps the prefix on HTTP reconnect and WebSocket endpoints', () => {
-  const client = new Client('https://example.com/game-town');
-  assert.equal(client.getHttpEndpoint('/matchmake/reconnect/room-123'), 'https://example.com/game-town/matchmake/reconnect/room-123');
-  assert.match(client.buildEndpoint({ processId: 'process-123', roomId: 'room-123' }, {}), /^wss:\/\/example\.com\/game-town\/process-123\/room-123\?/);
+  const client = new Client('https://www.shenliu.cc/game-town');
+  assert.equal(client.getHttpEndpoint('/matchmake/reconnect/room-123'), 'https://www.shenliu.cc/game-town/matchmake/reconnect/room-123');
+  assert.match(client.buildEndpoint({ processId: 'process-123', roomId: 'room-123' }, {}), /^wss:\/\/www\.shenliu\.cc\/game-town\/process-123\/room-123\?/);
 });

@@ -65,3 +65,24 @@ test('free-flight AO: excluded sky/transparency are restored even when the under
     assert.equal(sky.visible,true);assert.equal(glass.visible,true);assert.equal(opaque.visible,true);assert.equal(alreadyHidden.visible,false);
   }finally{SAOPass.prototype.render=originalRender;ao.dispose();for(const mesh of [sky,glass,opaque]){mesh.geometry.dispose();mesh.material.dispose();}}
 });
+
+
+test('AO physical radius, minimum distance and blur depth remain invariant at space viewing ranges',()=>{
+ const scene=new THREE.Scene(),camera=new THREE.PerspectiveCamera(50,1,.08,1800);
+ const ao=new HalfResolutionAO(scene,camera,new THREE.Vector2(16,16));
+ Object.assign(ao.params,{saoScale:6,saoMinResolution:.001,saoBlurDepthCutoff:.015});
+ const saved={...ao.params},original=SAOPass.prototype.render;
+ SAOPass.prototype.render=function(){
+  assert.ok(Math.abs(this.params.saoScale/camera.far-6/420)<1e-10);
+  assert.ok(Math.abs(this.params.saoMinResolution*camera.far-.42)<1e-10);
+  assert.ok(Math.abs(this.params.saoBlurDepthCutoff*(camera.far-camera.near)-.015*(420-camera.near))<1e-8);
+  if(camera.far===200000)throw new Error('restore parameters');
+ };
+ try{for(const far of [1800,12000,160000,200000]){
+  camera.far=far;camera.updateProjectionMatrix();
+  if(far===200000)assert.throws(()=>ao.render(null,null,null),/restore parameters/);else ao.render(null,null,null);
+  assert.deepEqual(ao.params,saved);
+ }}finally{SAOPass.prototype.render=original;ao.dispose();}
+});
+
+test('HDR AO cannot create negative colour halos',()=>{const ao=new HalfResolutionAO(new THREE.Scene(),new THREE.PerspectiveCamera());assert.match(ao.saoMaterial.fragmentShader,/clamp\(ambientOcclusion, 0.0, 0.35\)/);ao.dispose();});

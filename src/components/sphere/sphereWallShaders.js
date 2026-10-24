@@ -25,6 +25,12 @@ export const sphereWallFragmentShader = /* glsl */`
   uniform float uBlow;
   uniform float uPuff;
   uniform float uLookUp;
+  uniform vec4 uFaceEyes;
+  uniform vec4 uFaceBrows;
+  uniform vec4 uFaceMouth;
+  uniform vec4 uFaceMood;
+  uniform vec4 uShowTint;
+  uniform float uEyePower;
   varying vec3 vSphere;
   varying vec3 vWorldPosition;
   varying vec3 vWorldNormal;
@@ -43,46 +49,57 @@ export const sphereWallFragmentShader = /* glsl */`
 
   vec3 faceArt(vec3 n, float t) {
     vec2 p=vec2(atan(n.x,n.z), asin(clamp(n.y,-1.,1.)));
-    vec3 color=vec3(1.,.69,.018);
+    vec3 color=mix(vec3(1.,.69,.018),uShowTint.rgb,uShowTint.a);
     float front=smoothstep(.02,.18,n.z);
-    float beat=mod(t,16.0);
-    float blink=(pulse(beat,3.4,.10)+pulse(beat,3.76,.085)+pulse(beat,11.2,.12))*(1.0-uReduced);
-    blink=clamp(blink,0.,.97);
-    float surprise=(smoothstep(7.0,8.1,beat)-smoothstep(10.1,11.0,beat))*(1.0-uReduced);
-    float glance=(smoothstep(.7,1.8,beat)-smoothstep(4.5,5.7,beat))*.08;
-    glance-=(smoothstep(11.8,12.8,beat)-smoothstep(14.4,15.6,beat))*.065;
-    glance*=1.0-uReduced;
     for (int side=0;side<2;side++) {
       float s=side==0?-1.:1.;
       vec2 center=vec2(s*.29,.23);
-      float open=1.0-blink;
+      float open=side==0?uFaceEyes.x:uFaceEyes.y;
       vec2 q=p-center;
       vec2 radius=vec2(.215,.28*open+.009);
-      float eye=ink(oval(q,radius))*front;
+      float eyelid=smoothstep(.18,.30,open);
+      float eye=ink(oval(q,radius))*front*eyelid;
       color=mix(color,vec3(.98,.98,.91),eye);
-      vec2 pupil=q-vec2(glance*(1.-uBlow*.8), -.027+surprise*.025+uLookUp*.085);
+      vec2 pupil=q-uFaceEyes.zw;
       float pupilMask=ink(oval(pupil,vec2(.088,.131)))*eye;
       color=mix(color,vec3(.009,.012,.018),pupilMask);
       float glint=ink(oval(pupil-vec2(-.027,.047),vec2(.025,.036)))*pupilMask;
       color=mix(color,vec3(1.),glint*.98);
-      // A short arched eyebrow, with a deliberate one-sided inquisitive lift.
-      float browLift=surprise*.075 + uPuff*.025 + uLookUp*.04 + (side==0?1.:0.)*.07*(smoothstep(4.7,5.5,beat)-smoothstep(6.3,7.,beat))*(1.0-uReduced);
+      color=mix(color,vec3(.25,.94,1.4),pupilMask*uEyePower);
+      // A happy closed eye becomes an arch, not a flattened white/pupil strip.
+      float closedCurve=(.014+.060*uFaceMood.x+.035*uFaceMood.w)*(1.-pow(clamp(q.x/.19,-1.,1.),2.));
+      float closedEye=ink(abs(q.y-closedCurve)-.015)*(1.-smoothstep(.17,.205,abs(q.x)))*front*(1.-eyelid);
+      color=mix(color,vec3(.055,.029,.01),closedEye);
+      float browLift=(side==0?uFaceBrows.x:uFaceBrows.y)+uPuff*.018;
+      float browTilt=side==0?uFaceBrows.z:uFaceBrows.w;
       float browX=clamp(q.x/.215,-1.,1.);
-      float arch=.565 + browLift + .085*(1.0-browX*browX);
+      float arch=.565 + browLift + .085*(1.0-browX*browX)+browTilt*browX;
       float brow=ink(abs(p.y-arch)-.018)*(1.-smoothstep(.18,.215,abs(q.x)))*front;
       color=mix(color,vec3(.055,.029,.01),brow);
       float cheek=exp(-pow(length((p-vec2(s*.43,-.13))/vec2(.19,.16)),2.))*front*uPuff;
       color=mix(color,vec3(1.,.81,.12),cheek*.38);
+      float blush=exp(-pow(length((p-vec2(s*.43,-.12))/vec2(.13,.085)),2.))*front*uFaceMood.y;
+      color=mix(color,vec3(.98,.28,.065),blush*.55);
     }
-    // The small surprised mouth is part of the supplied expression, not a
-    // giant emoji grin. Its anticipation/open/relax stages are continuous.
-    vec2 mouthRadius=mix(vec2(.062+surprise*.027,.092+surprise*.065),vec2(.075,.075),uBlow);
-    float pucker=ink(oval(p-vec2(0.,-.205),mouthRadius*1.34))*front*uBlow;
+    // The smile, laugh, round gasp and yawn are distinct continuously morphed
+    // silhouettes. Blowing remains centred on the existing bubble mouth anchor.
+    vec2 mq=p-vec2(0.,-.205);
+    vec2 mouthRadius=max(uFaceMouth.xy,vec2(.02));
+    float smile=uFaceMouth.z, roundness=uFaceMouth.w;
+    float nx=clamp(mq.x/mouthRadius.x,-1.,1.);
+    float smileCurve=-.067*smile*(1.-nx*nx);
+    float thinSmile=ink(abs(mq.y-smileCurve)-.012)*(1.-smoothstep(mouthRadius.x*.90,mouthRadius.x,abs(mq.x)));
+    vec2 openQ=mq+vec2(0.,.038*smile*(1.-roundness));
+    float openMouth=ink(oval(openQ,mouthRadius));
+    float opening=smoothstep(.030,.074,mouthRadius.y);
+    float mouth=mix(thinSmile,openMouth,opening)*front;
+    float pucker=ink(oval(mq,mouthRadius*1.34))*front*uBlow*roundness;
     color=mix(color,vec3(.84,.39,.025),pucker*.75);
-    float mouth=ink(oval(p-vec2(0.,-.205),mouthRadius))*front;
     color=mix(color,vec3(.035,.014,.006),mouth);
-    float lip=ink(oval(p-vec2(-.009,-.235-surprise*.035),vec2(.031,.014)))*mouth;
-    color=mix(color,vec3(.47,.095,.03),lip*.55);
+    float teeth=mouth*smoothstep(mouthRadius.y*.06,mouthRadius.y*.28,openQ.y)*uFaceMood.x;
+    color=mix(color,vec3(1.,.98,.89),teeth*.96);
+    float tongue=ink(oval(openQ-vec2(0.,-mouthRadius.y*.53),mouthRadius*vec2(.52,.28)))*mouth;
+    color=mix(color,vec3(.76,.16,.13),tongue*opening*(.4+.6*uFaceMood.x));
     return color;
   }
 

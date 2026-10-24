@@ -1,4 +1,5 @@
-import { DAY_NIGHT_CYCLE_MS } from './dayNight.js';
+// Short resident patrols remain independent of the longer theatre night.
+const DAY_NIGHT_CYCLE_MS = 180_000;
 import { FOUNTAIN, WORLD_BOUNDS, WORLD_LOCATIONS, TREE_POSITIONS, isWalkable } from './world.js';
 
 // Ambient residents are not authoritative players or solid obstacles. Every

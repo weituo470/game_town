@@ -422,7 +422,7 @@ test('V2 schema failures retain safe typed diagnostics without relaxing new-outp
   }
 });
 
-test('V2 choices are exact: unknown, aliases and executable strings are rejected without another paid call', async () => {
+test('V2 choices stay exact: one bounded correction for plain enum mistakes, none for executable strings', async () => {
   const cases = [['camera', 'PRIVATE CAMERA'], ['camera', 'ORBIT'], ['effect', 'explode'], ['transition', 'fade'], ['transition', 'globalThis.AI_DRONE_EXECUTED = true'], ['layout', 'circle'], ['layout', '__proto__']];
   globalThis.AI_DRONE_EXECUTED = false;
   try {
@@ -435,7 +435,7 @@ test('V2 choices are exact: unknown, aliases and executable strings are rejected
         const failure = store.request(body.guestId, body.requestId).error;
         assert.equal(failure.field, field); assert.equal(failure.sceneIndex, 3); assert.doesNotMatch(JSON.stringify(failure), /PRIVATE|AI_DRONE_EXECUTED|__proto__/);
         await assert.rejects(director.generate(body), { code: 'AI_DRONE_INVALID_SCORE', reason: 'AI_SCORE_CHOICE', replayed: true, charged: true });
-        assert.equal(calls, 1);
+        assert.equal(calls, ['ORBIT','explode','fade','circle'].includes(original)?2:1);
       } finally { await director.close(); }
     }
     assert.equal(globalThis.AI_DRONE_EXECUTED, false);
@@ -461,7 +461,7 @@ test('server owns the seed but does not drop unknown fields, replace shapes, or 
   ];
   for (const [reason, create] of cases) {
     let calls = 0; const director = createAiDroneDirector({ config: config(), fetchImpl: async () => { calls++; return provider(create()); } });
-    try { await assert.rejects(director.generate(input()), { code: 'AI_DRONE_INVALID_SCORE', reason, charged: true }); assert.equal(calls, 1); }
+    try { await assert.rejects(director.generate(input()), { code: 'AI_DRONE_INVALID_SCORE', reason, charged: true }); assert.equal(calls, reason==='AI_SCORE_CHOICE'?2:1); }
     finally { await director.close(); }
   }
 });

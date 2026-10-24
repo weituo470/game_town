@@ -98,19 +98,19 @@ test('dispatcher can return the same aircraft to the original show without stale
   }
 });
 
-test('explicit programme is threaded through the existing Town scene and reset outside observation', () => {
+test('explicit programme is threaded through the existing Town scene and also used by automatic night observation', () => {
   const read = name => fs.readFileSync(new URL(`../${name}`, import.meta.url), 'utf8');
   const town = read('src/components/Town.jsx');
   assert.equal((town.match(/<Canvas\b/g) || []).length, 1);
-  assert.match(town, /<DroneShow [^>]*program=\{props\.viewMode === 'drone' \? props\.droneFpv\?\.program \|\| 'avatar' : 'avatar'\}/);
+  assert.match(town, /<DroneShow [^>]*program=\{props\.droneFpv\?\.program \|\| 'avatar'\}/);
   const scene = read('src/components/drone/DroneShow.jsx');
-  assert.match(scene, /\[count, gl, fleetRef, onSeatsReady, program, aiRuntime\]/);
+  assert.match(scene, /\[count, gl, fleetRef, onSeatsReady, program, aiRuntime, ambient\]/);
   assert.match(scene, /updateDroneProgram\(fleet, safeTime, \{ reducedMotion, program, aiRuntime \}\)/);
   const app = read('src/App.jsx');
   assert.match(app, /\['drones', 'droplet', 'carrier-battle'\]\.includes/);
   assert.doesNotMatch(app, /\['drones', 'droplet', 'blackhole'\]\.includes/);
   assert.match(app, /getDroneProgram\(program, aiRuntime\)/);
   assert.match(app, /metadata\.ambientOnly \? 'avatar' : metadata\.id/);
-  assert.match(app, /program: droneWatching \? drone\.state\.program : 'avatar'/);
+  assert.match(app, /program: droneWatching \? drone\.state\.program : nightProgram/);
   assert.match(app, /new URLSearchParams\(window.location.search\)/);
 });

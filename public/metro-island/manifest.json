@@ -1,0 +1,230 @@
+{
+  "schemaVersion": 1,
+  "generator": "Blender 5.2.0 LTS",
+  "asset": "city.glb",
+  "editableSource": null,
+  "license": "MIT (original geometry and generated raster textures)",
+  "layoutSha256": "f3e99e13b1bd33f42b8d50d9eb66e4f34d553a037b1f005508ef37001fdd3332",
+  "origin": [
+    20,
+    0,
+    -285
+  ],
+  "gltfCoordinateSpace": "local-metres-y-up",
+  "mapping": "GLB [x,y,z] -> world [x+20,y,z-285]",
+  "buildings": 24,
+  "meshes": 26,
+  "materials": 26,
+  "triangles": 143090,
+  "bytes": 10467140,
+  "revision": "570beea409051f1d",
+  "includesLights": false,
+  "includesCameras": false,
+  "includesOcean": false,
+  "originalTextures": [
+    "asphalt",
+    "paving",
+    "stone",
+    "grass",
+    "fine-branchlets"
+  ],
+  "foliageMode": "original alpha-cut fine branchlets; no solid crown meshes",
+  "buildingBounds": [
+    {
+      "id": "metro-building-01",
+      "x": -92,
+      "z": -370,
+      "width": 24,
+      "depth": 22,
+      "height": 28
+    },
+    {
+      "id": "metro-building-02",
+      "x": -44,
+      "z": -370,
+      "width": 18,
+      "depth": 22,
+      "height": 43
+    },
+    {
+      "id": "metro-building-03",
+      "x": -20,
+      "z": -370,
+      "width": 18,
+      "depth": 22,
+      "height": 34
+    },
+    {
+      "id": "metro-building-04",
+      "x": 3,
+      "z": -370,
+      "width": 16,
+      "depth": 22,
+      "height": 36
+    },
+    {
+      "id": "metro-building-05",
+      "x": 41,
+      "z": -370,
+      "width": 18,
+      "depth": 22,
+      "height": 62
+    },
+    {
+      "id": "metro-building-06",
+      "x": 64,
+      "z": -370,
+      "width": 18,
+      "depth": 22,
+      "height": 47
+    },
+    {
+      "id": "metro-building-07",
+      "x": 87,
+      "z": -370,
+      "width": 18,
+      "depth": 22,
+      "height": 38
+    },
+    {
+      "id": "metro-building-08",
+      "x": 132,
+      "z": -370,
+      "width": 24,
+      "depth": 22,
+      "height": 42
+    },
+    {
+      "id": "metro-building-09",
+      "x": -92,
+      "z": -315,
+      "width": 24,
+      "depth": 26,
+      "height": 54
+    },
+    {
+      "id": "metro-building-10",
+      "x": -40,
+      "z": -315,
+      "width": 24,
+      "depth": 28,
+      "height": 112
+    },
+    {
+      "id": "metro-building-11",
+      "x": -6,
+      "z": -315,
+      "width": 22,
+      "depth": 26,
+      "height": 72
+    },
+    {
+      "id": "metro-building-12",
+      "x": 48,
+      "z": -315,
+      "width": 24,
+      "depth": 28,
+      "height": 140
+    },
+    {
+      "id": "metro-building-13",
+      "x": 82,
+      "z": -315,
+      "width": 22,
+      "depth": 26,
+      "height": 96
+    },
+    {
+      "id": "metro-building-14",
+      "x": 132,
+      "z": -315,
+      "width": 24,
+      "depth": 26,
+      "height": 68
+    },
+    {
+      "id": "metro-building-15",
+      "x": -92,
+      "z": -255,
+      "width": 24,
+      "depth": 27,
+      "height": 46
+    },
+    {
+      "id": "metro-building-16",
+      "x": -40,
+      "z": -255,
+      "width": 24,
+      "depth": 28,
+      "height": 82
+    },
+    {
+      "id": "metro-building-17",
+      "x": -6,
+      "z": -255,
+      "width": 22,
+      "depth": 26,
+      "height": 56
+    },
+    {
+      "id": "metro-building-18",
+      "x": 132,
+      "z": -255,
+      "width": 24,
+      "depth": 28,
+      "height": 60
+    },
+    {
+      "id": "metro-building-19",
+      "x": -92,
+      "z": -201,
+      "width": 24,
+      "depth": 22,
+      "height": 24
+    },
+    {
+      "id": "metro-building-20",
+      "x": -42,
+      "z": -201,
+      "width": 20,
+      "depth": 22,
+      "height": 38
+    },
+    {
+      "id": "metro-building-21",
+      "x": -15,
+      "z": -201,
+      "width": 20,
+      "depth": 22,
+      "height": 28
+    },
+    {
+      "id": "metro-building-22",
+      "x": 46,
+      "z": -201,
+      "width": 23,
+      "depth": 22,
+      "height": 34
+    },
+    {
+      "id": "metro-building-23",
+      "x": 80,
+      "z": -201,
+      "width": 23,
+      "depth": 22,
+      "height": 46
+    },
+    {
+      "id": "metro-building-24",
+      "x": 132,
+      "z": -201,
+      "width": 24,
+      "depth": 22,
+      "height": 32
+    }
+  ],
+  "generatorSource": "scripts/build-metro-island.py",
+  "editableSourceExcluded": "Pre-generated Blender project contains local workstation metadata; regenerate locally with the original generator.",
+  "layoutNormalization": "LF-only portable source normalization; JSON values and exported geometry unchanged.",
+  "originalGeneratorLayoutSha256": "b75de25c8abf116e196e676e8d28870873e25a1723f2def2276e3709e303ec94"
+}

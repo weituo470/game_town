@@ -64,7 +64,9 @@ export default function TownWater({ timeRef, lightTimeRef = timeRef, reducedMoti
     }
   });
   return <mesh name={pool?'town-lagoon-water':'shared-town-sea'} position={pool?[-64,-.025,19]:[0,-1.28,-16]} rotation={[-Math.PI/2,0,0]} scale={pool?[8.45,7.45,1]:[1,1,1]} raycast={()=>null}>
-    {pool?<ringGeometry args={[0,1,LAGOON_WATER.segments,LAGOON_WATER.rings]}/>:<planeGeometry args={[900,900]}/>}
+    {/* The distant footsteps camera travels west of the original 900m sea.
+        Extending this single two-triangle surface avoids a visible square edge. */}
+    {pool?<ringGeometry args={[0,1,LAGOON_WATER.segments,LAGOON_WATER.rings]}/>:<planeGeometry args={[3000,3000]}/>}
     <shaderMaterial ref={material} uniforms={uniforms} side={THREE.DoubleSide}
       vertexShader={pool?lagoonVertex:`varying vec3 world;void main(){vec4 p=modelMatrix*vec4(position,1.);world=p.xyz;gl_Position=projectionMatrix*viewMatrix*p;}`}
       fragmentShader={pool?lagoonFragment:`

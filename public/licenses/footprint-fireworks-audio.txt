@@ -1,0 +1,19 @@
+Footsteps of Light / recorded firework sound
+
+Whistle and Explosion Single_Firework
+Author: Rudmer_Rotteveel
+Source: https://freesound.org/people/Rudmer_Rotteveel/sounds/336008/
+Public preview source: https://cdn.freesound.org/previews/336/336008_4921277-hq.mp3
+License: CC0 1.0 Universal
+License URL: https://creativecommons.org/publicdomain/zero/1.0/
+Verified on 2026-10-22 from the author's sound page.
+The author permits copying, modification, redistribution and commercial use.
+
+The public 104-second programme soundtrack combines this recorded firework
+with original synthesized bass, echo, ember crackles and timed stereo placement.
+The recording's explosion peak is aligned to each visual burst, not looped
+independently of the show clock. The preview is preserved under audio/sources/
+so scripts/create-footprint-soundscape.py can reproduce the mix offline.
+
+Reference photograph is viewed for visual study only. No Olympic footage,
+photographs, original music, emblems or logos are included in the programme.

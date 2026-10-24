@@ -49,7 +49,7 @@ test('AI editor and compiler stay lazy and reuse the single scene with explicit 
   const read = name => fs.readFileSync(new URL('../' + name, import.meta.url), 'utf8');
   assert.match(read('src/App.jsx'), /React\.lazy\(\(\) => import\('\.\/components\/drone\/AiDroneStudio\.jsx'\)\)/);
   assert.doesNotMatch(read('shared/dronePrograms.js'), /import.+aiDrone(?:Show|Score)/);
-  assert.match(read('src/components/Town.jsx'), /<DroneShow aiRuntime=\{props\.viewMode === 'drone'/);
+  assert.match(read('src/components/Town.jsx'), /<DroneShow aiRuntime=\{props\.droneFpv\?\.aiRuntime\}/);
   assert.match(read('src/components/drone/DroneShow.jsx'), /aiRuntime\.camera\(timeRef\.current,aspect,reducedMotion\)/);
   assert.match(read('src/components/drone/DroneShowControls.jsx'), /program\.supportsAudio === false \|\| audioStatus/);
 });
