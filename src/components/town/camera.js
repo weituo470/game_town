@@ -7,6 +7,7 @@ import { inSphereGround } from '../../../shared/sphere-landmark.js';
 import { inOffshoreGround } from '../../../shared/offshore-island.js';
 import { inRealisticIsland } from '../../../shared/realistic-island.js';
 import { inMetroIsland } from '../../../shared/metro-island.js';
+import { inPixelIsland } from '../../../shared/pixel-island.js';
 import { closeThirdPersonCamera } from './firstPerson.js';
 
 // Both views keep the same heading, so switching cameras never changes WASD.
@@ -64,7 +65,7 @@ export function followTarget(pose, width) {
   const x = Number.isFinite(pose?.x) ? pose.x : SPAWN.x;
   const z = Number.isFinite(pose?.z) ? pose.z : SPAWN.z;
   const outsideTown = x < WORLD_BOUNDS.minX || x > WORLD_BOUNDS.maxX || z < WORLD_BOUNDS.minZ || z > WORLD_BOUNDS.maxZ;
-  const bounds = outsideTown && (inMetroIsland(x, z) || inRealisticIsland(x, z) || inWonderGround(x, z) || inGptGround(x, z) || inParkGround(x, z) || inSphereGround(x, z) || inOffshoreGround(x, z) || pose?.aboard || onRiverPier(x, z) || pose?.jetpack) ? EXPLORATION_BOUNDS : WORLD_BOUNDS;
+  const bounds = outsideTown && (inPixelIsland(x, z) || inMetroIsland(x, z) || inRealisticIsland(x, z) || inWonderGround(x, z) || inGptGround(x, z) || inParkGround(x, z) || inSphereGround(x, z) || inOffshoreGround(x, z) || pose?.aboard || onRiverPier(x, z) || pose?.jetpack) ? EXPLORATION_BOUNDS : WORLD_BOUNDS;
   return {
     x: clamp(x, bounds.minX, bounds.maxX),
     y: 1.2 + (Number.isFinite(pose?.y) ? Math.max(0, pose.y) : 0),

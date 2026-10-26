@@ -329,7 +329,7 @@ export default function PlayerController({ spaceRuntime, Model, active, inputRef
   useEffect(() => {
     // DroneCamera owns its full lens/rail; never overwrite its far plane after
     // the declarative camera's layout effects (especially on portrait screens).
-    if (viewMode === 'drone' || viewMode === 'sphere' || viewMode === 'offshore' || viewMode === 'island' || viewMode === 'metro') { invalidate(); return; }
+    if (viewMode === 'drone' || viewMode === 'sphere' || viewMode === 'offshore' || viewMode === 'island' || viewMode === 'metro' || viewMode === 'pixel') { invalidate(); return; }
     if (firstPerson || follow || viewMode === 'wonder') {
       // The declarative PerspectiveCamera becomes default after its layout
       // effect. Do not accidentally turn the preserved orthographic camera
@@ -620,7 +620,7 @@ export default function PlayerController({ spaceRuntime, Model, active, inputRef
 
   return <>
     <FirstPersonLook enabled={firstPerson || follow} active={active} orbitOnly={follow} blockedRef={outdoorRef} lookRef={look} onStatus={onLookStatus} onStop={stopInput} />
-    <Model poseRef={pose} self name={self?.name || ''} color={self?.color} reducedMotion={reducedMotion} />
+    {viewMode !== 'pixel' && <Model poseRef={pose} self name={self?.name || ''} color={self?.color} reducedMotion={reducedMotion} />}
     {players.filter(player => player.id !== network.selfId).map(player => <RemotePlayer key={player.id} player={player} snapshotRef={network.snapshotRef} Model={Model} reducedMotion={reducedMotion} offshoreRef={offshoreRef} />)}
   </>;
 }

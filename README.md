@@ -85,3 +85,12 @@ npm run check:loading
 - Generic music rehearsal supports user-owned local audio/LRC and MP4 export; no commercial recordings, full lyrics or private fixture scores are shipped.
 
 See docs/REALISTIC-ISLAND.md, docs/METRO-ISLAND.md and docs/MUSIC_REHEARSAL.md.
+
+
+## 方块原野 · 像素岛
+
+访问 `?landmark=pixel-island`，或在小镇导览选择像素岛。原创体素沙盒包含采集挖掘、放置方块、九格快捷栏、五种建材合成、第一人称跳跃及创造飞行。
+
+世界沿用同一个 Three.js Canvas；方块改动和库存仅保存在当前浏览器，可导出/导入 JSON 备份。首版是单人本机沙盒，不含怪物、红石或多人共享建造；不是完整 Minecraft 复刻。纹理、几何和短音效均为本项目原创，不附带商业游戏素材。
+
+操作与数据边界见 [像素岛说明](docs/PIXEL-ISLAND.md)。

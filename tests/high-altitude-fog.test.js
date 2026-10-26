@@ -8,6 +8,7 @@ import * as jsx from 'react/jsx-runtime';
 import * as dayNight from '../shared/dayNight.js';
 import * as island from '../shared/realistic-island.js';
 import * as metro from '../shared/metro-island.js';
+import * as pixel from '../shared/pixel-island.js';
 import * as world from '../shared/world.js';
 
 const file=new URL('../src/components/town/TownSky.jsx',import.meta.url);
@@ -22,6 +23,7 @@ function load(onFrame=()=>{}){
     if(id==='../../../shared/dayNight.js')return dayNight;
     if(id==='../../../shared/realistic-island.js')return island;
     if(id==='../../../shared/metro-island.js')return metro;
+    if(id==='../../../shared/pixel-island.js')return pixel;
     if(id==='../../../shared/world.js')return world;
     throw new Error(id);
   }});

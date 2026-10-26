@@ -3,6 +3,7 @@ import { useFrame } from '@react-three/fiber';
 import * as THREE from 'three';
 import { REALISTIC_ISLAND, inRealisticIsland } from '../../../shared/realistic-island.js';
 import { METRO_ISLAND, inMetroIsland } from '../../../shared/metro-island.js';
+import { PIXEL_ISLAND, inPixelIsland } from '../../../shared/pixel-island.js';
 import { groundHeight } from '../../../shared/world.js';
 import { sampleDayNight } from '../../../shared/dayNight.js';
 
@@ -160,9 +161,10 @@ export default function TownSky({ spaceRuntime, timeRef, reducedMotion = false, 
       const p = playerPoseRef?.current;
       const islandFocus = viewMode === 'island' || (['follow', 'first-person'].includes(viewMode) && p && inRealisticIsland(p.x, p.z));
       const metroFocus = viewMode === 'metro' || (['follow', 'first-person'].includes(viewMode) && p && inMetroIsland(p.x, p.z));
-      const fx = metroFocus ? (viewMode === 'metro' ? METRO_ISLAND.x : p.x) : islandFocus ? (viewMode === 'island' ? REALISTIC_ISLAND.x : p.x) : 0;
-      const fz = metroFocus ? (viewMode === 'metro' ? METRO_ISLAND.z : p.z) : islandFocus ? (viewMode === 'island' ? REALISTIC_ISLAND.z : p.z) : 0;
-      const fy = metroFocus ? 35 : islandFocus ? (viewMode === 'island' ? 12 : groundHeight(p.x, p.z)) : 0;
+      const pixelFocus = viewMode === 'pixel' || (['follow', 'first-person'].includes(viewMode) && p && inPixelIsland(p.x, p.z));
+      const fx = pixelFocus ? PIXEL_ISLAND.x : metroFocus ? (viewMode === 'metro' ? METRO_ISLAND.x : p.x) : islandFocus ? (viewMode === 'island' ? REALISTIC_ISLAND.x : p.x) : 0;
+      const fz = pixelFocus ? PIXEL_ISLAND.z : metroFocus ? (viewMode === 'metro' ? METRO_ISLAND.z : p.z) : islandFocus ? (viewMode === 'island' ? REALISTIC_ISLAND.z : p.z) : 0;
+      const fy = pixelFocus ? 10 : metroFocus ? 35 : islandFocus ? (viewMode === 'island' ? 12 : groundHeight(p.x, p.z)) : 0;
       sun.current.target.position.set(fx, fy, fz); sun.current.target.updateMatrixWorld();
       sun.current.position.set(...state.sunDirection).multiplyScalar(metroFocus ? 300 : 160).add(sun.current.target.position);
       const shadow = sun.current.shadow.camera, extent = metroFocus ? 190 : 105, far = metroFocus ? 520 : 360;
@@ -177,7 +179,7 @@ export default function TownSky({ spaceRuntime, timeRef, reducedMotion = false, 
     }
     if (fog.current) {
       fog.current.color.copy(colors.nightFog).lerp(colors.dayFog, state.daylight);
-      const offset = viewMode === 'metro' ? 850 : viewMode === 'island' ? 300 : explorationFogOffset(viewMode, frame.camera.position.y, playerPoseRef?.current?.y, !!outdoorSelected, frame.camera.isPerspectiveCamera === true);
+      const offset = viewMode === 'metro' ? 850 : viewMode === 'island' || viewMode === 'pixel' ? 300 : explorationFogOffset(viewMode, frame.camera.position.y, playerPoseRef?.current?.y, !!outdoorSelected, frame.camera.isPerspectiveCamera === true);
       fog.current.near = 175 + offset;
       fog.current.far = 340 + offset;
     }

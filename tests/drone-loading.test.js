@@ -17,12 +17,15 @@ test('loading: immutable caching is limited to content-addressed build assets', 
 
 test('loading: games and the NPC conversation directory are requested only when opened', () => {
   const app = fs.readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
-  for (const name of ['MiniGame', 'NpcDirectory']) {
-    assert.match(app, new RegExp(`const ${name} = React\\.lazy\\(\\(\\) => import\\('\\./components/${name}\\.jsx'\\)\\)`));
+  for (const [name, relativePath] of [['MiniGame', 'MiniGame'], ['NpcDirectory', 'NpcDirectory'], ['PixelControls', 'pixel/PixelControls']]) {
+    assert.match(app, new RegExp(`const ${name} = React\\.lazy\\(\\(\\) => import\\('\\./components/${relativePath}\\.jsx'\\)\\)`));
     assert.doesNotMatch(app, new RegExp(`import ${name} from`));
   }
   assert.match(app, /if \(ready && !droneDeepLinkOpened\.current/);
   const town = fs.readFileSync(new URL('../src/components/Town.jsx', import.meta.url), 'utf8');
   assert.match(town, /\+\+readyFrames\.current === 2/);
-  assert.match(town, /performanceMode=\{props\.viewMode === 'drone' \? 'drone' : 'town'\}/);
+  assert.match(town, /performanceMode=\{props\.viewMode === 'drone' \? 'drone' : props\.viewMode === 'pixel' \? 'pixel' : 'town'\}/);
+  const pixelGate = fs.readFileSync(new URL('../src/components/pixel/PixelGate.jsx', import.meta.url), 'utf8');
+  assert.match(pixelGate, /const PixelIsland = lazy\(\(\) => import\('\.\/PixelIsland\.jsx'\)\)/);
+  assert.doesNotMatch(town, /import\s+PixelIsland\s+from|from\s+['"][^'"]*pixel-world/);
 });

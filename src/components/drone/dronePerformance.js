@@ -13,6 +13,7 @@ export function getSceneRenderRatio(renderer) {
 
 export function sceneRenderProfile({ mode = 'town', width = 1280, pixelRatio = 1, stage = 0, maxSamples = 4 } = {}) {
   const drone = mode === 'drone';
+  const pixel = mode === 'pixel';
   const mobile = width < 700;
   const tier = Math.min(drone ? 2 : 1, Math.max(0, Math.floor(stage)));
   const cap = mobile || tier ? 1.25 : 1.5;
@@ -23,11 +24,13 @@ export function sceneRenderProfile({ mode = 'town', width = 1280, pixelRatio = 1
     : tier === 1 ? Math.max(initialRatio * .85, .65 + (initialRatio - .65) * .25)
       : Math.max(.65, initialRatio * .72);
   return {
-    pixelRatio: drone ? droneRatio : Math.min(Math.max(0.5, pixelRatio), cap),
-    samples: Math.min(drone ? 2 : 4, Math.max(0, maxSamples)),
-    ao: !drone && !mobile && tier === 0,
+    pixelRatio: drone ? droneRatio : Math.min(Math.max(0.5, pixelRatio), pixel ? 1.25 : cap),
+    samples: Math.min(drone || pixel ? 2 : 4, Math.max(0, maxSamples)),
+    // The block atlas supplies its own face shading. Screen-space AO adds
+    // little here, but is expensive during every mined chunk/camera update.
+    ao: !drone && !pixel && !mobile && tier === 0,
     bloom: true,
-    quality: drone ? ['drone-cinematic', 'drone-balanced', 'drone-fluid'][tier] : !mobile && tier === 0 ? 'high' : 'balanced',
+    quality: drone ? ['drone-cinematic', 'drone-balanced', 'drone-fluid'][tier] : pixel ? 'pixel-crisp' : !mobile && tier === 0 ? 'high' : 'balanced',
   };
 }
 

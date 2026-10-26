@@ -10,6 +10,7 @@ import { inOffshoreGround, offshoreDestination } from './offshore-island.js';
 import { inSpacePort, inRailStation, SPACE_ELEVATOR } from './space-layout.js';
 import { inRealisticIsland, islandHeight, islandWalkable, islandCanStep, islandDestination } from './realistic-island.js';
 import { inMetroIsland, metroSolid, metroDestination } from './metro-island.js';
+import { inPixelIsland, pixelGroundHeight, pixelDestination, pixelCanStep } from './pixel-island.js';
 export const WORLD_VERSION = 3;
 export const WORLD_SIZE = Object.freeze({ baseWidth: 32, baseDepth: 29, scale: 3, width: 96, depth: 87, centerX: 0, centerZ: 0.4 });
 export const WORLD_BOUNDS = Object.freeze({ minX: -42.9, maxX: 42.9, minZ: -38.9, maxZ: 40.3 });
@@ -79,6 +80,7 @@ export const TREE_POSITIONS = [
 ];
 export function isWalkable(x, z) {
   if (!Number.isFinite(x) || !Number.isFinite(z) || isArchitectSolid(x, z)) return false;
+  if (inPixelIsland(x, z)) return true;
   if (inMetroIsland(x, z)) return !metroSolid(x, z);
   if (inRealisticIsland(x, z)) return islandWalkable(x, z);
   const inTown = x >= WORLD_BOUNDS.minX && x <= WORLD_BOUNDS.maxX && z >= WORLD_BOUNDS.minZ && z <= WORLD_BOUNDS.maxZ;
@@ -94,10 +96,13 @@ export function isWalkable(x, z) {
 
 /** Absolute support height; the original town and its existing decks stay Y=0. */
 export function groundHeight(x, z) {
+  if (inPixelIsland(x, z)) return pixelGroundHeight(x, z);
   return inRealisticIsland(x, z) ? Math.max(0, islandHeight(x, z)) : 0;
 }
 export function getDestination(id) {
   if (typeof id !== 'string') return null;
+  const pixel = pixelDestination(id);
+  if (pixel) return pixel;
   const metro = metroDestination(id);
   if (metro) return metro;
   const island = islandDestination(id);
@@ -154,8 +159,8 @@ export function movePlayer(state, input, deltaSeconds) {
   const step = PLAYER_SPEED * dt / steps;
   const startX = x, startZ = z;
   for (let i = 0; i < steps; i++) {
-    if (isWalkable(x + dx * step, z) && islandCanStep(x, z, x + dx * step, z)) x += dx * step;
-    if (isWalkable(x, z + dz * step) && islandCanStep(x, z, x, z + dz * step)) z += dz * step;
+    if (isWalkable(x + dx * step, z) && islandCanStep(x, z, x + dx * step, z) && pixelCanStep(x, z, x + dx * step, z)) x += dx * step;
+    if (isWalkable(x, z + dz * step) && islandCanStep(x, z, x, z + dz * step) && pixelCanStep(x, z, x, z + dz * step)) z += dz * step;
   }
   return { x, z, yaw, moving: Math.hypot(x - startX, z - startZ) > 0.0001 };
 }

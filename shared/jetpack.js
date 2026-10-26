@@ -5,12 +5,14 @@ import { parkFlightFloor } from './deepseek-park.js';
 import { sphereFlightFloor } from './sphere-landmark.js';
 import { inRealisticIsland, islandHeight } from './realistic-island.js';
 import { inMetroIsland, metroFlightFloor } from './metro-island.js';
+import { inPixelIsland, pixelGroundHeight } from './pixel-island.js';
 
 export const JETPACK = Object.freeze({ holdSeconds: 0.22, climbSpeed: 7, acceleration: 22, gravity: 12, fallSpeed: 8, travelSpeed: 8 });
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const valid = (value, fallback = 0) => Number.isFinite(value) ? value : fallback;
 
 export function flightFloor(x, z) {
+  if (inPixelIsland(x, z)) return pixelGroundHeight(x, z);
   // Modern facade envelopes come from the exact layout used by Blender.
   if (inMetroIsland(x, z)) return metroFlightFloor(x, z);
   // The heightfield is also a flight collision surface, including steep cliffs.
@@ -73,7 +75,8 @@ export function stepAvatar(state, input, seconds) {
   const canHover = hover && valid(state.y) > flightFloor(state.x, state.z) + 0.001;
   if (!state.jetpack && !thrust && !canHover) {
     const moved = movePlayer(state, input, dt);
-    if (inRealisticIsland(state.x, state.z) || inRealisticIsland(moved.x, moved.z)) {
+    if (inRealisticIsland(state.x, state.z) || inRealisticIsland(moved.x, moved.z)
+      || inPixelIsland(state.x, state.z) || inPixelIsland(moved.x, moved.z)) {
       const oldFloor = groundHeight(state.x, state.z), floor = groundHeight(moved.x, moved.z);
       const grounded = valid(state.y) <= oldFloor + .001 && valid(state.vy) <= 0;
       const jump = grounded ? { y: 0, vy: 0 } : stepJump({ y: Math.max(0, valid(state.y) - floor), vy: state.vy }, dt);
@@ -98,12 +101,12 @@ export function stepAvatar(state, input, seconds) {
   const floor = flightFloor(x, z);
   if (vertical.y < floor) { vertical.y = floor; vertical.vy = 0; }
   if (vertical.y <= floor + 0.001) vertical.hovering = false;
-  if (!thrust && vertical.y <= floor + .001 && inRealisticIsland(x, z) && isWalkable(x, z)) vertical.jetpack = false;
+  if (!thrust && vertical.y <= floor + .001 && (inRealisticIsland(x, z) || inPixelIsland(x, z)) && isWalkable(x, z)) vertical.jetpack = false;
   let rescued = false;
   if (vertical.y <= 0.001 && !isWalkable(x, z)) {
     ({ x, z } = safeLanding(x, z));
     vertical.y = groundHeight(x, z);
-    if (inRealisticIsland(x, z)) vertical.jetpack = false;
+    if (inRealisticIsland(x, z) || inPixelIsland(x, z)) vertical.jetpack = false;
     rescued = true;
   }
   return { x, z, yaw, ...vertical, moving: Math.hypot(x - startX, z - startZ) > 0.0001 && !rescued, rescued };

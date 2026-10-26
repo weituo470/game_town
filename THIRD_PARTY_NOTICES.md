@@ -165,3 +165,11 @@ character or the source person's likeness.
 - public/audio/footsteps-of-light.mp3 combines original synthesis with Rudmer_Rotteveel's CC0 recording 336008. The full source and licence are preserved in public/licenses/footprint-fireworks-audio.txt; original source preview is under public/audio/sources/. No Olympic footage, emblems, soundtrack or reference photograph is distributed.
 - src/vendor/wavesurfer-8.0.3/ is the unmodified ESM package distribution, BSD-3-Clause, with complete LICENSE and NOTICE retained.
 - Commercial song recordings, lyric text, private rehearsal scores, captured videos, generated private avatars and local runtime configuration remain excluded.
+
+
+## Original voxel-island contributions
+
+- `shared/pixel-island.js`, `shared/pixel-world.js` and `src/components/pixel/` implement original voxel terrain, exposed-face geometry, collision, inventory, crafting, local saves, procedural pixel textures and synthesized interaction tones. These original contributions are provided under the project's MIT licence. No additional package or downloaded game asset is required.
+- Minecraft is referenced only to describe a general block-building gameplay inspiration. Mojang/Microsoft game code, textures, recordings, logos and other proprietary assets are not distributed, and the project claims no affiliation.
+- The Three.js voxel tutorial and Luanti were inspected as architectural references; their example source code, texture atlases and audio assets were not copied. Their own licences do not automatically extend to this project's original work.
+- Existing open-source NPC SVG placeholders and the original replacement black-hole renderer remain unchanged; production-only reference images and the website-derived optics are still excluded.

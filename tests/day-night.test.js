@@ -7,6 +7,7 @@ import { transformWithEsbuild } from 'vite';
 import * as dayNight from '../shared/dayNight.js';
 import * as island from '../shared/realistic-island.js';
 import * as metro from '../shared/metro-island.js';
+import * as pixel from '../shared/pixel-island.js';
 import * as world from '../shared/world.js';
 import { DAY_NIGHT_CYCLE_MS, sampleDayNight } from '../shared/dayNight.js';
 
@@ -20,6 +21,7 @@ vm.runInNewContext(compiledSky.code, {
     if (id === '../../../shared/dayNight.js') return dayNight;
     if (id === '../../../shared/realistic-island.js') return island;
     if (id === '../../../shared/metro-island.js') return metro;
+    if (id === '../../../shared/pixel-island.js') return pixel;
     if (id === '../../../shared/world.js') return world;
     if (id === 'react' || id === '@react-three/fiber') return {};
     throw new Error(`Unexpected import ${id}`);

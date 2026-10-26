@@ -663,7 +663,7 @@ test('Town wires the same fleet and private clock into one camera without replac
   for (const reducedMotion of [false, true]) {
     const hooks = hookRuntime();
     hooks.react.lazy = loader => { const source = loader.toString(); if (source.includes('./drone/DroneShow.jsx')) return source.includes('.DroneCamera') ? 'DroneCamera' : 'DroneShow'; return { $$typeof: Symbol.for('react.lazy'), modulePath: source.match(/\bimport\(\s*["']([^"']+)["']\s*\)/)?.[1] }; };
-    const imports = ['./DuskScenery', './town/PlayerController', './town/SceneEffects', './town/SoftPenumbra', './town/characters/Residents', './town/landmarks/LandmarkFountain.jsx', './town/TownSky.jsx', './town/TownEnvironment.jsx', './town/WonderIslands.jsx', './town/GptPark.jsx', './town/DeepSeekPark.jsx', './town/GeneratedPlayerModel.jsx', './town/OutdoorScenery.jsx', './town/JetpackRig.jsx', './island/IslandGate.jsx', './metro/MetroGate.jsx'];
+    const imports = ['./DuskScenery', './town/PlayerController', './town/SceneEffects', './town/SoftPenumbra', './town/characters/Residents', './town/landmarks/LandmarkFountain.jsx', './town/TownSky.jsx', './town/TownEnvironment.jsx', './town/WonderIslands.jsx', './town/GptPark.jsx', './town/DeepSeekPark.jsx', './town/GeneratedPlayerModel.jsx', './town/OutdoorScenery.jsx', './town/JetpackRig.jsx', './island/IslandGate.jsx', './metro/MetroGate.jsx', './pixel/PixelGate.jsx'];
     const overrides = Object.fromEntries(imports.map(id => [id, componentNamespace(id)]));
     Object.assign(overrides, { react: hooks.react,
       './drone/DroneShow.jsx': { __esModule: true, default: 'DroneShow', DroneCamera: 'DroneCamera' },

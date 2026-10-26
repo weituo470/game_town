@@ -21,7 +21,7 @@ const positionStyle = (x, z) => ({
   top: `${(z - top) / WONDER_MAP.depth * 100}%`,
 });
 
-export default function TownAtlas({ onTravel, onOutdoorStart, onGptTour, onDeepSeekTour, onSphereTour, onOffshoreTour, onIslandTour, onMetroTour }) {
+export default function TownAtlas({ onTravel, onOutdoorStart, onGptTour, onDeepSeekTour, onSphereTour, onOffshoreTour, onIslandTour, onMetroTour, onPixelTour }) {
   return (
     <div className="town-atlas">
       <section className="atlas-destinations" aria-label="临湾都会导航"><h3>临湾都会 · 现代都市岛</h3><p className="atlas-intro">约 280 × 220 米的滨海街区：玻璃塔楼、中央绿地、商业裙楼与车流。建筑由本机 Blender 原创制作，与小镇共处同一三维世界。可进入街区步行或喷气飞行。</p><div className="atlas-district-links">{onMetroTour && <button type="button" onClick={onMetroTour}>观景临湾都会 ↗</button>}<button type="button" onClick={() => onTravel(METRO_ISLAND.id)}>进入都市街区 ↗</button></div></section>
@@ -154,6 +154,7 @@ export default function TownAtlas({ onTravel, onOutdoorStart, onGptTour, onDeepS
         </div>
       </section>
 
+      <section className="atlas-destinations" aria-label="方块原野像素岛导航"><h3>方块原野 · 像素岛</h3><p className="atlas-intro">走进原创方块海岛，砍树、挖矿、合成和搭建自己的营地；也可开启无限方块与自由飞行。首版为单人沙盒，世界仅保存在本机，不与联机房间同步。</p>{onPixelTour && <button type="button" className="atlas-landmark" onClick={onPixelTour}>进入像素岛<span className="atlas-arrow" aria-hidden="true">↗</span></button>}</section>
       <section className="atlas-destinations" aria-label="小游戏导航">
         <h3>已开放的小游戏</h3>
         <ol className="atlas-game-links">

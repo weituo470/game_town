@@ -14,7 +14,7 @@ function visit(key) {
   for (const dependency of manifest[key].imports || []) visit(dependency);
 }
 visit('index.html');
-for (const name of ['MiniGame', 'NpcDirectory', 'CharacterStudio', 'GptParkExperience', 'AiDroneStudio', 'TownAtlas', 'SphereLandmark', 'SphereControls', 'SphereCamera', 'OffshoreIsland', 'OffshoreControls', 'OffshoreCamera', 'WonderSchedule']) {
+for (const name of ['MiniGame', 'NpcDirectory', 'CharacterStudio', 'GptParkExperience', 'AiDroneStudio', 'TownAtlas', 'SphereLandmark', 'SphereControls', 'SphereCamera', 'OffshoreIsland', 'OffshoreControls', 'OffshoreCamera', 'WonderSchedule', 'PixelIsland', 'PixelControls']) {
   // Shared exports can make Rollup name a dynamic entry by its emitted chunk
   // instead of its original source path; check the same real dependency graph.
   const entry = Object.keys(manifest).find(key => key.endsWith(`/${name}.jsx`)

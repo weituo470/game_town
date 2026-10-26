@@ -209,12 +209,12 @@ test('drone observation: one existing town, private show clock, night lighting a
 
 function townHarness(mode, onReady) {
   const h = hooks();
-  const imports = ['./DuskScenery', './town/PlayerController', './town/SceneEffects', './town/SoftPenumbra', './town/characters/Residents', './town/landmarks/LandmarkFountain.jsx', './town/TownSky.jsx', './town/TownEnvironment.jsx', './town/WonderIslands.jsx', './town/GptPark.jsx', './town/DeepSeekPark.jsx', './town/GeneratedPlayerModel.jsx', './town/OutdoorScenery.jsx', './town/JetpackRig.jsx', './island/IslandGate.jsx', './metro/MetroGate.jsx'];
+  const imports = ['./DuskScenery', './town/PlayerController', './town/SceneEffects', './town/SoftPenumbra', './town/characters/Residents', './town/landmarks/LandmarkFountain.jsx', './town/TownSky.jsx', './town/TownEnvironment.jsx', './town/WonderIslands.jsx', './town/GptPark.jsx', './town/DeepSeekPark.jsx', './town/GeneratedPlayerModel.jsx', './town/OutdoorScenery.jsx', './town/JetpackRig.jsx', './island/IslandGate.jsx', './metro/MetroGate.jsx', './pixel/PixelGate.jsx'];
   const overrides = Object.fromEntries(imports.map(id => [id, componentNamespace(id)]));
   overrides['./drone/DroneShow.jsx'] = componentNamespace('DroneShow');
   Object.assign(overrides, { react: h.react, '@react-three/fiber': { Canvas: 'TownCanvas', useFrame: callback => h.frames.push(callback) }, '@react-three/drei': { Html: 'Html', PerspectiveCamera: 'PerspectiveCamera', RoundedBox: 'RoundedBox' } });
   const town = evaluate('src/components/Town.jsx', overrides), timeRef = { current: 0 }, npcTimeRef = { current: 145000 };
-  const root = town.default({ viewMode: mode, timeRef, npcTimeRef, onReady }), rootNodes = elements(root);
+  const root = town.default({ viewMode: mode, active: mode !== 'pixel', timeRef, npcTimeRef, onReady }), rootNodes = elements(root);
   const sceneElement = rootNodes.find(n => typeof n.type === 'function' && n.props.npcTimeRef === npcTimeRef);
   assert.ok(sceneElement, 'town scene receives the shared show clock');
   return { rootNodes, sceneNodes: elements(sceneElement.type(sceneElement.props)), timeRef, npcTimeRef, frames: h.frames };
@@ -232,7 +232,7 @@ test('scene loading: readiness waits for the first rendered frame and announces 
   assert.equal(ready, 1);
 });
 test('integrated architecture: all modes retain one Canvas, one shared sky and environment, and one wonder group with independent lighting time', () => {
-  for (const mode of ['overview', 'follow', 'first-person', 'wonder', 'drone']) {
+  for (const mode of ['overview', 'follow', 'first-person', 'wonder', 'drone', 'sphere', 'offshore', 'island', 'metro', 'pixel']) {
     const { rootNodes, sceneNodes, timeRef, npcTimeRef } = townHarness(mode);
     assert.equal(rootNodes.filter(n => n.type === 'TownCanvas').length, 1);
     assert.equal(sceneNodes.filter(n => n.type === 'TownCanvas').length, 0);
@@ -240,9 +240,12 @@ test('integrated architecture: all modes retain one Canvas, one shared sky and e
     assert.equal(wonders.length, 1); assert.equal(wonders[0].props.timeRef, npcTimeRef); assert.equal(wonders[0].props.lightTimeRef, timeRef);
     assert.equal(sceneNodes.filter(n => n.type === './town/TownSky.jsx').length, 1);
     assert.equal(sceneNodes.filter(n => n.type === './town/TownEnvironment.jsx').length, 1);
-    assert.equal(sceneNodes.find(n => n.type === './town/SceneEffects').props.performanceMode, mode === 'drone' ? 'drone' : 'town');
+    assert.equal(sceneNodes.find(n => n.type === './town/SceneEffects').props.performanceMode, mode === 'drone' ? 'drone' : mode === 'pixel' ? 'pixel' : 'town');
+    const pixelGates = sceneNodes.filter(n => n.type === './pixel/PixelGate.jsx');
+    assert.equal(pixelGates.length, 1); assert.equal(pixelGates[0].props.viewMode, mode);
+    if (mode === 'pixel') assert.equal(rootNodes.find(n => n.type === 'TownCanvas').props.frameloop, 'always', 'offline private sandbox keeps its own controller animated while town inputs are disabled');
     const lenses = sceneNodes.filter(n => n.type === 'PerspectiveCamera');
-    assert.equal(lenses.length, ['follow', 'first-person', 'wonder', 'drone'].includes(mode) ? 1 : 0);
+    assert.equal(lenses.length, mode !== 'overview' ? 1 : 0);
     if (lenses.length) assert.equal(lenses[0].props.makeDefault, true);
   }
 });
